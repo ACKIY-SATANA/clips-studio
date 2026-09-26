@@ -169,6 +169,23 @@ def test_frames_of_a_video_not_processed_yet(env):
     assert client.get("/sources/frame").status_code == 400
 
 
+def test_a_cached_frame_is_made_once_and_stays_in_its_folder(tmp_path):
+    from sources.preview_frames import made_once
+
+    made = []
+
+    def make(part):
+        made.append(part)
+        part.write_bytes(b"jpeg")
+
+    out = made_once(tmp_path, "f.jpg", make)
+    assert out == tmp_path / "f.jpg" and out.read_bytes() == b"jpeg"
+    assert made_once(tmp_path, "f.jpg", make) == out and len(made) == 1
+    for name in ("../f.jpg", "a/../../f.jpg", str(tmp_path.parent / "f.jpg")):
+        with pytest.raises(ValueError):
+            made_once(tmp_path, name, make)
+
+
 def test_only_links_to_the_platforms_it_clips_from_are_opened(env):
     client = env[0]
     for url in ("http://127.0.0.1:8765/health", "file:///C:/Windows/win.ini", "https://example.com/v.mp4"):

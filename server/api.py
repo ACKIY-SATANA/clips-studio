@@ -1812,7 +1812,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             if r.returncode != 0 or not part.exists():
                 raise HTTPException(500, "could not read a frame from the source video")
 
-        return made_once(data_dir / "previews" / f"frame_{clip_id}_{round(when * 10)}.jpg", make)
+        return made_once(data_dir / "previews", f"frame_{clip_id}_{round(when * 10)}.jpg", make)
 
     @app.get("/clips/{clip_id}/source-frame")
     def clip_source_frame(clip_id: int, at: float = 0.5):

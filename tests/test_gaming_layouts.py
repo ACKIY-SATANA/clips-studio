@@ -218,9 +218,9 @@ def stream(tmp_path):
     pytest.importorskip("cv2")
     source = tmp_path / "stream.mp4"
     subprocess.run([_ffmpeg_or_skip(), "-v", "error",
-                    "-f", "lavfi", "-i", "color=c=blue:s=1920x1080:r=30:d=2,"
-                    "drawbox=x=0:y=0:w=480:h=360:color=red:t=fill,"
-                    "drawbox=x=1720:y=0:w=200:h=1080:color=green:t=fill",
+                    "-f", "lavfi", "-i", ",".join(["color=c=blue:s=1920x1080:r=30:d=2",
+                                                   "drawbox=x=0:y=0:w=480:h=360:color=red:t=fill",
+                                                   "drawbox=x=1720:y=0:w=200:h=1080:color=green:t=fill"]),
                     "-f", "lavfi", "-i", "sine=frequency=440:d=2",
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(source)],
                    check=True)

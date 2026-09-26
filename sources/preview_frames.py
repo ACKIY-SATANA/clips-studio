@@ -16,6 +16,7 @@ loopback-only relay that forwards FFmpeg's range requests over IPv4.
 """
 
 import hashlib
+import os
 import secrets
 import subprocess
 import threading
@@ -111,11 +112,20 @@ def _relayed(url: str, headers: dict) -> str:
 _making: dict[str, threading.Lock] = {}
 
 
-def made_once(out: Path, make) -> Path:
-    """`out`, made by make(part_path) only once however many requests ask for
-    it at the same moment (the layout editor asks for a frame and its
-    thumbnail together). The others wait and get the same file, and a file is
-    never replaced while it is being served: on Windows that fails outright."""
+def made_once(folder: Path, name: str, make) -> Path:
+    """`folder`/`name`, made by make(part_path) only once however many
+    requests ask for it at the same moment (the layout editor asks for a frame
+    and its thumbnail together). The others wait and get the same file, and a
+    file is never replaced while it is being served: on Windows that fails
+    outright.
+
+    The name comes from the request (a hash, a clip id, a moment), so it is
+    held to `folder`: nothing it could contain reaches outside it."""
+    base = os.path.normpath(folder)
+    target = os.path.normpath(os.path.join(base, name))
+    if not target.startswith(base + os.sep):
+        raise ValueError(f"{name!r} is not a file in {folder}")
+    out = Path(target)
     with _lock:
         lock = _making.setdefault(str(out), threading.Lock())
     with lock:
@@ -221,4 +231,4 @@ def frame(cache_dir: Path, at: float, *, url: str | None = None, path: Path | No
         if r.returncode != 0 or not part.exists() or part.stat().st_size == 0:
             raise NotFrameable("Couldn't read a frame at that point of the video. Try another one.")
 
-    return made_once(cache_dir / f"src_{key}.jpg", make)
+    return made_once(cache_dir, f"src_{key}.jpg", make)
