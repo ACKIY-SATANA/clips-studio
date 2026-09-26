@@ -60,6 +60,13 @@ hiddenimports += [
     "google_auth_oauthlib",
     "googleapiclient",
     "googleapiclient.discovery",
+    # Gaming / Reaction: imported only when the switch is on (core/pipeline.py).
+    "gaming.run",
+    "gaming.detect",
+    "gaming.layout",
+    "gaming.framing",
+    "gaming.compose",
+    "sources.preview_frames",
 ]
 
 # Config the app reads from disk at runtime. Prompts especially: they are
@@ -84,6 +91,9 @@ datas += [
     # and video/mascot_art.py is imported rather than scripts/, which is not
     # packaged at all.
     (str(ROOT / "assets" / "outro"), "assets/outro"),
+    # Gaming / Reaction's layouts and platform safe zones, read beside
+    # gaming/framing.py at runtime (the editor has its own checked copy).
+    (str(ROOT / "gaming" / "layouts.json"), "gaming"),
 ]
 
 # OpenCV Haar cascades. cv2 is a hidden import above, which ships the MODULE

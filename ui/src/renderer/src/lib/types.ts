@@ -193,11 +193,28 @@ export type FrameBox = [number, number, number, number]
 /** A clip's Gaming / Reaction settings: the streamer's webcam in one half,
  *  the game (or the video being reacted to) in the other. */
 export interface GamingSettings {
+  /** The layout (gaming/layouts.json): split, basecam, half, fullscreen,
+   *  blurred, small_cam, circle_cam, game_ui, mosaic, dual_cam, duo_split. */
+  preset?: string
+  /** Which goes on top in a stacked layout. */
+  order?: 'cam_top' | 'game_top'
+  /** The webcam band's share of the height, within the layout's range. */
+  divider?: number
+  /** The platform whose UI the streamer's face is kept clear of. */
+  safe?: string
+  /** A piece of the game's UI (Game UI, Mosaic), drawn by hand. */
+  ui_box?: FrameBox | null
+  /** A second webcam (Dual facecam, Duo split), drawn by hand. */
+  cam2?: FrameBox | null
+  /** Written by the render: the layout it could draw, and the face check. */
+  used_preset?: string
+  face?: { top: boolean; bottom: boolean }
   /** The webcam; null = no webcam (the game fills the screen). */
   cam?: FrameBox | null
   /** Who decided the webcam: drawn for this clip, remembered for the creator,
    *  found across the video, or to be found in this clip alone. */
   by?: 'user' | 'creator' | 'video' | 'clip'
+  /** From before layouts: 'bottom' was the game on top. */
   cam_position?: 'top' | 'bottom'
   game_align?: 'left' | 'center' | 'right'
   /** The game drawn by hand; absent = found beside the webcam. */

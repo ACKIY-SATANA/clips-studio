@@ -3,7 +3,8 @@ import { api } from '../../lib/api'
 import type { CaptionStyle, JobOptions } from '../../lib/types'
 import CaptionStyleControls, { DEFAULT_CAPTION_STYLE } from '../CaptionStyleControls'
 import BrandingEditor, { setWatermarkEnabled, watermarkSelection } from '../WatermarkCard'
-import GamingRegions from '../GamingRegions'
+import GamingLayoutEditor from '../GamingLayoutEditor'
+import { PRESETS } from '../../lib/gamingLayout'
 import { Folder, Trash } from '../icons'
 import { t } from '../../lib/i18n'
 
@@ -583,11 +584,16 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
 
             {slot.options.gaming && (
               <div className="flex items-center gap-3 flex-wrap mt-2 text-xs">
-                <span className="label shrink-0">{t('Split')}</span>
+                <span className="label shrink-0">{t('Layout')}</span>
                 <span className="text-muted">
                   {slot.options.gaming_layout
-                    ? `${t('Set up by you')}${slot.options.gaming_remember ? ` · ${t('remembered for the creator')}` : ''}`
-                    : t('Found automatically. Check it on the video’s own frames before processing.')}
+                    ? `${t(PRESETS[slot.options.gaming_layout.preset ?? 'half']?.label ?? 'Split')}${
+                        slot.options.gaming_layout.order === 'game_top' &&
+                        PRESETS[slot.options.gaming_layout.preset ?? 'half']?.type === 'stack'
+                          ? ` · ${t('game on top')}`
+                          : ''
+                      }${slot.options.gaming_remember ? ` · ${t('remembered for the creator')}` : ''}`
+                    : t('Not chosen yet: pick a layout on the video’s own frames before processing.')}
                 </span>
                 <button
                   className="btn-ghost !py-1 shrink-0"
@@ -595,13 +601,13 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
                   title={!slot.path && !slot.url.trim() ? t('Paste a link or add a file first') : undefined}
                   onClick={() => setSplitFor(slot.key)}
                 >
-                  {slot.options.gaming_layout ? t('Change split…') : t('Set up split…')}
+                  {slot.options.gaming_layout ? t('Change layout…') : t('Choose layout…')}
                 </button>
               </div>
             )}
             {splitFor === slot.key && (
-              <GamingRegions
-                frameAt={(at) => api.videoFrameUrl(slot.path ? { path: slot.path } : { url: slot.url.trim() }, at)}
+              <GamingLayoutEditor
+                source={slot.path ? { path: slot.path } : { url: slot.url.trim() }}
                 context="video"
                 settings={slot.options.gaming_layout ?? {}}
                 remember={Boolean(slot.options.gaming_remember)}

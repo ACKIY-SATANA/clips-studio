@@ -12,20 +12,29 @@ were often broken in a way that only showed up on somebody else's machine.
 
 ### Added
 
-- **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam in
-  one half of the Short, the game (or the video they're reacting to) in the other; with no
-  webcam, the game on its own. The game is shown whole on a blurred copy of itself rather
-  than black bars, or zoomed to fill. Tick **Gaming / Reaction** and **Set up the split**
-  opens on five frames of that video before anything is processed: draw the webcam and the
-  game area (or let Clips Kitty find the webcam), put the camera on top or at the bottom,
-  and see the 9:16 result live. Remembered per creator if you want.
-  - Found automatically, the streamer is whoever TalkNet says is talking in sync with the
-    audio, across several clips of the video: never the biggest face, so game characters,
-    portraits and the people in a watched video aren't taken for the streamer. Tested on
-    13 streams including World of Warcraft, Zelda, GTA V and League of Legends
-    (docs/GAMING.md has each result).
+- **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam and
+  the game (or the video they're reacting to) laid out together, in one of eleven layouts
+  like StreamLadder's: Split, Basecam (game on top), Half, Fullscreen, Blurred, Small or
+  Circle facecam, Game UI, Mosaic, Dual facecam and Duo split. With no webcam, the game on
+  its own. Tick **Gaming / Reaction** and **Choose a layout** opens on the video's own
+  frames before anything is processed: pick a layout from cards that show this video in
+  each, drag and resize the webcam and game boxes, choose Camera or Game on top, drag the
+  line between them, and see the 9:16 result live. Remembered per creator if you want.
+  - Faces stay clear of TikTok's, Reels' and Shorts' buttons and captions. The webcam is
+    placed from where the streamer's head is, and the preview shows the chosen platform's
+    UI with "✓ Face clear", or what to change. A webcam with no room above the head is
+    moved down on a blur, never cut off at the top.
+  - A whole game sits at the top or bottom edge of its part of the Short, filled out with
+    a blurred copy of itself: no black bars, and not floating in the middle.
+  - When the editor opens, a webcam is suggested: the same person in the same framed spot
+    across the video. Found automatically when processing, the streamer is whoever TalkNet
+    says is talking in sync with the audio, across several clips of the video: never the
+    biggest face, so game characters, portraits and the people in a watched video aren't
+    taken for the streamer. Tested on 13 streams including World of Warcraft, Zelda, GTA V
+    and League of Legends (docs/GAMING.md has each result).
   - The webcam box stops just inside the webcam's own border: no chat or panel beside it.
-  - The clip editor's Effects tab has the same controls (Layout → **Split**) to fix one clip.
+  - The clip editor's Effects tab has the same editor (Layout → **Gaming / Reaction** →
+    **Change layout…**) to change one clip.
   - In gaming mode the "person on screen" part of the score is left neutral, so top-down
     games like League and Dota are no longer scored as having nobody in them.
   - For streamers on a real camera; VTubers aren't supported.
@@ -190,6 +199,12 @@ were often broken in a way that only showed up on somebody else's machine.
   the box you type into stays on screen.
 
 ### Fixed
+
+- **Editing a clip can no longer lose it.** Applying edits deleted the clip
+  before rendering the new version and put it back afterwards, so a render
+  that failed, or closing the app halfway through one, lost the clip and its
+  translations for good. The clip is now only replaced once the new version
+  has rendered.
 
 - **The Dashboard's Donate button lines up with Start posting everywhere
   again.** The posting card's text grew, and the Donate button beside it
