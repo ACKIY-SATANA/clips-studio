@@ -635,26 +635,26 @@ export default function Settings(): JSX.Element {
       <YouTubeCard />
       <UploadPostCard />
 
-      <BrandingCard />
-
-      {/* For the few with more than one PC. Collapsed, and last: most people
+      {/* For the few with more than one PC, near the bottom: most people
           never need it, and nothing it controls shows anywhere else until
           it is switched on. */}
-      <details className="card group">
-        <summary className="cursor-pointer select-none font-semibold">
+      <div className="card space-y-3">
+        <h3 className="font-semibold">
           {t('Advanced settings')}{' '}
           <span className="text-xs font-normal text-muted">{t('For multi-PC setups')}</span>
-        </summary>
-        <div className="mt-4">
-          <RemoteRenderCard />
-        </div>
-      </details>
+        </h3>
+        <RemoteRenderCard />
+      </div>
 
       <div className="card text-sm text-muted">
         Local models are managed on the <span className="text-ink">Models</span> page; where the AI runs
         is chosen under AI above. Advanced options (scoring weights, tracking, captions) live in{' '}
         <code>config/settings.yaml</code>.
       </div>
+
+      {/* The very last thing on the page, on purpose: it is here for someone
+          who goes looking for it, not something to walk everyone past. */}
+      <BrandingCard />
     </div>
   )
 }
