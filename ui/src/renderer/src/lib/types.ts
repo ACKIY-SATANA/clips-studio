@@ -223,6 +223,8 @@ export interface GamingSettings {
   game_fit?: 'fit' | 'fill'
   /** The stream's solid panels (a black chat bar, a splits timer), kept out of the game. */
   panels?: FrameBox[]
+  /** Where the facecams and the Game UI were put on the Short: fractions of its width and height. */
+  places?: Partial<Record<'cam' | 'cam2' | 'ui', FrameBox>>
   /** Written by the render: what the clip actually got. */
   layout?: 'split' | 'fill'
   used_cam?: FrameBox | null

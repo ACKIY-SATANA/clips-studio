@@ -36,7 +36,7 @@
       "pip_width": 0.38, "pip_aspect": 1.0, "shape": "circle", "game_fit": "fill"
     },
     "game_ui": {
-      "label": "Game UI", "type": "stack", "rows": [["cam"], ["ui"], ["game"]],
+      "label": "Game UI", "type": "stack", "rows": [["cam"], ["game"]], "overlay": ["ui"],
       "divider": [0.25, 0.45, 0.33], "ui_share": 0.12, "order": "cam_top", "game_fit": "fill"
     },
     "mosaic": {
@@ -45,7 +45,7 @@
     },
     "dual_cam": {
       "label": "Dual facecam", "type": "pip", "cams": ["cam", "cam2"],
-      "pip_width": 0.4, "pip_aspect": 1.25, "shape": "rect", "game_fit": "fill"
+      "pip_width": 0.38, "pip_aspect": 1.0, "shape": "circle", "game_fit": "fill"
     },
     "duo_split": {
       "label": "Duo split", "type": "stack", "rows": [["cam", "cam2"], ["game"]],

@@ -51,6 +51,14 @@ def _cases():
         s = {"preset": preset, "cam": cam, "order": order, "game_fit": fit, "game_align": align, "panels": panels,
              "ui_box": [0.3, 0.0, 0.4, 0.08], "cam2": [0.75, 0.0, 0.25, 0.3]}
         cases.append((1920, 1080, s, {}))
+    # Layers placed on the Short: facecams (their shape kept, two always the
+    # same size) and the Game UI, including ones dragged off the edge.
+    places = [{"cam": [0.5, 0.6, 0.3, 0.9]}, {"cam": [0.95, 0.99, 0.5, 0.5], "cam2": [0.1, 0.1, 0.2, 0.2]},
+              {"cam": [0.1, 0.1, 0.01, 0.01], "ui": [0.1, 0.8, 0.5, 0.06]}, {"ui": [0.6, 0.0, 0.9, 0.3]}]
+    for place, preset, order in itertools.product(places, sorted(layout.PRESETS), ("cam_top", "game_top")):
+        s = {"preset": preset, "cam": BOXES["corner"], "order": order, "places": place,
+             "ui_box": [0.3, 0.0, 0.4, 0.08], "cam2": [0.75, 0.0, 0.25, 0.3]}
+        cases.append((1920, 1080, s, {"cam": HEADS["corner"]}))
     cases += [
         (1920, 1080, {"preset": "split", "cam": None}, {}),
         (1920, 1080, {"preset": "split", "cam": BOXES["corner"], "game_box": [0.17, 0.0, 0.83, 0.83]}, {}),

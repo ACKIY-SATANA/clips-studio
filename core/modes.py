@@ -119,6 +119,11 @@ def clean_gaming(settings: dict | None) -> dict:
         # The stream's solid panels, as found (gaming/panels.py): a few boxes.
         panels = [_unit_box(b) for b in settings["panels"][:8]]
         out["panels"] = [b for b in panels if b is not None]
+    if isinstance(settings.get("places"), dict):
+        # Where the facecams and the Game UI were put on the Short (fractions
+        # of its width and height).
+        places = {k: _unit_box(v) for k, v in settings["places"].items() if k in ("cam", "cam2", "ui")}
+        out["places"] = {k: v for k, v in places.items() if v is not None}
     return out
 
 

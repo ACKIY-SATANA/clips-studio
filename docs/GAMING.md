@@ -29,11 +29,11 @@ All of them are data (`gaming/layouts.json`), not code.
 | **Half** | Webcam and game 50/50. | Webcam, Game |
 | **Fullscreen** | The game cropped to fill the Short, no webcam. | Game |
 | **Blurred** | The whole game in the middle, on a blurred copy of itself. | Game |
-| **Small facecam** | The game fills the Short, a small webcam near the top. | Webcam, Game |
+| **Small facecam** | The game fills the Short, a small webcam near the top; move and resize it on the preview. | Webcam, Game |
 | **Circle facecam** | The same with a round webcam. | Webcam, Game |
-| **Game UI** | Webcam on top, a strip of game UI (a scoreboard, a map, a timer), the game below. | Webcam, Game UI, Game |
+| **Game UI** | Webcam on top, the game below, and a piece of the game's UI (a scoreboard, a map, a timer) as a layer over the game: against the webcam to start, moved and resized on the preview. | Webcam, Game UI, Game |
 | **Mosaic** | Webcam and a game UI panel side by side on top, the game below. | Webcam, Game UI, Game |
-| **Dual facecam** | The game fills the Short, two small webcams near the top (duo streams). | Webcam, Webcam 2, Game |
+| **Dual facecam** | The game fills the Short, two round webcams near the top (duo streams), always the same size. | Webcam, Webcam 2, Game |
 | **Duo split** | Two webcams side by side on top, the game below. | Webcam, Webcam 2, Game |
 
 **On top** switches the webcam and the game in Split, Half, Game UI, Mosaic and
@@ -112,7 +112,12 @@ file) and **Choose a layout** opens:
   (nothing is downloaded for a link; each frame is read straight from the
   stream);
 - **Preview**: the 9:16 result, live, with the platform overlay and the face
-  check. Drag the line between the webcam and the game to change their shares;
+  check. Drag the line between the webcam and the game to change their shares.
+  In the facecam layouts drag the facecam on the preview to move it and its
+  corner to resize it (it keeps its shape; two facecams resize together), and
+  the same for the Game UI layer. **Reset** puts them back. The Game UI in
+  Mosaic and Game UI is cut to its space's shape, like every other part: no
+  blur round it;
 - **On top**: Camera or Game. **Webcam**: *Draw it* (the default: the box on
   the frame), *Find it* (by who is talking, when processing) or *None*.
   **Game**: *Whole* or *Zoom to fill* (and then Left, Centre or Right).

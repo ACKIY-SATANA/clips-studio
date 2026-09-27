@@ -143,11 +143,11 @@ export const LAYOUTS = {
           "cam"
         ],
         [
-          "ui"
-        ],
-        [
           "game"
         ]
+      ],
+      "overlay": [
+        "ui"
       ],
       "divider": [
         0.25,
@@ -185,9 +185,9 @@ export const LAYOUTS = {
         "cam",
         "cam2"
       ],
-      "pip_width": 0.4,
-      "pip_aspect": 1.25,
-      "shape": "rect",
+      "pip_width": 0.38,
+      "pip_aspect": 1.0,
+      "shape": "circle",
       "game_fit": "fill"
     },
     "duo_split": {

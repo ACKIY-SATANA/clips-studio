@@ -41,7 +41,8 @@ def test_every_layout_stays_on_the_canvas_in_even_sizes(preset):
 @pytest.mark.parametrize("preset", [k for k, v in layout.PRESETS.items() if v["type"] == "stack"])
 def test_stacked_rows_meet_exactly_top_to_bottom(preset):
     p = _plan(preset, ui_box=[0.3, 0.0, 0.4, 0.08], cam2=[0.75, 0.0, 0.25, 1 / 3])
-    edges = sorted({(e.dest[1], e.dest[1] + e.dest[3]) for e in p.elements})
+    edges = sorted({(e.dest[1], e.dest[1] + e.dest[3]) for e in p.elements
+                    if e.role not in layout.PRESETS[preset].get("overlay", [])})
     assert edges[0][0] == 0 and edges[-1][1] == 1920
     assert all(a[1] == b[0] for a, b in zip(edges, edges[1:]))
 
@@ -73,7 +74,8 @@ def test_a_whole_game_sits_right_against_the_webcam_with_the_blur_above_and_belo
             continue
         p = _plan(preset, game_fit="fit", order=order, safe=safe, ui_box=[0.3, 0, 0.4, 0.08],
                   cam2=[0.75, 0.7, 0.25, 0.3])
-        rows = sorted({(e.dest[1], e.dest[1] + e.dest[3]) for e in p.elements if e.role != "bg"})
+        rows = sorted({(e.dest[1], e.dest[1] + e.dest[3]) for e in p.elements
+                       if e.role != "bg" and e.role not in spec.get("overlay", [])})
         assert all(a[1] == b[0] for a, b in zip(rows, rows[1:])), preset          # no gap anywhere
         top, below = rows[0][0], 1920 - rows[-1][1]
         # Above: up to the top bar's height; the rest below. With less spare
@@ -175,6 +177,58 @@ def test_a_small_facecam_sits_inside_the_platforms_safe_zone():
                     assert e.dest[1] >= zone["top"] and e.dest[0] >= zone["left"], (preset, safe)
                     assert e.dest[0] + e.dest[2] <= 1080 - zone["right"] or preset == "dual_cam", (preset, safe)
     assert _plan("circle_cam").element("cam").shape == "circle"
+
+
+UI = [0.3, 0.0, 0.4, 0.08]
+
+
+@pytest.mark.parametrize("preset", ["game_ui", "mosaic"])
+def test_the_game_ui_is_cut_to_its_space_with_no_blur_round_it(preset):
+    e = _plan(preset, ui_box=UI).element("ui")
+    assert e.fit == "cover"
+    assert abs(e.src[2] / e.src[3] - e.dest[2] / e.dest[3]) < 0.05       # the same shape: nothing to fill
+
+
+def test_the_game_ui_layer_sits_on_the_game_against_the_webcam_until_it_is_moved():
+    for order in ("cam_top", "game_top"):
+        p = _plan("game_ui", ui_box=UI, order=order)
+        ui, game = p.element("ui").dest, p.element("game").dest
+        assert ui[0] == 0 and ui[2] == 1080
+        assert ui[1] == game[1] if order == "cam_top" else ui[1] + ui[3] == game[1] + game[3]
+        assert p.elements[-1].role == "ui"                                  # drawn over the game
+    moved = _plan("game_ui", ui_box=UI, places={"ui": [0.1, 0.8, 0.5, 0.06]}).element("ui")
+    assert moved.dest == (108, 1536, 540, 114)
+    assert abs(moved.src[2] / moved.src[3] - 540 / 114) < 0.05
+
+
+@pytest.mark.parametrize("preset,aspect", [("small_cam", 1.6), ("circle_cam", 1.0)])
+def test_a_facecam_moved_and_resized_on_the_short_keeps_its_shape(preset, aspect):
+    e = _plan(preset, places={"cam": [0.5, 0.6, 0.3, 0.9]}).element("cam")
+    x, y, w, h = e.dest
+    assert (x, y, w) == (540, 1152, 324) and abs(w / h - aspect) < 0.02
+    off = _plan(preset, places={"cam": [0.95, 0.99, 0.5, 0.5]}).element("cam").dest
+    assert off[0] + off[2] <= 1080 and off[1] + off[3] <= 1920                 # kept on the Short
+    tiny = _plan(preset, places={"cam": [0.1, 0.1, 0.01, 0.01]}).element("cam").dest
+    assert tiny[2] >= layout.MIN_PLACE * 1080 - 2
+
+
+def test_dual_facecam_is_two_circles_always_the_same_size():
+    cam2 = [0.75, 0.0, 0.25, 0.3]
+    p = _plan("dual_cam", cam2=cam2)
+    a, b = p.element("cam"), p.element("cam2")
+    assert a.shape == b.shape == "circle" and a.dest[2:] == b.dest[2:] and a.dest[2] == a.dest[3]
+    p = _plan("dual_cam", cam2=cam2, places={"cam": [0.1, 0.1, 0.45, 0.3], "cam2": [0.6, 0.1, 0.2, 0.2]})
+    assert p.element("cam").dest[2:] == p.element("cam2").dest[2:] == (486, 486)
+    d = _plan("duo_split", cam2=cam2)
+    assert d.element("cam").dest[2:] == d.element("cam2").dest[2:]
+
+
+def test_placements_from_the_editor_are_checked():
+    from core import modes
+
+    got = modes.clean_gaming({"places": {"cam": [0.1, 0.2, 0.3, 0.3], "ui": [0.0, 0.5, 1.0, 0.1],
+                                         "game": [0, 0, 1, 1], "cam2": "nope"}})
+    assert got["places"] == {"cam": [0.1, 0.2, 0.3, 0.3], "ui": [0.0, 0.5, 1.0, 0.1]}
 
 
 # ---- the streamer's face -----------------------------------------------------------------

@@ -14,6 +14,9 @@ const HEADROOM = LAYOUTS.headroom
 const MAX_SHIFT = 0.3
 const PIP_GAP = 24
 const PIP_MARGIN = 0.02
+export const MIN_PLACE = 0.12
+/** Layers moved and resized on the Short itself. */
+export type Placeable = 'cam' | 'cam2' | 'ui'
 
 /** [x, y, w, h] in pixels (source or canvas). */
 export type PxBox = [number, number, number, number]
@@ -58,6 +61,8 @@ export interface LayoutSettings {
   game_box?: FrameBox | null
   ui_box?: FrameBox | null
   panels?: FrameBox[]
+  /** Where the user put the facecams and the Game UI on the Short (fractions of it). */
+  places?: Partial<Record<Placeable, FrameBox>>
   cam_position?: string
 }
 
@@ -67,6 +72,7 @@ type Spec = {
   rows?: readonly (readonly string[])[]
   divider?: readonly number[]
   ui_share?: number
+  overlay?: readonly string[]
   order?: string
   game_fit?: string
   cams?: readonly string[]
@@ -292,6 +298,28 @@ function zoom(srcW: number, srcH: number, aspect: number, align: string, cams: P
   return null
 }
 
+/** Every part a preset shows: rows, picture-in-picture webcams and overlays. */
+export function rolesOfSpec(spec: Spec): Set<string> {
+  return new Set<string>([...(spec.rows ?? []).flat(), ...(spec.cams ?? []), ...(spec.overlay ?? [])])
+}
+
+/** A layer placed on the Short, as even canvas px kept on the canvas; with
+ *  `aspect` its height follows its width (layout._placed). */
+export function placed(box: FrameBox, aspect: number | null = null): PxBox {
+  let w = Math.min(Math.max(box[2], MIN_PLACE), 1) * OUT_W
+  let h: number
+  if (aspect) {
+    h = w / aspect
+    if (h > OUT_H) {
+      h = OUT_H
+      w = OUT_H * aspect
+    }
+  } else h = Math.min(Math.max(box[3], 0.02), 1) * OUT_H
+  const x = Math.min(Math.max(box[0] * OUT_W, 0), OUT_W - w)
+  const y = Math.min(Math.max(box[1] * OUT_H, 0), OUT_H - h)
+  return [pos(x), pos(y), even(w), even(h)]
+}
+
 /** The preset that can actually be drawn with these settings (layout.resolve). */
 export function resolve(settings: LayoutSettings): LayoutSettings & { preset: string } {
   const s: LayoutSettings = { ...settings }
@@ -302,7 +330,7 @@ export function resolve(settings: LayoutSettings): LayoutSettings & { preset: st
     if (s.game_fit === undefined) s.game_fit = s.game_fit || 'fit'
   }
   const spec = PRESETS[preset]
-  const roles = new Set<string>([...(spec.rows ?? []).flat(), ...(spec.cams ?? [])])
+  const roles = rolesOfSpec(spec)
   if (roles.has('cam') && !s.cam) preset = 'blurred'
   else if (roles.has('ui') && !s.ui_box) preset = 'split'
   else if (roles.has('cam2') && !s.cam2) preset = ({ dual_cam: 'small_cam', duo_split: 'split' } as Record<string, string>)[preset] ?? preset
@@ -400,7 +428,8 @@ export function plan(
     if (box) camBoxes[role] = clampBox(box, srcW, srcH)
   }
   // The game keeps clear of the webcams this layout shows.
-  const uses = new Set<string>([...(spec.rows ?? []).flat(), ...(spec.cams ?? [])])
+  const uses = rolesOfSpec(spec)
+  const places = s.places ?? {}
   const shownCams = (['cam', 'cam2'] as const)
     .filter((r) => camBoxes[r] && (r === 'cam' || uses.has(r)))
     .map((r) => camBoxes[r] as PxBox)
@@ -420,7 +449,17 @@ export function plan(
     game([0, 0, OUT_W, OUT_H], 'center')
   } else if (spec.type === 'pip') {
     game([0, 0, OUT_W, OUT_H], 'center')
-    for (const [role, dest] of pipRegions(spec, safe)) camera(role as Role, dest, (spec.shape ?? 'rect') as Element['shape'])
+    let size: [number, number] | null = null
+    for (const [role, region] of pipRegions(spec, safe)) {
+      let dest = region
+      const put = places[role as Placeable]
+      if (put) dest = placed(put, spec.pip_aspect ?? 1)
+      if (size === null) size = [dest[2], dest[3]]
+      else if (dest[2] !== size[0] || dest[3] !== size[1])
+        // Two webcams are always the same size: the first one's.
+        dest = [Math.min(dest[0], OUT_W - size[0]), Math.min(dest[1], OUT_H - size[1]), size[0], size[1]]
+      camera(role as Role, dest, (spec.shape ?? 'rect') as Element['shape'])
+    }
   } else {
     let regions = stackRegions(spec, order, s.divider)
     let wholeGame: PxBox | null = null
@@ -436,9 +475,19 @@ export function plan(
     for (const [role, dest, anchor] of regions) {
       if (role === 'game') game(dest, anchor, wholeGame)
       else if (role === 'ui') {
+        // Cut to its space's shape, like every other part: no blur round it.
         const ui = clampBox(s.ui_box as FrameBox, srcW, srcH)
-        elements.push({ role: 'ui', src: ui, dest, fit: 'contain', anchor: 'center', shift: 0, shape: 'rect' })
+        elements.push({ role: 'ui', src: cover(ui, dest[2] / dest[3]), dest, fit: 'cover', anchor: 'center', shift: 0, shape: 'rect' })
       } else camera(role as Role, dest)
+    }
+    if ((spec.overlay ?? []).includes('ui')) {
+      // The Game UI layer: over the game, against the webcam, until it's moved.
+      const [, gy, , gh] = (elements.find((e) => e.role === 'game') as Element).dest
+      const h = even(OUT_H * (spec.ui_share ?? 0.12))
+      let dest: PxBox = [0, pos(order === 'cam_top' ? gy : gy + gh - h), OUT_W, h]
+      if (places.ui) dest = placed(places.ui)
+      const ui = clampBox(s.ui_box as FrameBox, srcW, srcH)
+      elements.push({ role: 'ui', src: cover(ui, dest[2] / dest[3]), dest, fit: 'cover', anchor: 'center', shift: 0, shape: 'rect' })
     }
   }
   return { preset, elements, order, safe: safeName }

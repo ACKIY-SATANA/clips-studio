@@ -42,6 +42,8 @@ ORDERS = ("cam_top", "game_top")
 FITS = ("fit", "fill")
 PIP_GAP = 24               # px between two picture-in-picture webcams
 PIP_MARGIN = 0.02          # of the canvas height, below the safe zone's top
+PLACEABLE = ("cam", "cam2", "ui")     # layers moved and resized on the Short itself
+MIN_PLACE = 0.12           # a placed layer is at least this much of the canvas width
 
 
 @dataclass(frozen=True)
@@ -250,7 +252,7 @@ def resolve(settings: dict) -> dict:
         s.setdefault("order", "game_top" if s.get("cam_position") == "bottom" else "cam_top")
         s.setdefault("game_fit", s.get("game_fit") or "fit")
     spec = PRESETS[preset]
-    roles = {r for row in spec.get("rows", []) for r in row} | set(spec.get("cams", []))
+    roles = _roles(spec)
     if "cam" in roles and not s.get("cam"):
         # No webcam: the game alone, whole on a blur. (Fullscreen is its own
         # choice; a zoomed 9:16 cut of a wide game loses most of it.)
@@ -261,6 +263,29 @@ def resolve(settings: dict) -> dict:
         preset = {"dual_cam": "small_cam", "duo_split": "split"}.get(preset, preset)
     s["preset"] = preset
     return s
+
+
+def _roles(spec: dict) -> set:
+    """Every part a preset shows: its rows, picture-in-picture webcams and overlays."""
+    return ({r for row in spec.get("rows", []) for r in row} | set(spec.get("cams", []))
+            | set(spec.get("overlay", [])))
+
+
+def _placed(box, aspect: float | None = None) -> tuple:
+    """A layer placed on the Short by the user (normalized x, y, w, h of the
+    canvas) as even canvas px, kept on the canvas. With `aspect` (a webcam's
+    shape: round, or the small facecam's), the height follows the width."""
+    x, y, w, h = (float(v) for v in box)
+    w = min(max(w, MIN_PLACE), 1.0) * OUT_W
+    if aspect:
+        h = w / aspect
+        if h > OUT_H:
+            h, w = OUT_H, OUT_H * aspect
+    else:
+        h = min(max(h, 0.02), 1.0) * OUT_H
+    x = min(max(x * OUT_W, 0.0), OUT_W - w)
+    y = min(max(y * OUT_H, 0.0), OUT_H - h)
+    return (_pos(x), _pos(y), _even(w), _even(h))
 
 
 def _stack_regions(spec: dict, order: str, divider: float, game_h: float | None = None,
@@ -333,9 +358,10 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
     """The layout for one clip.
 
     settings: a clip's gaming settings (gaming/run.py lists the keys):
-      preset, order, divider, safe, game_fit, game_align, and the normalized
+      preset, order, divider, safe, game_fit, game_align, the normalized
       boxes cam, cam2, game_box, ui_box and panels (the stream's solid panels,
-      gaming/panels.py).
+      gaming/panels.py), and places: where the user put the facecams and the
+      Game UI on the Short.
     heads: {"cam": (centre x, top, chin), ...} in source px, the streamer's
       head inside each webcam, for face-safe framing (gaming/framing.py).
     """
@@ -353,7 +379,8 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
     cam_boxes = {role: _clamp_box(s[role], src_w, src_h) for role in ("cam", "cam2") if s.get(role)}
     # The game keeps clear of the webcams this layout shows (a second webcam
     # drawn for another layout is just part of the picture here).
-    uses = {r for row in spec.get("rows", []) for r in row} | set(spec.get("cams", []))
+    uses = _roles(spec)
+    places = s.get("places") if isinstance(s.get("places"), dict) else {}
     shown_cams = [cam_boxes[r] for r in cam_boxes if r == "cam" or r in uses]
     panels = [_clamp_box(b, src_w, src_h) for b in (s.get("panels") or [])]
 
@@ -372,7 +399,15 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
         game((0, 0, OUT_W, OUT_H), "center")
     elif spec["type"] == "pip":
         game((0, 0, OUT_W, OUT_H), "center")
+        size = None
         for role, dest in _pip_regions(spec, safe):
+            if places.get(role):
+                dest = _placed(places[role], spec["pip_aspect"])
+            if size is None:
+                size = dest[2:]
+            elif dest[2:] != size:
+                # Two webcams are always the same size: the first one's.
+                dest = (min(dest[0], OUT_W - size[0]), min(dest[1], OUT_H - size[1]), *size)
             camera(role, dest, spec.get("shape", "rect"))
     else:
         regions = _stack_regions(spec, order, s.get("divider"))
@@ -389,8 +424,19 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
             if role == "game":
                 game(dest, anchor, whole)
             elif role == "ui":
+                # Cut to its space's shape, like every other part: no blur round it.
                 ui = _clamp_box(s["ui_box"], src_w, src_h)
-                elements.append(Element("ui", ui, dest, "contain", "center"))
+                elements.append(Element("ui", _cover(ui, dest[2] / dest[3]), dest, "cover"))
             else:
                 camera(role, dest)
+        if "ui" in spec.get("overlay", []):
+            # The Game UI layer: over the game, against the webcam, until it's
+            # moved or resized on the Short.
+            gx, gy, gw, gh = next(e.dest for e in elements if e.role == "game")
+            h = _even(OUT_H * spec.get("ui_share", 0.12))
+            dest = (0, _pos(gy if order == "cam_top" else gy + gh - h), OUT_W, h)
+            if places.get("ui"):
+                dest = _placed(places["ui"])
+            ui = _clamp_box(s["ui_box"], src_w, src_h)
+            elements.append(Element("ui", _cover(ui, dest[2] / dest[3]), dest, "cover"))
     return Plan(preset, tuple(elements), order, safe_name)

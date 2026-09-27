@@ -33,6 +33,9 @@ were often broken in a way that only showed up on somebody else's machine.
   - The editor opens with the webcam and game boxes already on the frame to drag, as in
     StreamLadder: **Draw it** is the default, and the webcam box moves onto the webcam
     when Clips Kitty finds one.
+  - On the preview, as in StreamLadder: drag the small or round facecam to move it and its
+    corner to resize it, and the same for the Game UI layer. Dual facecam is two round
+    webcams, always the same size. The Game UI is cut to its space, with no blur round it.
   - When the editor opens, a webcam is suggested: the same person in the same framed spot
     across the video. Found automatically when processing, the streamer is whoever TalkNet
     says is talking in sync with the audio, across several clips of the video: never the

@@ -13,6 +13,7 @@ import {
   type GamingPlan,
   type Head,
   type LayoutSettings,
+  type Placeable,
   type PxBox
 } from '../lib/gamingLayout'
 import { t } from '../lib/i18n'
@@ -34,6 +35,8 @@ import type { FrameBox, GamingSettings } from '../lib/types'
 type BoxRole = 'cam' | 'cam2' | 'game' | 'ui'
 type CamMode = 'auto' | 'draw' | 'none'
 type Drag = { role: BoxRole; mode: 'move' | 'nw' | 'se'; ox: number; oy: number; box: FrameBox }
+/** A layer being moved or resized on the preview, in canvas px. */
+type LayerDrag = { role: Placeable; mode: 'move' | 'se'; ox: number; oy: number; dest: PxBox }
 
 const CARD_ORDER = [
   'split',
@@ -63,7 +66,7 @@ const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.m
 
 const rolesOf = (preset: string): Set<string> => {
   const spec = PRESETS[preset]
-  return new Set<string>([...(spec.rows ?? []).flat(), ...(spec.cams ?? []), 'game'])
+  return new Set<string>([...(spec.rows ?? []).flat(), ...(spec.cams ?? []), ...(spec.overlay ?? []), 'game'])
 }
 
 /** How much of box `a` lies inside box `b` (normalized x, y, w, h). */
@@ -233,6 +236,10 @@ export default function GamingLayoutEditor({
   // The stream's solid panels (a black chat bar, a splits timer): the game
   // crop keeps them out. Found by the engine; drawing the game area overrides.
   const [panels, setPanels] = useState<FrameBox[] | undefined>(settings.panels)
+  // Where the facecams and the Game UI were put on the Short, as in
+  // StreamLadder: dragged and resized on the preview.
+  const [places, setPlaces] = useState<Partial<Record<Placeable, FrameBox>>>(settings.places ?? {})
+  const layerDrag = useRef<LayerDrag | null>(null)
   const [remember, setRemember] = useState(rememberInitially)
   const [active, setActive] = useState<BoxRole>('cam')
   const [at, setAt] = useState(context === 'video' ? FRAMES[1] : 0.5)
@@ -303,7 +310,8 @@ export default function GamingLayoutEditor({
     cam2: boxes.cam2,
     game_box: boxes.game,
     ui_box: boxes.ui,
-    panels
+    panels,
+    places
   })
 
   // The streamer's head on this frame: the surest person inside the webcam.
@@ -337,6 +345,7 @@ export default function GamingLayoutEditor({
     if (role === 'game' && !boxes.game) setBox('game', box)
     if (role === 'cam') camTouched.current = true
     e.stopPropagation()
+    e.preventDefault()
     setActive(role)
     const q = pos(e)
     drag.current = { role, mode, ox: q.x, oy: q.y, box: [...box] as FrameBox }
@@ -365,7 +374,56 @@ export default function GamingLayoutEditor({
   const PW = 234
   const k = PW / OUT_W
   const dividerY = camEl && canDivide ? (order === 'cam_top' ? camEl.dest[1] + camEl.dest[3] : camEl.dest[1]) : null
+  // Layers on the preview: the facecams of the picture-in-picture layouts and
+  // the Game UI. A facecam keeps its shape; two are always the same size.
+  const layerRoles = new Set<string>([...(spec.type === 'pip' ? spec.cams ?? [] : []), ...(spec.overlay ?? [])])
+  const layers = p.elements.filter((e) => layerRoles.has(e.role))
+  const startLayer = (e: React.PointerEvent, role: Placeable, mode: LayerDrag['mode']): void => {
+    const el = elementOf(p, role)
+    if (!el || !previewRef.current) return
+    e.stopPropagation()
+    e.preventDefault()          // a drag, not a text selection
+    const r = previewRef.current.getBoundingClientRect()
+    layerDrag.current = {
+      role,
+      mode,
+      ox: ((e.clientX - r.left) / r.width) * OUT_W,
+      oy: ((e.clientY - r.top) / r.height) * OUT_H,
+      dest: [...el.dest] as PxBox
+    }
+    previewRef.current.setPointerCapture(e.pointerId)
+  }
+  const moveLayer = (e: React.PointerEvent): void => {
+    const d = layerDrag.current
+    if (!d || !previewRef.current) return
+    const r = previewRef.current.getBoundingClientRect()
+    const dx = ((e.clientX - r.left) / r.width) * OUT_W - d.ox
+    const dy = ((e.clientY - r.top) / r.height) * OUT_H - d.oy
+    const [x, y, w, h] = d.dest
+    const aspect = d.role === 'ui' ? null : spec.pip_aspect ?? 1
+    let next: PxBox
+    if (d.mode === 'move') next = [clamp(x + dx, 0, OUT_W - w), clamp(y + dy, 0, OUT_H - h), w, h]
+    else {
+      const nw = clamp(w + dx, 0.12 * OUT_W, OUT_W - x)
+      next = [x, y, nw, aspect ? nw / aspect : clamp(h + dy, 0.02 * OUT_H, OUT_H - y)]
+    }
+    const norm = (b: PxBox): FrameBox => [b[0] / OUT_W, b[1] / OUT_H, b[2] / OUT_W, b[3] / OUT_H]
+    setPlaces((was) => {
+      const out = { ...was, [d.role]: norm(next) }
+      if (d.mode === 'se' && d.role !== 'ui') {
+        // Two facecams are always the same size.
+        const other: Placeable = d.role === 'cam' ? 'cam2' : 'cam'
+        const oe = elementOf(p, other)
+        if (oe) out[other] = norm([oe.dest[0], oe.dest[1], next[2], next[3]])
+      }
+      return out
+    })
+  }
   const onPreviewMove = (e: React.PointerEvent): void => {
+    if (layerDrag.current) {
+      moveLayer(e)
+      return
+    }
     if (!dividerDrag.current || !previewRef.current || !spec.divider) return
     const r = previewRef.current.getBoundingClientRect()
     const y = ((e.clientY - r.top) / r.height) * OUT_H
@@ -411,6 +469,7 @@ export default function GamingLayoutEditor({
     if (divider !== undefined) out.divider = Math.round(divider * 1000) / 1000
     if (boxes.game) out.game_box = boxes.game
     if (panels !== undefined) out.panels = panels
+    if (Object.keys(places).length > 0) out.places = places
     if (roles.has('ui') && boxes.ui) out.ui_box = boxes.ui
     if (roles.has('cam2') && boxes.cam2) out.cam2 = boxes.cam2
     if (camMode === 'draw' && boxes.cam) Object.assign(out, { cam: boxes.cam, by: 'user' })
@@ -469,7 +528,7 @@ export default function GamingLayoutEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 select-none"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -721,8 +780,14 @@ export default function GamingLayoutEditor({
               className="relative rounded-lg overflow-hidden touch-none"
               style={{ width: PW, height: OUT_H * k }}
               onPointerMove={onPreviewMove}
-              onPointerUp={() => (dividerDrag.current = false)}
-              onPointerCancel={() => (dividerDrag.current = false)}
+              onPointerUp={() => {
+                dividerDrag.current = false
+                layerDrag.current = null
+              }}
+              onPointerCancel={() => {
+                dividerDrag.current = false
+                layerDrag.current = null
+              }}
             >
               {loaded ? (
                 <Composition p={p} frameUrl={frameUrl} src={src} width={PW} placeholderCam={camUnknown} />
@@ -749,6 +814,24 @@ export default function GamingLayoutEditor({
                   />
                 </>
               )}
+              {loaded &&
+                layers.map((e) => {
+                  const [x, y, w, h] = e.dest.map((v) => v * k)
+                  return (
+                    <div
+                      key={`layer-${e.role}`}
+                      className="absolute cursor-move border border-dashed border-white/80 hover:border-white"
+                      style={{ left: x, top: y, width: w, height: h, borderRadius: e.shape === 'circle' ? '50%' : undefined }}
+                      onPointerDown={(ev) => startLayer(ev, e.role as Placeable, 'move')}
+                      title={t('Drag to move; drag the corner to resize')}
+                    >
+                      <span
+                        className="absolute -right-1.5 -bottom-1.5 w-3.5 h-3.5 rounded-sm bg-white shadow cursor-nwse-resize"
+                        onPointerDown={(ev) => startLayer(ev, e.role as Placeable, 'se')}
+                      />
+                    </div>
+                  )
+                })}
               {dividerY !== null && (
                 <div
                   className="absolute left-0 right-0 h-3 -mt-1.5 cursor-ns-resize flex items-center justify-center"
@@ -767,6 +850,19 @@ export default function GamingLayoutEditor({
               <p className={faceText.startsWith('⚠') ? 'text-amber-400' : faceText.startsWith('✓') ? 'text-accent' : 'text-muted'}>
                 {faceText}
               </p>
+            )}
+            {layers.length > 0 && (
+              <div className="flex items-center gap-2">
+                <p className="text-muted flex-1">
+                  {t('Drag')} {layers.some((e) => e.role === 'ui') ? t('the Game UI') : t('the facecam')}{' '}
+                  {t('on the preview to move it, its corner to resize it.')}
+                </p>
+                {layers.some((e) => places[e.role as Placeable]) && (
+                  <button className="btn-ghost !py-0.5 !px-2 text-xs shrink-0" onClick={() => setPlaces({})}>
+                    {t('Reset')}
+                  </button>
+                )}
+              </div>
             )}
             {shownPreset !== preset && (
               <p className="text-amber-400">

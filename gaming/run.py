@@ -27,6 +27,9 @@ A clip's settings travel in render_opts["gaming"]:
     panels        normalized boxes of the stream's solid panels (a black chat
                   bar, a splits timer) that the game crop keeps out
                   (gaming/panels.py). Absent: looked for when the clip renders
+    places        where the user put layers on the Short: {"cam", "cam2", "ui"}
+                  -> normalized [x, y, w, h] of the canvas (a facecam keeps
+                  its shape; two facecams are always the same size)
     cam_position  from before layouts: "bottom" meant order game_top
 
 prepare(): once per video, before its clips render. The layout remembered for
@@ -56,7 +59,7 @@ PROBE_CLIPS = 4       # clips of the video looked at to find its webcam
 PROBE_SECONDS = 40.0  # of each, from its start
 TRUSTED = ("user", "creator")     # decided by a person: no detection second-guesses it
 LAYOUT_KEYS = ("cam", "cam_position", "game_align", "game_box", "game_fit", "preset", "order", "divider",
-               "safe", "ui_box", "cam2", "panels")
+               "safe", "ui_box", "cam2", "panels", "places")
 
 
 def _spread(candidates: list, n: int) -> list:
