@@ -48,7 +48,12 @@ The complete ones need **checking**. The half-finished ones stopped at 57
 strings and need **finishing**: `ko.json` has the 125 strings the app has
 long had, so comparing your file with it shows what is missing. Strings added
 to the app since then show in English until someone translates them.
-That is a known gap, not something to report.
+That is a known gap, not something to report. Italian, Portuguese, Russian,
+Arabic and Chinese have gone further and cover most of those later strings
+too ([#90](https://github.com/ColinGPT9/clips-studio/pull/90),
+[#108](https://github.com/ColinGPT9/clips-studio/pull/108),
+[#109](https://github.com/ColinGPT9/clips-studio/pull/109)); their files are
+the place to look for the newer ones.
 
 Your language not listed? [Ask for it](https://github.com/ColinGPT9/clips-studio/issues/61).
 
