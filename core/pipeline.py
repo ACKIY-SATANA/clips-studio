@@ -503,41 +503,56 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     # the video's clips together, before any of them renders. Off -> None,
     # exactly the argument every render has always been given.
     gaming_opts = _gaming_prepare(video.path, candidates, clip_dir, config) if modes.is_gaming(config) else None
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {
-            pool.submit(
-                _render_files, video.path, candidate, segments, clip_dir, config, gaming_opts,
-                content_lang,
-            ): (candidate, meta)
-            for candidate, meta in zip(candidates, metas)
-        }
-        for future in as_completed(futures):
-            # Every render is submitted up front, so cancelling has to reach
-            # the workers too — _render_files checks on entry, which lets the
-            # not-yet-started ones fall straight through. This stops us
-            # registering clips for a video the user has given up on.
-            cancel.check_active()
-            candidate, meta = futures[future]
-            done_count += 1
-            progress.emit(
-                stage="render", video_id=video.video_id, clip=done_count, total=len(candidates)
-            )
-            try:
-                final_path, render_opts_json = future.result()
-            except Exception as e:
-                where = f"{candidate.start:.0f}s-{candidate.end:.0f}s"
-                reason = _render_failure_reason(e)
-                if reason == last_failure:
-                    repeated_failures += 1      # reported once, after the loop
-                else:
-                    last_failure = reason
-                    repeated_failures = 0
-                    print(f"      Render failed for {where}: {reason}")
-                continue
-            clip = _register_clip(db, video.video_id, candidate, final_path, meta,
-                                  render_opts_json, config)
-            if clip:
-                rendered.append(clip)
+
+    def _finish(candidate, meta, get_result) -> None:
+        nonlocal done_count, last_failure, repeated_failures
+        done_count += 1
+        progress.emit(
+            stage="render", video_id=video.video_id, clip=done_count, total=len(candidates)
+        )
+        try:
+            final_path, render_opts_json = get_result()
+        except Exception as e:
+            where = f"{candidate.start:.0f}s-{candidate.end:.0f}s"
+            reason = _render_failure_reason(e)
+            if reason == last_failure:
+                repeated_failures += 1      # reported once, after the loop
+            else:
+                last_failure = reason
+                repeated_failures = 0
+                print(f"      Render failed for {where}: {reason}")
+            return
+        clip = _register_clip(db, video.video_id, candidate, final_path, meta,
+                              render_opts_json, config)
+        if clip:
+            rendered.append(clip)
+
+    # Remote rendering (Settings -> Advanced settings): None unless it is on
+    # and not set to this computer, so this is the local loop as always.
+    remote = _remote_renderer(config)
+    if remote is None:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(
+                    _render_files, video.path, candidate, segments, clip_dir, config, gaming_opts,
+                    content_lang,
+                ): (candidate, meta)
+                for candidate, meta in zip(candidates, metas)
+            }
+            for future in as_completed(futures):
+                # Every render is submitted up front, so cancelling has to reach
+                # the workers too — _render_files checks on entry, which lets the
+                # not-yet-started ones fall straight through. This stops us
+                # registering clips for a video the user has given up on.
+                cancel.check_active()
+                candidate, meta = futures[future]
+                _finish(candidate, meta, future.result)
+    else:
+        for candidate, meta, get_result in remote.render_all(
+            video.video_id, video.path, list(zip(candidates, metas)), segments, clip_dir, config,
+            gaming_opts, content_lang, workers,
+        ):
+            _finish(candidate, meta, get_result)
 
     if repeated_failures:
         print(f"      ({repeated_failures} more clip(s) failed the same way)")
@@ -557,6 +572,18 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         print(f"      {_line}")
     print(f"      Done in {elapsed / 60:.1f} min ({len(rendered)} clips)")
     return rendered
+
+
+def _remote_renderer(config: dict):
+    """Remote rendering's dispatcher when it is on, else None. Never lets a
+    problem with it stop a video: that renders here instead."""
+    try:
+        from remote_render import dispatch
+
+        return dispatch.renderer_for(config)
+    except Exception as e:
+        print(f"      (remote rendering unavailable, rendering here: {e})")
+        return None
 
 
 def _vertical_live_requested(config: dict) -> bool:

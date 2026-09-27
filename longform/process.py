@@ -125,25 +125,41 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     )
     workers = max(1, int(config.get("video", {}).get("parallel_renders", 2)))
     done_count = 0
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {
-            pool.submit(
-                _render_files, video.path, c, segments, clip_dir, config,
-                dict(render_opts), content_lang,
-            ): (c, m)
-            for c, m in zip(candidates, metas)
-        }
-        for future in as_completed(futures):
-            candidate, meta = futures[future]
-            done_count += 1
-            progress.emit(stage="render", video_id=video.video_id, clip=done_count, total=len(candidates))
-            try:
-                final_path, render_opts_json = future.result()
-            except Exception as e:
-                print(f"      Render failed for {candidate.start:.0f}s-{candidate.end:.0f}s: {e}")
-                continue
-            _register_clip(db, video.video_id, candidate, final_path, meta,
-                           render_opts_json, config)
+
+    def _finish(candidate, meta, get_result) -> None:
+        nonlocal done_count
+        done_count += 1
+        progress.emit(stage="render", video_id=video.video_id, clip=done_count, total=len(candidates))
+        try:
+            final_path, render_opts_json = get_result()
+        except Exception as e:
+            print(f"      Render failed for {candidate.start:.0f}s-{candidate.end:.0f}s: {e}")
+            return
+        _register_clip(db, video.video_id, candidate, final_path, meta,
+                       render_opts_json, config)
+
+    # Remote rendering, when on (Settings -> Advanced settings); else local as always.
+    from core.pipeline import _remote_renderer
+
+    remote = _remote_renderer(config)
+    if remote is None:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(
+                    _render_files, video.path, c, segments, clip_dir, config,
+                    dict(render_opts), content_lang,
+                ): (c, m)
+                for c, m in zip(candidates, metas)
+            }
+            for future in as_completed(futures):
+                candidate, meta = futures[future]
+                _finish(candidate, meta, future.result)
+    else:
+        for candidate, meta, get_result in remote.render_all(
+            video.video_id, video.path, list(zip(candidates, metas)), segments, clip_dir, config,
+            dict(render_opts), content_lang, workers,
+        ):
+            _finish(candidate, meta, get_result)
 
     elapsed = time.monotonic() - started
     db.set_process_seconds(video.video_id, elapsed)

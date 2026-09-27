@@ -602,6 +602,13 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         publish_worker=publish_worker,
     )
 
+    # Remote rendering (remote_render/): off unless switched on under
+    # Settings -> Advanced settings; then a separate, authenticated gateway
+    # for render workers, and routes here for the Settings page.
+    from remote_render import service as remote_render_service
+
+    remote_render_service.install(app, config, data_dir)
+
     # A second multi-platform provider beside Upload-Post, not instead of it:
     # a creator uses whichever they have an account with. Independent
     # settings, independent key, independent routes.

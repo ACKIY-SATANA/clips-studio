@@ -78,6 +78,19 @@ hiddenimports += [
     "analysis.panns",
     "analysis.game_text",
     "analysis.game_vision",
+    # Remote rendering (imported only when it is switched on).
+    "remote_render",
+    "remote_render.protocol",
+    "remote_render.settings",
+    "remote_render.tls",
+    "remote_render.queue",
+    "remote_render.gateway",
+    "remote_render.piece",
+    "remote_render.worker",
+    "remote_render.dispatch",
+    "remote_render.service",
+    "cryptography.x509",
+    "cryptography.hazmat.primitives.asymmetric.ec",
     "sources.preview_frames",
 ]
 

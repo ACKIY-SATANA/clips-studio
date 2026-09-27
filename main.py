@@ -114,6 +114,28 @@ def load_config(path: Path) -> dict:
     return config
 
 
+def _render_worker(args, config: dict) -> int:
+    from remote_render import worker as worker_mod
+
+    if args.run_job:
+        return worker_mod.run_job(args.run_job)
+    data_dir = Path(config["paths"]["data_dir"])
+    if args.pair:
+        try:
+            info = worker_mod.pair(data_dir, args.pair[0], args.pair[1])
+        except worker_mod.PairingError as e:
+            print(f"Pairing failed: {e}")
+            return 1
+        print(f"Paired with {info['main']} (certificate {info['fingerprint']}; it should match the one "
+              "the main PC shows).")
+    w = worker_mod.Worker(data_dir)
+    try:
+        return w.run()
+    except KeyboardInterrupt:
+        w.stop()
+        return 0
+
+
 def main() -> int:
     # LLM titles may contain emoji; Windows consoles often use cp1252 and
     # would crash the whole pipeline on a mere print(). Degrade gracefully.
@@ -164,6 +186,14 @@ def main() -> int:
     p_models = sub.add_parser("models", help="Show installed LLMs and switch between them")
     p_models.add_argument("action", nargs="?", choices=["use"], help="'use' to switch models")
     p_models.add_argument("model", nargs="?", help="Ollama model tag, e.g. gemma3:12b")
+
+    # Remote rendering (remote_render/): this PC renders clips for another
+    # Clips Kitty. Headless on an always-on box, or started by the desktop
+    # app when "Use this PC as a render worker" is on.
+    p_rw = sub.add_parser("render-worker", help="Render clips for another Clips Kitty (remote rendering)")
+    p_rw.add_argument("--pair", nargs=2, metavar=("MAIN_PC", "CODE"),
+                      help="pair with a main PC first: its address (host:port) and the code it shows")
+    p_rw.add_argument("--run-job", type=Path, help=argparse.SUPPRESS)  # one job, in a child process
 
     args = parser.parse_args()
     config = load_config(args.config)
@@ -232,6 +262,9 @@ def main() -> int:
             n = upload_scheduled(config, db)
             print(f"{n} clip(s) uploaded." if n else "Nothing uploaded.")
             return 0
+
+        if args.command == "render-worker":
+            return _render_worker(args, config)
 
         if args.command == "serve":
             import uvicorn
