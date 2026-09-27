@@ -39,7 +39,10 @@ were often broken in a way that only showed up on somebody else's machine.
     round it.
   - Parts snap into line like a design editor: to the middle of the Short, its edges, the
     platform's safe lines and each other, with a guide line showing it (Alt to place freely).
-    **Grid** shows thirds, the middle and the safe box.
+    **Grid** shows thirds, the middle and the safe box. The boxes on the video frame snap
+    the same way, to each other and to the chat bar's edge.
+  - The layout editor has fullscreen (like a video player, Esc to leave, remembered) and
+    minimise to a bar in the corner.
   - The preview draws TikTok's, Instagram Reels' or YouTube Shorts' own layout over the
     Short, measured from each app's feed, with icons in each app's style. The safe areas
     the face check uses come from the same measurements.
@@ -216,6 +219,10 @@ were often broken in a way that only showed up on somebody else's machine.
   the box you type into stays on screen.
 
 ### Fixed
+
+- **Esc in the Gaming / Reaction layout editor no longer closes the clip editor
+  behind it.** Opened from the clip editor, Esc closed both; it now leaves
+  fullscreen first and then closes only the layout editor.
 
 - **Editing a clip can no longer lose it.** Applying edits deleted the clip
   before rendering the new version and put it back afterwards, so a render

@@ -113,7 +113,10 @@ file) and **Choose a layout** opens:
 - **Layouts**: the eleven cards, each a live miniature of this frame;
 - **the frame**, with a box for each thing the layout uses (Webcam, Game, Game
   UI, Webcam 2), already on it when it opens, as in StreamLadder: drag a box
-  to move it, a corner to resize it. The Game box starts on the area the
+  to move it, any of its eight handles to resize it. Boxes snap to the frame's
+  middle and edges, to each other and to the stream's solid panels (a game box
+  lands exactly on the chat bar's edge), with a guide line; **Grid** adds
+  thirds; Alt places a box freely. The Game box starts on the area the
   layout takes the game from; move it and it's yours (**Let Clips Kitty pick
   the game area** gives it back). The dashed line inside is exactly what the
   layout will show. **Snap to the webcam's border** pulls the webcam box out to
@@ -144,6 +147,12 @@ inner sides. A game character moves between frames minutes apart, chat has no
 person in it, and an avatar has no webcam border, so none of them are
 suggested. It's only a starting point, for you to check. With no suggestion
 the box waits in the corner for you to drag onto the webcam.
+
+The editor has window buttons top right: **fullscreen** (the whole monitor,
+like a video player; Esc leaves it, and it opens that way next time if you
+left it so), and **minimise** to a bar in the corner, to get at the rest of
+the app and come back with **Restore**. Esc closes the editor, never the clip
+editor behind it.
 
 **Use this layout** sends it with the video. **Remember for this creator's
 next videos** keeps it for them, so their next videos (and a watched

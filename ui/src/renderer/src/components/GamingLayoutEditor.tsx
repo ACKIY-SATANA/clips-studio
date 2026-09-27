@@ -17,7 +17,8 @@ import {
   type PxBox
 } from '../lib/gamingLayout'
 import { t } from '../lib/i18n'
-import { dragLayer, type Handle, type Targets } from '../lib/layerDrag'
+import { dragLayer, type Box, type Handle, type Targets } from '../lib/layerDrag'
+import { Maximize, Minimize, Restore } from './icons'
 import PlatformOverlay, { PLATFORM_UI } from './PlatformOverlay'
 import type { FrameBox, GamingSettings } from '../lib/types'
 
@@ -36,7 +37,7 @@ import type { FrameBox, GamingSettings } from '../lib/types'
 
 type BoxRole = 'cam' | 'cam2' | 'game' | 'ui'
 type CamMode = 'auto' | 'draw' | 'none'
-type Drag = { role: BoxRole; mode: Handle; ox: number; oy: number; box: FrameBox }
+type Drag = { role: BoxRole; mode: Handle; ox: number; oy: number; box: FrameBox; fw: number; fh: number }
 /** A layer being moved or resized on the preview, in canvas px. */
 type LayerDrag = { role: Placeable; handle: Handle; ox: number; oy: number; dest: PxBox }
 
@@ -259,6 +260,18 @@ export default function GamingLayoutEditor({
   const [selected, setSelected] = useState<Placeable | null>(null)
   const [guides, setGuides] = useState<Targets>({ xs: [], ys: [] })
   const [showGrid, setShowGrid] = useState(false)
+  // Fullscreen like the video player's (the whole monitor, Esc to leave),
+  // remembered for next time; minimised to a bar to get at the app.
+  const [full, setFull] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('gaming-layout-fullscreen') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [mini, setMini] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [viewH, setViewH] = useState(window.innerHeight)
   const [remember, setRemember] = useState(rememberInitially)
   const [active, setActive] = useState<BoxRole>('cam')
   const [at, setAt] = useState(context === 'video' ? FRAMES[1] : 0.5)
@@ -273,7 +286,69 @@ export default function GamingLayoutEditor({
   const frameRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const drag = useRef<Drag | null>(null)
+  // Guide lines on the frame while a box snaps, in fractions of the frame.
+  const [frameGuides, setFrameGuides] = useState<Targets>({ xs: [], ys: [] })
   const dividerDrag = useRef(false)
+
+  const rememberFull = (on: boolean): void => {
+    try {
+      localStorage.setItem('gaming-layout-fullscreen', on ? '1' : '0')
+    } catch {
+      // not remembered; still works now
+    }
+  }
+  const toggleFull = (): void => {
+    const on = !full
+    setFull(on)
+    rememberFull(on)
+    if (on) panelRef.current?.requestFullscreen?.().catch(() => undefined)
+    else if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined)
+  }
+  const minimise = (): void => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined)
+    setMini(true)
+  }
+  useEffect(() => {
+    // Opened fullscreen last time: fill the window, and the monitor if allowed.
+    if (full) panelRef.current?.requestFullscreen?.().catch(() => undefined)
+    const onResize = (): void => setViewH(window.innerHeight)
+    // Leaving the monitor's fullscreen (Esc, as on a video) leaves it
+    // altogether, back to the normal-sized editor.
+    const onFsChange = (): void => {
+      setViewH(window.innerHeight)
+      if (!document.fullscreenElement) {
+        setFull(false)
+        rememberFull(false)
+      }
+    }
+    window.addEventListener('resize', onResize)
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      document.removeEventListener('fullscreenchange', onFsChange)
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    // Esc belongs to this editor while it's open: out of fullscreen first,
+    // then closed. Without this, inside the clip editor Esc closed the whole
+    // clip editor underneath.
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || mini) return
+      e.stopImmediatePropagation()
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => undefined)
+        return
+      }
+      if (full) {
+        setFull(false)
+        rememberFull(false)
+      } else onClose()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [full, mini, onClose])
 
   const frameUrl = api.layoutFrameUrl(source, at)
   useEffect(() => {
@@ -367,31 +442,54 @@ export default function GamingLayoutEditor({
     e.preventDefault()
     setActive(role)
     const q = pos(e)
-    drag.current = { role, mode, ox: q.x, oy: q.y, box: [...box] as FrameBox }
+    const r = frameRef.current!.getBoundingClientRect()
+    drag.current = { role, mode, ox: q.x, oy: q.y, box: [...box] as FrameBox, fw: r.width, fh: r.height }
     frameRef.current?.setPointerCapture(e.pointerId)
   }
   const onMove = (e: React.PointerEvent): void => {
     const d = drag.current
     if (!d) return
     const q = pos(e)
-    const dx = q.x - d.ox
-    const dy = q.y - d.oy
-    // Any side or corner, like the layers on the preview (in fractions of the frame).
-    const { box } = dragLayer(d.box, d.mode, dx, dy, {
+    // Any side or corner, snapping like the layers on the preview: to the
+    // frame's middle and edges, the grid, the other boxes and the stream's
+    // panels (so a game box can sit exactly on the chat bar's edge). Worked
+    // in the frame's own pixels, so "close" is the same across and down.
+    const { fw, fh } = d
+    const px = (b: FrameBox): Box => [b[0] * fw, b[1] * fh, b[2] * fw, b[3] * fh]
+    const xs = [0, fw / 2, fw]
+    const ys = [0, fh / 2, fh]
+    if (showGrid) {
+      xs.push(fw / 3, (2 * fw) / 3)
+      ys.push(fh / 3, (2 * fh) / 3)
+    }
+    const others: FrameBox[] = [...(panels ?? [])]
+    for (const role of ['cam', 'cam2', 'game', 'ui'] as BoxRole[]) {
+      if (role === d.role) continue
+      const b = role === 'game' ? boxes.game ?? autoGame : role === 'cam' ? camBox : boxes[role]
+      if (b && (role !== 'ui' || roles.has('ui')) && (role !== 'cam2' || roles.has('cam2'))) others.push(b)
+    }
+    for (const b of others) {
+      const [x, y, w, h] = px(b)
+      xs.push(x, x + w / 2, x + w)
+      ys.push(y, y + h / 2, y + h)
+    }
+    const { box, guides: lines } = dragLayer(px(d.box), d.mode, (q.x - d.ox) * fw, (q.y - d.oy) * fh, {
       aspect: null,
-      canvas: [1, 1],
-      minW: 0.03,
-      minH: 0.03,
-      targets: null,
-      tol: 0
+      canvas: [fw, fh],
+      minW: 0.03 * fw,
+      minH: 0.03 * fh,
+      targets: e.altKey ? null : { xs, ys }, // hold Alt to place freely
+      tol: 6
     })
-    setBox(d.role, box as FrameBox)
+    setFrameGuides({ xs: lines.xs.map((v) => v / fw), ys: lines.ys.map((v) => v / fh) })
+    setBox(d.role, [box[0] / fw, box[1] / fh, box[2] / fw, box[3] / fh])
   }
 
   // ---- the divider on the preview ------------------------------------------------------
   const spec = PRESETS[shownPreset]
   const canDivide = spec.type === 'stack' && spec.divider && spec.divider[0] < spec.divider[1]
-  const PW = 270
+  // The preview grows with the screen in fullscreen.
+  const PW = full ? Math.round(clamp((viewH - 330) * (OUT_W / OUT_H), 270, 540)) : 270
   const k = PW / OUT_W
   const dividerY = camEl && canDivide ? (order === 'cam_top' ? camEl.dest[1] + camEl.dest[3] : camEl.dest[1]) : null
   // Layers on the preview: the facecams of the picture-in-picture layouts and
@@ -576,25 +674,64 @@ export default function GamingLayoutEditor({
               ? `⚠ ${t('Head under')} ${zoneLabel}${t('’s top bar')}`
               : `⚠ ${t('Chin under')} ${zoneLabel}${t('’s captions')}${order === 'game_top' ? ` — ${t('try Camera top')}` : ''}`
 
+  const title = context === 'video' ? t('Choose a layout before processing') : t('Gaming / Reaction layout')
+  if (mini)
+    return (
+      <div
+        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl border border-raised/60 bg-surface shadow-2xl pl-3 pr-1.5 py-1.5 text-sm"
+        role="dialog"
+        aria-label={t('Choose a layout')}
+      >
+        <button className="font-semibold hover:text-accent" onClick={() => setMini(false)} title={t('Restore')}>
+          {title}
+        </button>
+        <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setMini(false)}>
+          {t('Restore')}
+        </button>
+        <button className="text-muted hover:text-ink px-1.5 text-lg leading-none" onClick={onClose} aria-label={t('Close')}>
+          ✕
+        </button>
+      </div>
+    )
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 select-none"
+      className={`fixed inset-0 z-50 bg-black/80 flex items-center justify-center select-none ${full ? '' : 'p-4'}`}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={t('Choose a layout')}
     >
       <div
-        className="bg-surface border border-raised/60 rounded-2xl p-4 w-full max-w-[1280px] max-h-full overflow-y-auto space-y-3"
+        ref={panelRef}
+        className={`bg-surface overflow-y-auto space-y-3 p-4 ${
+          full ? 'w-full h-full' : 'border border-raised/60 rounded-2xl w-full max-w-[1280px] max-h-full'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <p className="font-semibold">
-            {context === 'video' ? t('Choose a layout before processing') : t('Gaming / Reaction layout')}
-          </p>
-          <button className="text-muted hover:text-ink px-1 text-lg leading-none" onClick={onClose} aria-label={t('Close')}>
-            ✕
-          </button>
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-semibold">{title}</p>
+          <div className="flex items-center gap-1 text-muted">
+            <button
+              className="hover:text-ink hover:bg-raised rounded p-1.5"
+              onClick={minimise}
+              aria-label={t('Minimise')}
+              title={t('Minimise: a bar in the corner, to get at the app')}
+            >
+              <Minimize size={16} />
+            </button>
+            <button
+              className="hover:text-ink hover:bg-raised rounded p-1.5"
+              onClick={toggleFull}
+              aria-label={full ? t('Exit fullscreen') : t('Fullscreen')}
+              title={full ? t('Exit fullscreen (Esc)') : t('Fullscreen')}
+            >
+              {full ? <Restore size={16} /> : <Maximize size={16} />}
+            </button>
+            <button className="hover:text-ink hover:bg-raised rounded px-2 py-0.5 text-lg leading-none" onClick={onClose} aria-label={t('Close')}>
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-4 items-start">
@@ -641,18 +778,34 @@ export default function GamingLayoutEditor({
 
           {/* ---- the frame ---- */}
           <div className="flex-1 min-w-0 space-y-2">
-            <p className="text-xs text-muted">
-              {t(
-                'Pick a moment where the webcam and the game both show. Drag a box to move it, its corners to resize. The dashed line inside is what the layout will actually show.'
-              )}
-            </p>
+            <div className="flex items-start gap-2">
+              <p className="text-xs text-muted flex-1">
+                {t(
+                  'Pick a moment where the webcam and the game both show. Drag a box to move it, any handle to resize it; it snaps to the middle, the edges and the other boxes (hold Alt to place it freely). The dashed line inside is what the layout will actually show.'
+                )}
+              </p>
+              <button
+                className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] ${showGrid ? 'bg-accent/20 text-accent' : 'bg-raised text-muted hover:text-ink'}`}
+                aria-pressed={showGrid}
+                onClick={() => setShowGrid((g) => !g)}
+                title={t('Grid lines: thirds and the middle. Boxes snap to them.')}
+              >
+                {t('Grid')}
+              </button>
+            </div>
             <div
               ref={frameRef}
               className="relative select-none touch-none bg-base rounded-lg overflow-hidden"
               style={{ aspectRatio: `${src.w} / ${src.h}` }}
               onPointerMove={onMove}
-              onPointerUp={() => (drag.current = null)}
-              onPointerCancel={() => (drag.current = null)}
+              onPointerUp={() => {
+                drag.current = null
+                setFrameGuides({ xs: [], ys: [] })
+              }}
+              onPointerCancel={() => {
+                drag.current = null
+                setFrameGuides({ xs: [], ys: [] })
+              }}
             >
               {frameError ? (
                 <p className="p-8 text-sm text-error">{frameError}</p>
@@ -743,7 +896,9 @@ export default function GamingLayoutEditor({
                         top: `${y * 100}%`,
                         width: `${w * 100}%`,
                         height: `${h * 100}%`,
-                        border: `3px solid ${COLOUR[role]}`,
+                        // An outline, not a border: the handles then sit exactly on the edge.
+                        outline: `3px solid ${COLOUR[role]}`,
+                        outlineOffset: -3,
                         boxShadow: active === role ? `0 0 0 2px ${COLOUR[role]}55` : 'none'
                       }}
                       onPointerDown={(e) => startDrag(e, role, 'move')}
@@ -767,6 +922,24 @@ export default function GamingLayoutEditor({
                     </div>
                   )
                 })}
+              {loaded && showGrid && (
+                <div className="absolute inset-0 pointer-events-none">
+                  {[1 / 3, 2 / 3].map((f) => (
+                    <div key={`gx${f}`} className="absolute top-0 bottom-0 border-l border-dashed border-white/40" style={{ left: `${f * 100}%` }} />
+                  ))}
+                  {[1 / 3, 2 / 3].map((f) => (
+                    <div key={`gy${f}`} className="absolute left-0 right-0 border-t border-dashed border-white/40" style={{ top: `${f * 100}%` }} />
+                  ))}
+                  <div className="absolute top-0 bottom-0 border-l border-sky-400/70" style={{ left: '50%' }} />
+                  <div className="absolute left-0 right-0 border-t border-sky-400/70" style={{ top: '50%' }} />
+                </div>
+              )}
+              {frameGuides.xs.map((x) => (
+                <div key={`fx${x}`} className="absolute top-0 bottom-0 border-l-2 border-pink-400 pointer-events-none" style={{ left: `${x * 100}%` }} />
+              ))}
+              {frameGuides.ys.map((y) => (
+                <div key={`fy${y}`} className="absolute left-0 right-0 border-t-2 border-pink-400 pointer-events-none" style={{ top: `${y * 100}%` }} />
+              ))}
             </div>
 
             {/* ---- scrubbing through the video ---- */}
@@ -812,7 +985,7 @@ export default function GamingLayoutEditor({
           </div>
 
           {/* ---- the result ---- */}
-          <div className="shrink-0 w-[288px] space-y-2 text-xs">
+          <div className="shrink-0 space-y-2 text-xs" style={{ width: PW + 18 }}>
             <div className="flex items-center justify-between">
               <p className="label">{t('Preview')}</p>
               <button
