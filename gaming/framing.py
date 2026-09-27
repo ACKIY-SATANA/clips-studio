@@ -72,12 +72,17 @@ def cam_crop(box: tuple, head: tuple | None, dest: tuple, safe: dict) -> tuple[t
         x, y = bx + (bw - cw) / 2, by + (bh - ch) / 2
         return (_pos(x), _pos(y), _even(cw), _even(ch)), 0
 
-    hx, top, _chin = head
+    hx, top, chin = head
     scale = dest[3] / ch
     dy, dh = dest[1], dest[3]
     want_top = dy + HEADROOM * dh
     if dy < safe["top"]:
         want_top = max(want_top, safe["top"])      # a region at the top of the Short
+    # The chin comes first: when forehead to chin won't fit below the top bar
+    # (a tight webcam in a short band), the hair goes under the bar, and when
+    # it won't fit in the band at all, the top of the head is cut, never the
+    # mouth and chin.
+    want_top = min(want_top, dy + dh - (chin - top + 2) * scale)     # + the crop's even rounding
     x = _clamp(hx - cw / 2, bx, bx + bw - cw)
     y = _clamp(top - (want_top - dy) / scale, by, by + bh - ch)
     lands = dy + (top - y) * scale                  # where the head top ends up

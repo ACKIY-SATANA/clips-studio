@@ -326,7 +326,7 @@ def test_the_video_is_searched_once_across_clips_spread_through_it(monkeypatch, 
     monkeypatch.setattr(detect, "find_cam", lambda *_a, **_k: detect.ClipFinding({"s": corner}, "s"))
     clips = [ClipCandidate(start=s, end=s + 90, score=80) for s in (900, 100, 500, 2000, 1500, 3000)]
     g = run_mod.prepare(tmp_path / "src.mp4", clips, CONFIG, tmp_path)
-    assert looked == [100, 900, 1500, 3000] and g == {"cam": list(CORNER), "by": "video"}
+    assert looked == [100, 900, 1500, 3000] and g == {"cam": list(CORNER), "by": "video", "panels": []}
 
 
 def test_a_webcam_saved_for_the_creator_skips_the_search(monkeypatch, tmp_path):
@@ -335,16 +335,16 @@ def test_a_webcam_saved_for_the_creator_skips_the_search(monkeypatch, tmp_path):
     monkeypatch.setattr(detect, "find_cam", lambda *_a, **_k: pytest.fail("searched"))
     saved = {"cam": [0.8, 0.0, 0.2, 0.3], "game_box": [0.0, 0.0, 0.8, 0.85], "cam_position": "bottom"}
     config = {**CONFIG, "clips": {"gaming_layout": saved}}
-    assert run_mod.prepare(tmp_path / "s.mp4", [], config, tmp_path) == {**saved, "by": "creator"}
+    assert run_mod.prepare(tmp_path / "s.mp4", [], config, tmp_path) == {**saved, "by": "creator", "panels": []}
 
 
 def test_a_split_set_up_before_processing_is_used_as_set_up(monkeypatch, tmp_path):
     from gaming import run as run_mod
 
     monkeypatch.setattr(detect, "find_cam", lambda *_a, **_k: pytest.fail("searched"))
-    given = {"cam": [0.0, 0.66, 0.25, 0.34], "game_fit": "fill", "by": "user"}
+    given = {"cam": [0.0, 0.66, 0.25, 0.34], "game_fit": "fill", "by": "user", "panels": [[0.2, 0.85, 0.8, 0.15]]}
     config = {**CONFIG, "clips": {"gaming_layout": given}}
-    assert run_mod.prepare(tmp_path / "s.mp4", [], config, tmp_path) == given
+    assert run_mod.prepare(tmp_path / "s.mp4", [], config, tmp_path) == given     # its panels too
 
 
 def test_find_it_automatically_still_keeps_the_rest_of_the_setup(monkeypatch, tmp_path):

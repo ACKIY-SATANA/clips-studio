@@ -19,7 +19,7 @@ const PIP_MARGIN = 0.02
 export type PxBox = [number, number, number, number]
 /** The streamer's head in source px: [centre x, top, chin]. */
 export type Head = [number, number, number]
-export type Role = 'cam' | 'cam2' | 'game' | 'ui'
+export type Role = 'cam' | 'cam2' | 'game' | 'ui' | 'bg'
 
 export interface SafeZone {
   top: number
@@ -32,7 +32,7 @@ export interface Element {
   role: Role
   src: PxBox
   dest: PxBox
-  fit: 'cover' | 'contain'
+  fit: 'cover' | 'contain' | 'blur'
   anchor: 'top' | 'bottom' | 'center'
   shift: number
   shape: 'rect' | 'circle'
@@ -57,6 +57,7 @@ export interface LayoutSettings {
   cam2?: FrameBox | null
   game_box?: FrameBox | null
   ui_box?: FrameBox | null
+  panels?: FrameBox[]
   cam_position?: string
 }
 
@@ -112,11 +113,14 @@ export function camCrop(box: PxBox, head: Head | null, dest: PxBox, safe: SafeZo
     const y = by + (bh - ch) / 2
     return [[pos(x), pos(y), even(cw), even(ch)], 0]
   }
-  const [hx, top] = head
+  const [hx, top, chin] = head
   const scale = dest[3] / ch
   const [, dy, , dh] = dest
   let wantTop = dy + HEADROOM * dh
   if (dy < safe.top) wantTop = Math.max(wantTop, safe.top)
+  // The chin first: the hair under the top bar, or the top of the head cut,
+  // rather than the chin under the game.
+  wantTop = Math.min(wantTop, dy + dh - (chin - top + 2) * scale)
   const x = clamp(hx - cw / 2, bx, bx + bw - cw)
   const y = clamp(top - (wantTop - dy) / scale, by, by + bh - ch)
   const lands = dy + (top - y) * scale
@@ -194,21 +198,98 @@ function shown(box: PxBox, aspect: number): number {
   return w * h * scale * scale
 }
 
-function beside(srcW: number, srcH: number, cam: PxBox, aspect: number): PxBox {
-  const [cx, cy, cw, ch] = cam
-  const strips = (
-    [
-      [0, 0, cx, srcH],
-      [cx + cw, 0, srcW - cx - cw, srcH],
-      [0, 0, srcW, cy],
-      [0, cy + ch, srcW, srcH - cy - ch]
-    ] as PxBox[]
-  ).filter((s) => s[2] >= 0.2 * srcW && s[3] >= 0.2 * srcH)
-  if (strips.length === 0) return [0, 0, even(srcW), even(srcH)]
-  let best = strips[0]
-  for (const s of strips) if (shown(s, aspect) > shown(best, aspect)) best = s
+const sortedSet = (values: number[]): number[] => [...new Set(values)].sort((a, b) => a - b)
+
+function clear(box: PxBox, obstacles: PxBox[]): boolean {
+  const [x, y, w, h] = box
+  return obstacles.every((o) => x + w <= o[0] || o[0] + o[2] <= x || y + h <= o[1] || o[1] + o[3] <= y)
+}
+
+function openAreas(srcW: number, srcH: number, obstacles: PxBox[]): PxBox[] {
+  const lefts = sortedSet([0, ...obstacles.filter((o) => o[0] + o[2] < srcW).map((o) => o[0] + o[2])])
+  const rights = sortedSet([srcW, ...obstacles.filter((o) => o[0] > 0).map((o) => o[0])])
+  const tops = sortedSet([0, ...obstacles.filter((o) => o[1] + o[3] < srcH).map((o) => o[1] + o[3])])
+  const bottoms = sortedSet([srcH, ...obstacles.filter((o) => o[1] > 0).map((o) => o[1])])
+  const areas: PxBox[] = []
+  for (const x0 of lefts)
+    for (const x1 of rights) {
+      if (x1 <= x0) continue
+      for (const y0 of tops)
+        for (const y1 of bottoms) {
+          if (y1 <= y0) continue
+          const a: PxBox = [x0, y0, x1 - x0, y1 - y0]
+          if (!clear(a, obstacles)) continue
+          const across = (o: PxBox): boolean => o[1] < a[1] + a[3] && o[1] + o[3] > a[1]
+          const along = (o: PxBox): boolean => o[0] < a[0] + a[2] && o[0] + o[2] > a[0]
+          if (
+            (x0 === 0 || obstacles.some((o) => o[0] + o[2] === x0 && across(o))) &&
+            (x1 === srcW || obstacles.some((o) => o[0] === x1 && across(o))) &&
+            (y0 === 0 || obstacles.some((o) => o[1] + o[3] === y0 && along(o))) &&
+            (y1 === srcH || obstacles.some((o) => o[1] === y1 && along(o)))
+          )
+            areas.push(a)
+        }
+    }
+  return areas
+}
+
+function whole(srcW: number, srcH: number, obstacles: PxBox[], aspect: number): PxBox {
+  const areas = openAreas(srcW, srcH, obstacles).filter((a) => a[2] >= 0.2 * srcW && a[3] >= 0.2 * srcH)
+  if (areas.length === 0) return [0, 0, even(srcW), even(srcH)]
+  let best = areas[0]
+  for (const a of areas) if (shown(a, aspect) > shown(best, aspect)) best = a
   const [x, y, w, h] = best
   return [pos(x), pos(y), even(w), even(h)]
+}
+
+function picture(srcW: number, srcH: number, panels: PxBox[]): PxBox {
+  const areas = openAreas(srcW, srcH, panels)
+  if (areas.length === 0) return [0, 0, srcW, srcH]
+  let best = areas[0]
+  for (const a of areas) if (a[2] * a[3] > best[2] * best[3]) best = a
+  return best
+}
+
+function spots(t: number, size: number, limit: number, obstacles: PxBox[], axis: 0 | 1, align: string): number[] {
+  const near = align === 'center' ? t - size / 2 : align === 'left' ? t : t - size
+  const raw = [near, 0, limit - size]
+  for (const o of obstacles) raw.push(o[axis] + o[axis + 2], o[axis] - size)
+  return sortedSet(raw.map((v) => pos(Math.min(Math.max(v, 0), limit - size))))
+}
+
+function zoom(srcW: number, srcH: number, aspect: number, align: string, cams: PxBox[], panels: PxBox[]): PxBox | null {
+  const obstacles = [...cams, ...panels]
+  const [gx, gy, gw, gh] = picture(srcW, srcH, panels)
+  const tx = align === 'left' ? gx : align === 'right' ? gx + gw : gx + gw / 2
+  const ty = gy + gh / 2
+  const fullH = srcH * aspect <= srcW ? srcH : srcW / aspect
+  const tops = [0, ...obstacles.map((o) => o[1] + o[3])]
+  const bottoms = [srcH, ...obstacles.map((o) => o[1])]
+  const lefts = [0, ...obstacles.map((o) => o[0] + o[2])]
+  const rights = [srcW, ...obstacles.map((o) => o[0])]
+  const heights = [fullH]
+  for (const t of tops) for (const b of bottoms) if (b > t) heights.push(b - t)
+  for (const l of lefts) for (const r of rights) if (r > l) heights.push((r - l) / aspect)
+  const tries = sortedSet(heights.filter((h) => fullH / 2 <= h && h <= fullH).map(even)).reverse()
+  for (const ch of tries) {
+    const cw = even(ch * aspect)
+    let best: { key: [number, number, number]; crop: PxBox } | null = null
+    for (const x of spots(tx, cw, srcW, obstacles, 0, align))
+      for (const y of spots(ty, ch, srcH, obstacles, 1, 'center')) {
+        const crop: PxBox = [x, y, cw, ch]
+        if (!(x <= tx && tx <= x + cw && y <= ty && ty <= y + ch) || !clear(crop, obstacles)) continue
+        const lined = align === 'left' ? x : align === 'right' ? x + cw : x + cw / 2
+        const key: [number, number, number] = [Math.abs(lined - tx) + Math.abs(y + ch / 2 - ty), x, y]
+        if (
+          best === null ||
+          key[0] < best.key[0] ||
+          (key[0] === best.key[0] && (key[1] < best.key[1] || (key[1] === best.key[1] && key[2] < best.key[2])))
+        )
+          best = { key, crop }
+      }
+    if (best !== null) return best.crop
+  }
+  return null
 }
 
 /** The preset that can actually be drawn with these settings (layout.resolve). */
@@ -228,7 +309,13 @@ export function resolve(settings: LayoutSettings): LayoutSettings & { preset: st
   return { ...s, preset }
 }
 
-function stackRegions(spec: Spec, order: string, divider: number | undefined): [string, PxBox, Element['anchor']][] {
+function stackRegions(
+  spec: Spec,
+  order: string,
+  divider: number | undefined,
+  gameH: number | null = null,
+  top = 0
+): [string, PxBox, Element['anchor']][] {
   const rows = (spec.rows ?? []).map((r) => [...r])
   if (order === 'game_top') rows.reverse()
   const [lo, hi, def] = spec.divider ?? [0.5, 0.5, 0.5]
@@ -237,10 +324,11 @@ function stackRegions(spec: Spec, order: string, divider: number | undefined): [
     row.includes('game') ? null : row.includes('ui') && row.length === 1 ? OUT_H * (spec.ui_share ?? 0.12) : camH
   )
   const rest = OUT_H - heights.reduce<number>((a, h) => a + (h ?? 0), 0)
-  heights = heights.map((h) => (h === null ? rest : h))
-  const edges = [0]
+  const packed = gameH !== null && gameH < rest
+  heights = heights.map((h) => (h === null ? (packed ? (gameH as number) : rest) : h))
+  const edges = [packed ? pos(Math.min(rest - (gameH as number), top)) : 0]
   for (const h of heights.slice(0, -1)) edges.push(pos(edges[edges.length - 1] + (h as number)))
-  edges.push(OUT_H)
+  edges.push(packed ? pos(edges[edges.length - 1] + (heights[heights.length - 1] as number)) : OUT_H)
   const out: [string, PxBox, Element['anchor']][] = []
   rows.forEach((row, i) => {
     const anchor: Element['anchor'] = i === 0 ? 'top' : i === rows.length - 1 ? 'bottom' : 'center'
@@ -262,15 +350,24 @@ function pipRegions(spec: Spec, safe: SafeZone): [string, PxBox][] {
   return cams.map((role, i) => [role, [pos(x0 + i * (w + PIP_GAP)), y, w, h]])
 }
 
-function gameSrc(srcW: number, srcH: number, s: LayoutSettings, dest: PxBox, fit: string, cams: PxBox[]): PxBox {
-  const aspect = dest[2] / dest[3]
+function gameSrc(
+  srcW: number,
+  srcH: number,
+  s: LayoutSettings,
+  aspect: number,
+  fit: string,
+  cams: PxBox[],
+  panels: PxBox[]
+): PxBox {
   if (s.game_box) {
     const region = clampBox(s.game_box, srcW, srcH)
     return fit === 'fit' ? region : cover(region, aspect)
   }
-  if (fit === 'fit') return cams.length === 0 ? [0, 0, even(srcW), even(srcH)] : beside(srcW, srcH, cams[0], aspect)
-  const cropW = Math.min(srcW, even(srcH * aspect))
+  if (fit === 'fit') return whole(srcW, srcH, [...cams, ...panels], aspect)
   const align = ['left', 'center', 'right'].includes(s.game_align ?? '') ? (s.game_align as string) : 'center'
+  const zoomed = zoom(srcW, srcH, aspect, align, cams, panels)
+  if (zoomed !== null) return zoomed
+  const cropW = Math.min(srcW, even(srcH * aspect))
   const x = cams.length > 0 && align === 'center' ? clearOf(srcW, cropW, cams) : aligned(srcW, cropW, align)
   const cropH = cropW === srcW ? Math.min(srcH, even(cropW / aspect)) : even(srcH)
   return [pos(x), pos((srcH - cropH) / 2), cropW, cropH]
@@ -302,15 +399,20 @@ export function plan(
     const box = s[role]
     if (box) camBoxes[role] = clampBox(box, srcW, srcH)
   }
-  const shownCams = (['cam', 'cam2'] as const).filter((r) => camBoxes[r]).map((r) => camBoxes[r] as PxBox)
+  // The game keeps clear of the webcams this layout shows.
+  const uses = new Set<string>([...(spec.rows ?? []).flat(), ...(spec.cams ?? [])])
+  const shownCams = (['cam', 'cam2'] as const)
+    .filter((r) => camBoxes[r] && (r === 'cam' || uses.has(r)))
+    .map((r) => camBoxes[r] as PxBox)
+  const panels = (s.panels ?? []).map((b) => clampBox(b, srcW, srcH))
   const elements: Element[] = []
 
   const camera = (role: Role, dest: PxBox, shape: Element['shape'] = 'rect'): void => {
     const [crop, shift] = camCrop(camBoxes[role] as PxBox, heads[role] ?? null, dest, safe)
     elements.push({ role, src: crop, dest, fit: 'cover', anchor: 'center', shift, shape })
   }
-  const game = (dest: PxBox, anchor: Element['anchor']): void => {
-    const src = gameSrc(srcW, srcH, s, dest, fit, shownCams)
+  const game = (dest: PxBox, anchor: Element['anchor'], given: PxBox | null = null): void => {
+    const src = given ?? gameSrc(srcW, srcH, s, dest[2] / dest[3], fit, shownCams, panels)
     elements.push({ role: 'game', src, dest, fit: fit === 'fit' ? 'contain' : 'cover', anchor, shift: 0, shape: 'rect' })
   }
 
@@ -320,8 +422,19 @@ export function plan(
     game([0, 0, OUT_W, OUT_H], 'center')
     for (const [role, dest] of pipRegions(spec, safe)) camera(role as Role, dest, (spec.shape ?? 'rect') as Element['shape'])
   } else {
-    for (const [role, dest, anchor] of stackRegions(spec, order, s.divider)) {
-      if (role === 'game') game(dest, anchor)
+    let regions = stackRegions(spec, order, s.divider)
+    let wholeGame: PxBox | null = null
+    if (fit === 'fit') {
+      // The whole game right against the webcam; blur above and below the two.
+      const space = (regions.find(([role]) => role === 'game') as [string, PxBox, Element['anchor']])[1]
+      wholeGame = gameSrc(srcW, srcH, s, space[2] / space[3], fit, shownCams, panels)
+      regions = stackRegions(spec, order, s.divider, (OUT_W * wholeGame[3]) / wholeGame[2], safe.top)
+      const last = regions[regions.length - 1][1]
+      if (regions[0][1][1] > 0 || last[1] + last[3] < OUT_H)
+        elements.push({ role: 'bg', src: wholeGame, dest: [0, 0, OUT_W, OUT_H], fit: 'blur', anchor: 'center', shift: 0, shape: 'rect' })
+    }
+    for (const [role, dest, anchor] of regions) {
+      if (role === 'game') game(dest, anchor, wholeGame)
       else if (role === 'ui') {
         const ui = clampBox(s.ui_box as FrameBox, srcW, srcH)
         elements.push({ role: 'ui', src: ui, dest, fit: 'contain', anchor: 'center', shift: 0, shape: 'rect' })

@@ -24,8 +24,15 @@ were often broken in a way that only showed up on somebody else's machine.
     placed from where the streamer's head is, and the preview shows the chosen platform's
     UI with "✓ Face clear", or what to change. A webcam with no room above the head is
     moved down on a blur, never cut off at the top.
-  - A whole game sits at the top or bottom edge of its part of the Short, filled out with
-    a blurred copy of itself: no black bars, and not floating in the middle.
+  - A whole game sits right against the webcam: never a band of blur between the
+    streamer and the game. The blur goes above the two (clear of the platform's top bar)
+    and below them. No black bars.
+  - A stream's solid panels (a black chat bar under the game, a speedrun's splits) are
+    found and kept out of the game, so the Short never ends in a useless bar. Chat drawn
+    see-through over the gameplay stays: it's part of the stream.
+  - The editor opens with the webcam and game boxes already on the frame to drag, as in
+    StreamLadder: **Draw it** is the default, and the webcam box moves onto the webcam
+    when Clips Kitty finds one.
   - When the editor opens, a webcam is suggested: the same person in the same framed spot
     across the video. Found automatically when processing, the streamer is whoever TalkNet
     says is talking in sync with the audio, across several clips of the video: never the

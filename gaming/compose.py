@@ -39,6 +39,8 @@ def _element(i: int, e: Element) -> tuple[str, str]:
     sx, sy, sw, sh = e.src
     _dx, _dy, dw, dh = e.dest
     cut = f"[0:v]crop={sw}:{sh}:{sx}:{sy}"
+    if e.fit == "blur":
+        return f"{cut}[{name}s];{_blur_fill(name + 's', dw, dh)}[{name}]", name
     if e.fit == "contain" or e.shift:
         if e.fit == "contain":
             fg = f"scale={dw}:{dh}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos"

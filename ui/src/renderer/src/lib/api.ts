@@ -359,7 +359,8 @@ export const api = {
       'clipId' in source ? `/clips/${source.clipId}/people?at=${at}` : `/sources/people?at=${at}${layoutQuery(source)}`
     ),
   layoutSuggest: (source: { url?: string; path?: string }) =>
-    request<{ cam: FrameBox | null }>(`/sources/suggest?${layoutQuery(source).slice(1)}`),
+    request<{ cam: FrameBox | null; panels?: FrameBox[] }>(`/sources/suggest?${layoutQuery(source).slice(1)}`),
+  layoutPanels: (clipId: number) => request<{ panels: FrameBox[] }>(`/clips/${clipId}/panels`),
   layoutSnap: (source: LayoutSource, box: FrameBox) =>
     request<{ box: FrameBox; bordered: boolean[] }>(
       'clipId' in source

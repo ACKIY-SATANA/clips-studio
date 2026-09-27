@@ -46,10 +46,10 @@ PIP_MARGIN = 0.02          # of the canvas height, below the safe zone's top
 
 @dataclass(frozen=True)
 class Element:
-    role: str                      # cam | cam2 | game | ui
+    role: str                      # cam | cam2 | game | ui | bg
     src: tuple                     # source crop (x, y, w, h) px
     dest: tuple                    # its region on the canvas (x, y, w, h) px
-    fit: str = "cover"             # cover | contain
+    fit: str = "cover"             # cover | contain | blur (a wash of its colours)
     anchor: str = "center"         # contain: top | bottom | center
     shift: int = 0                 # cover: picture moved down this far (face clear of the UI)
     shape: str = "rect"            # rect | circle
@@ -131,21 +131,108 @@ def _shown(box: tuple, aspect: float) -> float:
     return w * h * scale * scale
 
 
-def _beside(src_w: int, src_h: int, cam: tuple, aspect: float) -> tuple:
-    """The strip of the frame beside the webcam (left, right, above or below
-    it, full length) that shows biggest when fitted into the region."""
-    cx, cy, cw, ch = cam
-    strips = [
-        (0, 0, cx, src_h),
-        (cx + cw, 0, src_w - cx - cw, src_h),
-        (0, 0, src_w, cy),
-        (0, cy + ch, src_w, src_h - cy - ch),
-    ]
-    strips = [s for s in strips if s[2] >= 0.2 * src_w and s[3] >= 0.2 * src_h]
-    if not strips:
+def _clear(box: tuple, obstacles: list) -> bool:
+    """Whether a box overlaps none of the obstacles."""
+    x, y, w, h = box
+    return all(x + w <= o[0] or o[0] + o[2] <= x or y + h <= o[1] or o[1] + o[3] <= y for o in obstacles)
+
+
+def _open_areas(src_w: int, src_h: int, obstacles: list) -> list:
+    """Every rectangle of the frame that overlaps no obstacle and can't grow:
+    each of its sides is the frame's edge or runs along an obstacle."""
+    lefts = sorted({0} | {o[0] + o[2] for o in obstacles if o[0] + o[2] < src_w})
+    rights = sorted({src_w} | {o[0] for o in obstacles if o[0] > 0})
+    tops = sorted({0} | {o[1] + o[3] for o in obstacles if o[1] + o[3] < src_h})
+    bottoms = sorted({src_h} | {o[1] for o in obstacles if o[1] > 0})
+    areas = []
+    for x0 in lefts:
+        for x1 in rights:
+            if x1 <= x0:
+                continue
+            for y0 in tops:
+                for y1 in bottoms:
+                    if y1 <= y0:
+                        continue
+                    a = (x0, y0, x1 - x0, y1 - y0)
+                    if not _clear(a, obstacles):
+                        continue
+
+                    def across(o, a=a):
+                        return o[1] < a[1] + a[3] and o[1] + o[3] > a[1]
+
+                    def along(o, a=a):
+                        return o[0] < a[0] + a[2] and o[0] + o[2] > a[0]
+
+                    if ((x0 == 0 or any(o[0] + o[2] == x0 and across(o) for o in obstacles))
+                            and (x1 == src_w or any(o[0] == x1 and across(o) for o in obstacles))
+                            and (y0 == 0 or any(o[1] + o[3] == y0 and along(o) for o in obstacles))
+                            and (y1 == src_h or any(o[1] == y1 and along(o) for o in obstacles))):
+                        areas.append(a)
+    return areas
+
+
+def _whole(src_w: int, src_h: int, obstacles: list, aspect: float) -> tuple:
+    """The game shown whole: the open area beside the webcams and the stream's
+    solid panels (a chat bar, a splits timer) that shows biggest when fitted
+    into the region, so the streamer isn't shown twice and a black chat bar
+    isn't shown at all."""
+    areas = [a for a in _open_areas(src_w, src_h, obstacles) if a[2] >= 0.2 * src_w and a[3] >= 0.2 * src_h]
+    if not areas:
         return (0, 0, _even(src_w), _even(src_h))
-    x, y, w, h = max(strips, key=lambda s: _shown(s, aspect))
+    x, y, w, h = max(areas, key=lambda a: _shown(a, aspect))
     return (_pos(x), _pos(y), _even(w), _even(h))
+
+
+def _picture(src_w: int, src_h: int, panels: list) -> tuple:
+    """The game picture: the biggest open area beside the solid panels. A
+    webcam sits on top of the game, so it doesn't count."""
+    areas = _open_areas(src_w, src_h, panels)
+    return max(areas, key=lambda a: a[2] * a[3]) if areas else (0, 0, src_w, src_h)
+
+
+def _spots(t: float, size: int, limit: int, obstacles: list, axis: int, align: str) -> list:
+    """Where a crop `size` long could start along one axis: lined up on the
+    target, flush with each obstacle's sides, or at the frame's edges."""
+    near = t - size / 2 if align == "center" else t if align == "left" else t - size
+    raw = [near, 0, limit - size]
+    for o in obstacles:
+        raw += [o[axis] + o[axis + 2], o[axis] - size]
+    return sorted({_pos(min(max(v, 0), limit - size)) for v in raw})
+
+
+def _zoom(src_w: int, src_h: int, aspect: float, align: str, cams: list, panels: list) -> tuple | None:
+    """A crop at `aspect` for a game that fills its region: as tall as it can
+    be while it keeps clear of the webcams and the solid panels and still
+    holds the middle of the game picture (its left or right edge for Left /
+    Right), then nearest lined up on it. None when nothing at least half the
+    frame's height manages that."""
+    obstacles = cams + panels
+    gx, gy, gw, gh = _picture(src_w, src_h, panels)
+    tx = gx if align == "left" else gx + gw if align == "right" else gx + gw / 2
+    ty = gy + gh / 2
+    full_h = src_h if src_h * aspect <= src_w else src_w / aspect
+    tops = [0] + [o[1] + o[3] for o in obstacles]
+    bottoms = [src_h] + [o[1] for o in obstacles]
+    lefts = [0] + [o[0] + o[2] for o in obstacles]
+    rights = [src_w] + [o[0] for o in obstacles]
+    heights = {full_h}
+    heights |= {b - t for t in tops for b in bottoms if b > t}
+    heights |= {(r - left) / aspect for left in lefts for r in rights if r > left}
+    for ch in sorted({_even(h) for h in heights if full_h / 2 <= h <= full_h}, reverse=True):
+        cw = _even(ch * aspect)
+        best = None
+        for x in _spots(tx, cw, src_w, obstacles, 0, align):
+            for y in _spots(ty, ch, src_h, obstacles, 1, "center"):
+                crop = (x, y, cw, ch)
+                if not (x <= tx <= x + cw and y <= ty <= y + ch) or not _clear(crop, obstacles):
+                    continue
+                lined = x if align == "left" else x + cw if align == "right" else x + cw / 2
+                key = (abs(lined - tx) + abs(y + ch / 2 - ty), x, y)
+                if best is None or key < best[0]:
+                    best = (key, crop)
+        if best is not None:
+            return best[1]
+    return None
 
 
 def resolve(settings: dict) -> dict:
@@ -176,8 +263,14 @@ def resolve(settings: dict) -> dict:
     return s
 
 
-def _stack_regions(spec: dict, order: str, divider: float) -> list:
-    """[(role, dest, anchor)] for a stack preset, top to bottom."""
+def _stack_regions(spec: dict, order: str, divider: float, game_h: float | None = None,
+                   top: float = 0) -> list:
+    """[(role, dest, anchor)] for a stack preset, top to bottom.
+
+    game_h: the game's own height when it is shown whole. Its row is then
+    exactly that tall and right against the webcam, never with a band of blur
+    between them. The space left over goes above the rows (up to `top`, the
+    platform's top bar, so the streamer's head clears it) and below them."""
     rows = [list(r) for r in spec["rows"]]
     if order == "game_top":
         rows.reverse()
@@ -192,13 +285,14 @@ def _stack_regions(spec: dict, order: str, divider: float) -> list:
         else:
             heights.append(cam_h)
     rest = OUT_H - sum(h for h in heights if h is not None)
-    heights = [rest if h is None else h for h in heights]
-    # Row edges rounded once, so rows meet exactly and the last one ends at
-    # the bottom of the canvas.
-    edges = [0]
+    packed = game_h is not None and game_h < rest
+    heights = [(game_h if packed else rest) if h is None else h for h in heights]
+    # Row edges rounded once, so rows meet exactly; filling, the last one ends
+    # at the bottom of the canvas.
+    edges = [_pos(min(rest - game_h, top)) if packed else 0]
     for h in heights[:-1]:
         edges.append(_pos(edges[-1] + h))
-    edges.append(OUT_H)
+    edges.append(_pos(edges[-1] + heights[-1]) if packed else OUT_H)
     out = []
     for i, row in enumerate(rows):
         anchor = "top" if i == 0 else "bottom" if i == len(rows) - 1 else "center"
@@ -218,16 +312,18 @@ def _pip_regions(spec: dict, safe: dict) -> list:
     return [(role, (_pos(x0 + i * (w + PIP_GAP)), y, w, h)) for i, role in enumerate(cams)]
 
 
-def _game_src(src_w: int, src_h: int, s: dict, dest: tuple, fit: str, cams: list) -> tuple:
-    """The part of the frame the game element shows."""
-    aspect = dest[2] / dest[3]
+def _game_src(src_w: int, src_h: int, s: dict, aspect: float, fit: str, cams: list, panels: list) -> tuple:
+    """The part of the frame the game element shows, for a region of `aspect`."""
     if s.get("game_box"):
         region = _clamp_box(s["game_box"], src_w, src_h)
         return region if fit == "fit" else _cover(region, aspect)
     if fit == "fit":
-        return (0, 0, _even(src_w), _even(src_h)) if not cams else _beside(src_w, src_h, cams[0], aspect)
-    crop_w = min(src_w, _even(src_h * aspect))
+        return _whole(src_w, src_h, cams + panels, aspect)
     align = s.get("game_align") if s.get("game_align") in ALIGNS else "center"
+    zoomed = _zoom(src_w, src_h, aspect, align, cams, panels)
+    if zoomed is not None:
+        return zoomed
+    crop_w = min(src_w, _even(src_h * aspect))
     x = _clear_of(src_w, crop_w, cams) if (cams and align == "center") else _aligned(src_w, crop_w, align)
     crop_h = min(src_h, _even(crop_w / aspect)) if crop_w == src_w else _even(src_h)
     return (_pos(x), _pos((src_h - crop_h) / 2), crop_w, crop_h)
@@ -238,7 +334,8 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
 
     settings: a clip's gaming settings (gaming/run.py lists the keys):
       preset, order, divider, safe, game_fit, game_align, and the normalized
-      boxes cam, cam2, game_box, ui_box.
+      boxes cam, cam2, game_box, ui_box and panels (the stream's solid panels,
+      gaming/panels.py).
     heads: {"cam": (centre x, top, chin), ...} in source px, the streamer's
       head inside each webcam, for face-safe framing (gaming/framing.py).
     """
@@ -254,7 +351,11 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
         s.get("game_fit") if s.get("game_fit") in FITS else spec.get("game_fit", "fill"))
     heads = heads or {}
     cam_boxes = {role: _clamp_box(s[role], src_w, src_h) for role in ("cam", "cam2") if s.get(role)}
-    shown_cams = [cam_boxes[r] for r in cam_boxes]
+    # The game keeps clear of the webcams this layout shows (a second webcam
+    # drawn for another layout is just part of the picture here).
+    uses = {r for row in spec.get("rows", []) for r in row} | set(spec.get("cams", []))
+    shown_cams = [cam_boxes[r] for r in cam_boxes if r == "cam" or r in uses]
+    panels = [_clamp_box(b, src_w, src_h) for b in (s.get("panels") or [])]
 
     elements = []
 
@@ -262,8 +363,9 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
         crop, shift = framing.cam_crop(cam_boxes[role], heads.get(role), dest, safe)
         elements.append(Element(role, crop, dest, "cover", "center", shift, shape))
 
-    def game(dest: tuple, anchor: str) -> None:
-        src = _game_src(src_w, src_h, s, dest, fit, shown_cams)
+    def game(dest: tuple, anchor: str, src: tuple | None = None) -> None:
+        if src is None:
+            src = _game_src(src_w, src_h, s, dest[2] / dest[3], fit, shown_cams, panels)
         elements.append(Element("game", src, dest, "contain" if fit == "fit" else "cover", anchor))
 
     if spec["type"] == "full":
@@ -273,9 +375,19 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
         for role, dest in _pip_regions(spec, safe):
             camera(role, dest, spec.get("shape", "rect"))
     else:
-        for role, dest, anchor in _stack_regions(spec, order, s.get("divider")):
+        regions = _stack_regions(spec, order, s.get("divider"))
+        whole = None
+        if fit == "fit":
+            # The whole game right against the webcam: its row is the game's
+            # own height, and what's left is blur above and below the two.
+            space = next(dest for role, dest, _a in regions if role == "game")
+            whole = _game_src(src_w, src_h, s, space[2] / space[3], fit, shown_cams, panels)
+            regions = _stack_regions(spec, order, s.get("divider"), OUT_W * whole[3] / whole[2], safe["top"])
+            if regions[0][1][1] > 0 or regions[-1][1][1] + regions[-1][1][3] < OUT_H:
+                elements.append(Element("bg", whole, (0, 0, OUT_W, OUT_H), "blur"))
+        for role, dest, anchor in regions:
             if role == "game":
-                game(dest, anchor)
+                game(dest, anchor, whole)
             elif role == "ui":
                 ui = _clamp_box(s["ui_box"], src_w, src_h)
                 elements.append(Element("ui", ui, dest, "contain", "center"))

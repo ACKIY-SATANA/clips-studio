@@ -40,6 +40,17 @@ def _cases():
             if divider is not None:
                 s["divider"] = divider
             cases.append((1920, 1080, s, {"cam": HEADS[name]}))
+    # The stream's solid panels: a black chat bar under the game and a splits
+    # timer (measured on a speedrun), and a chat column down the right edge.
+    panel_sets = {"bar": [[0.0, 0.5852, 0.1667, 0.1019], [0.15, 0.8296, 0.85, 0.1704]],
+                  "column": [[0.8, 0.1, 0.2, 0.9]]}
+    cams = {"bottom_left": [0.0, 0.6926, 0.1625, 0.3074], "corner": BOXES["corner"]}
+    for (pname, panels), (cname, cam), preset, order, fit, align in itertools.product(
+            panel_sets.items(), cams.items(), sorted(layout.PRESETS), ("cam_top", "game_top"), ("fit", "fill"),
+            ("center", "left", "right")):
+        s = {"preset": preset, "cam": cam, "order": order, "game_fit": fit, "game_align": align, "panels": panels,
+             "ui_box": [0.3, 0.0, 0.4, 0.08], "cam2": [0.75, 0.0, 0.25, 0.3]}
+        cases.append((1920, 1080, s, {}))
     cases += [
         (1920, 1080, {"preset": "split", "cam": None}, {}),
         (1920, 1080, {"preset": "split", "cam": BOXES["corner"], "game_box": [0.17, 0.0, 0.83, 0.83]}, {}),

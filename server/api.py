@@ -1734,18 +1734,28 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         """Who is on that frame, and where their heads are (normalized)."""
         return _people(_video_frame(at, url, path))
 
+    def _panels(frames: list) -> list:
+        """The stream's solid panels (a black chat bar, a splits timer) on
+        these frames, which the game crop keeps out (gaming/panels.py)."""
+        try:
+            from gaming import panels
+        except ImportError:
+            return []
+        return panels.panels_in_images(frames)
+
     @app.get("/sources/suggest")
     def source_suggest(url: str = "", path: str = ""):
         """A starting webcam box for the layout editor, from frames spread over
         the video: the same person in the same place, inside an overlay's own
         border (gaming/detect.suggest_cam). None when there isn't a clear one;
-        the webcam is then found by who is talking, when processing."""
+        the webcam is then found by who is talking, when processing. With it,
+        the stream's solid panels."""
         frames = [_video_frame(at, url, path) for at in (0.1, 0.3, 0.5, 0.7, 0.9)]
         try:
             from gaming import detect
         except ImportError:
-            return {"cam": None}
-        return {"cam": detect.suggest_cam(frames, config["tracking"]["detector"])}
+            return {"cam": None, "panels": []}
+        return {"cam": detect.suggest_cam(frames, config["tracking"]["detector"]), "panels": _panels(frames)}
 
     SETUP_FRAMES = (0.1, 0.3, 0.5, 0.7, 0.9)   # the editor's five frames, spread over the video
 
@@ -1826,6 +1836,11 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
     def clip_snap(clip_id: int, box: str):
         """A webcam box drawn for this clip, snapped to its border."""
         return _snap([_clip_frame(clip_id, at) for at in SETUP_FRAMES], box)
+
+    @app.get("/clips/{clip_id}/panels")
+    def clip_panels(clip_id: int):
+        """The solid panels on the clip's source, over the editor's frames."""
+        return {"panels": _panels([_clip_frame(clip_id, at) for at in SETUP_FRAMES])}
 
     @app.get("/clips/{clip_id}/people")
     def clip_people(clip_id: int, at: float = 0.5):

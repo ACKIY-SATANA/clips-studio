@@ -61,16 +61,40 @@ def test_the_divider_sets_the_camera_band_within_the_layouts_range():
     assert _plan("half", divider=0.3).element("cam").dest[3] == 960       # Half is always half
 
 
-def test_a_whole_game_sits_against_its_own_edge_never_in_the_middle():
-    """The whole game used to float in the middle of its band, blur above and
-    below. It is anchored to the edge of the Short its region touches."""
-    assert _plan("split", game_fit="fit", order="cam_top").element("game").anchor == "bottom"
-    assert _plan("split", game_fit="fit", order="game_top").element("game").anchor == "top"
+@pytest.mark.parametrize("order", ["cam_top", "game_top"])
+@pytest.mark.parametrize("safe", ["tiktok", "shorts", "none"])
+def test_a_whole_game_sits_right_against_the_webcam_with_the_blur_above_and_below(order, safe):
+    """Never a band of blur between the streamer and the game: the game row is
+    the game's own height, touching the webcam, and what's left over goes
+    above the two (just clear of the platform's top bar, so the head isn't
+    under it) and below them."""
+    for preset, spec in layout.PRESETS.items():
+        if spec["type"] != "stack":
+            continue
+        p = _plan(preset, game_fit="fit", order=order, safe=safe, ui_box=[0.3, 0, 0.4, 0.08],
+                  cam2=[0.75, 0.7, 0.25, 0.3])
+        rows = sorted({(e.dest[1], e.dest[1] + e.dest[3]) for e in p.elements if e.role != "bg"})
+        assert all(a[1] == b[0] for a, b in zip(rows, rows[1:])), preset          # no gap anywhere
+        top, below = rows[0][0], 1920 - rows[-1][1]
+        # Above: up to the top bar's height; the rest below. With less spare
+        # than that, all of it goes above.
+        assert top == framing.safe_zone(safe)["top"] or (top < framing.safe_zone(safe)["top"] and below <= 6), preset
+        g = p.element("game")
+        assert abs(g.dest[3] - 1080 * g.src[3] / g.src[2]) <= 2, preset            # the game's own height
+        bg = p.elements[0]
+        assert bg.role == "bg" and bg.fit == "blur" and bg.dest == (0, 0, 1080, 1920), preset
+
+
+def test_a_zoomed_game_fills_its_row_with_no_blur_at_all():
     for preset, spec in layout.PRESETS.items():
         if spec["type"] == "stack":
-            g = _plan(preset, game_fit="fit", ui_box=[0.3, 0, 0.4, 0.08], cam2=[0.75, 0, 0.25, 0.3]).element("game")
-            assert g.anchor in ("top", "bottom"), preset
-    assert _plan("blurred").element("game").anchor == "center"        # the game alone, by design
+            p = _plan(preset, game_fit="fill", ui_box=[0.3, 0, 0.4, 0.08], cam2=[0.75, 0, 0.25, 0.3])
+            assert all(e.role != "bg" for e in p.elements), preset
+            assert p.element("game").fit == "cover", preset
+
+
+def test_the_blurred_layout_is_the_only_one_that_centres_the_game_on_the_short():
+    assert _plan("blurred").element("game").anchor == "center"
 
 
 def test_layouts_fall_back_when_a_box_they_need_is_missing():
@@ -82,10 +106,13 @@ def test_layouts_fall_back_when_a_box_they_need_is_missing():
     assert _plan("duo_split").preset == "split"
 
 
-def test_settings_from_before_layouts_render_as_they_did():
-    p = layout.plan(W, H, {"cam": [0.0, 0.69, 0.17, 0.31], "cam_position": "bottom", "game_fit": "fit"})
+def test_settings_from_before_layouts_are_half_with_the_game_right_against_the_webcam():
+    """Clips made before layouts were Half, the whole game floating in the
+    middle of its half. Re-rendered, the game touches the webcam instead."""
+    p = layout.plan(W, H, {"cam": [0.0, 0.69, 0.17, 0.31], "cam_position": "bottom"})
     assert p.preset == "half" and p.order == "game_top" and p.element("game").fit == "contain"
-    assert p.element("cam").dest == (0, 960, 1080, 960)
+    game, cam = p.element("game").dest, p.element("cam").dest
+    assert game == (0, 140, 1080, 730) and cam == (0, 870, 1080, 960)
 
 
 def test_a_zoomed_game_leaves_the_webcam_and_edge_chat_out():
@@ -102,6 +129,40 @@ def test_a_drawn_game_area_leaves_out_the_chat_under_the_game():
     assert _plan("split", game_box=game, game_fit="fit").element("game").src == (326, 0, 1592, 896)
     x, y, w, h = _plan("split", game_box=game, game_fit="fill").element("game").src
     assert y + h <= 0.83 * H + 2 and x >= 0.17 * W - 2 and x + w <= W
+
+
+ZELDA_CAM = [0.0, 0.6926, 0.1625, 0.3074]
+ZELDA_PANELS = [[0.0, 0.5833, 0.1667, 0.1037], [0.1625, 0.8296, 0.8375, 0.1704]]   # splits; black chat bar
+
+
+@pytest.mark.parametrize("preset", ["split", "half", "basecam", "small_cam", "circle_cam", "fullscreen"])
+def test_a_zoomed_game_keeps_the_black_chat_bar_out(preset):
+    """Measured on a speedrun stream: a black bar with chat under the game,
+    the full width right of the webcam. The zoom stops above it and stays on
+    the middle of the game picture rather than sliding off to a clear edge."""
+    p = _plan(preset, cam=ZELDA_CAM, panels=ZELDA_PANELS, game_fit="fill")
+    x, y, w, h = p.element("game").src
+    assert y + h <= 0.8296 * H + 2, preset                     # nothing of the bar
+    assert x <= 0.58 * W <= x + w, preset                      # the middle of the game picture
+    for box in ZELDA_PANELS:
+        bx, by, bw, bh = (round(v * s) for v, s in zip(box, (W, H, W, H)))
+        assert x + w <= bx or bx + bw <= x or y + h <= by or by + bh <= y, (preset, box)
+
+
+def test_a_whole_game_leaves_the_black_chat_bar_out():
+    g = _plan("split", cam=ZELDA_CAM, panels=ZELDA_PANELS, game_fit="fit").element("game")
+    x, y, w, h = g.src
+    assert y + h <= 0.8296 * H + 2 and x >= 0.1667 * W - 2 and x + w == W
+
+
+def test_without_panels_the_zoom_is_the_same_centred_crop_as_before():
+    assert _plan("split", game_fit="fill").element("game").src == (480, 0, 978, 1080)   # slid off the webcam
+    assert _plan("fullscreen", cam=None).element("game").src == (656, 0, 606, 1080)
+
+
+def test_a_webcam_across_the_middle_bottom_gets_a_zoom_above_it():
+    x, y, w, h = _plan("split", cam=(0.4, 0.7, 0.2, 0.3), game_fit="fill").element("game").src
+    assert y + h <= 0.7 * H + 2 and x <= W / 2 <= x + w
 
 
 def test_a_small_facecam_sits_inside_the_platforms_safe_zone():
@@ -173,6 +234,20 @@ def test_a_face_under_the_caption_area_is_flagged():
     assert framing.face_clear(HIGH_HEAD, e.src, e.dest, e.shift, TIKTOK)["bottom"] is False
 
 
+def test_a_face_too_big_for_its_band_keeps_its_chin_rather_than_clearing_the_top_bar():
+    """Measured on a speedrun: a tight webcam scaled into Split's band. With the
+    head placed under TikTok's top bar the chin was cut by the game; the whole
+    face stays in the band and the hair goes under the bar instead."""
+    head = (0.0859 * W, 0.7318 * H, 0.9563 * H)
+    e = _plan("split", cam=ZELDA_CAM, heads={"cam": head}, game_fit="fill").element("cam")
+    top, chin = framing.head_on_canvas(head, e.src, e.dest, e.shift)
+    assert chin <= e.dest[1] + e.dest[3]                              # the chin, even if the hair is cut
+    assert framing.face_clear(head, e.src, e.dest, e.shift, TIKTOK) == {"top": False, "bottom": True}
+    # Half with the whole game: a taller band, starting below the bar, fits both.
+    roomy = _plan("half", cam=ZELDA_CAM, heads={"cam": head}, game_fit="fit").element("cam")
+    assert framing.face_clear(head, roomy.src, roomy.dest, roomy.shift, TIKTOK) == {"top": True, "bottom": True}
+
+
 def test_nothing_in_the_layout_or_framing_reads_motion_or_pixels():
     """The old failure was choosing the region that moved most (chat). Layout
     and framing are geometry only."""
@@ -193,7 +268,7 @@ def test_the_graph_places_every_element_at_its_region():
     graph = compose.filter_graph(p)
     for e in p.elements:
         assert f"overlay={e.dest[0]}:{e.dest[1]}" in graph
-    assert "overlay=(W-w)/2:H-h" in graph                        # whole game against the bottom edge
+    assert "[l0]" in graph and "gblur" in graph.split("[l0]")[0]     # the blur goes down first
     circle = compose.filter_graph(_plan("circle_cam"))
     assert "geq=" in circle and "hypot(X-W/2,Y-H/2)" in circle
     zoom = compose.filter_graph(_plan("fullscreen", cam=None, game_fit="fill"), vf_extra="eq=saturation=1.1",
@@ -257,17 +332,20 @@ def test_a_real_camera_top_split(stream, tmp_path):
     assert _share(game, 0) > 0.9 and _share(game, 1) < 0.01 and _share(game, 2) < 0.01
 
 
-def test_a_real_game_top_with_the_whole_game_starts_at_the_top_of_the_short(stream, tmp_path):
-    p = _plan("basecam", game_fit="fit")
+@pytest.mark.parametrize("preset", ["split", "basecam"])
+def test_a_real_whole_game_touches_the_webcam(stream, tmp_path, preset):
+    """The game ends where the webcam starts (or the other way round): no band
+    of blur between them; the blur is above and below the two."""
+    p = _plan(preset, game_fit="fit")
     frame = _render(stream, tmp_path, p)
-    assert _share(frame[:40], 0) > 0.6                        # the game itself, not a blur, at y=0
-    cam = p.element("cam").dest
-    assert _share(frame[cam[1]:], 2) > 0.9                    # the webcam at the bottom
-
-
-def test_a_real_camera_top_with_the_whole_game_ends_at_the_bottom_of_the_short(stream, tmp_path):
-    frame = _render(stream, tmp_path, _plan("split", game_fit="fit"))
-    assert _share(frame[-40:], 0) > 0.6                       # the game reaches the bottom edge
+    cam, game = p.element("cam").dest, p.element("game").dest
+    first, second = (cam, game) if cam[1] < game[1] else (game, cam)
+    seam = first[1] + first[3]
+    assert seam == second[1]
+    colour = {id(cam): 2, id(game): 0}
+    assert _share(frame[seam - 12:seam - 2, 40:900], colour[id(first)]) > 0.9      # (the green chat is
+    assert _share(frame[seam + 2:seam + 12, 40:900], colour[id(second)]) > 0.9     # part of the game)
+    assert first[1] == 140 and float(frame[:100].max(axis=-1).mean()) > 40     # blur above, not black
 
 
 def test_a_real_circle_facecam_shows_the_game_in_its_corners(stream, tmp_path):

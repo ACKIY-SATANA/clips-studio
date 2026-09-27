@@ -39,13 +39,14 @@ All of them are data (`gaming/layouts.json`), not code.
 **On top** switches the webcam and the game in Split, Half, Game UI, Mosaic and
 Duo split; Basecam is the same switch set the other way.
 
-Every region is filled in the same order: the region on the 1080×1920 canvas,
-then the source cut to that region's shape (never stretched), then either
-**cover** (cropped to fill it) or **contain** (shown whole). A whole game sits
-against its region's outer edge: at the very top when the game is on top, at
-the very bottom when it's underneath, with a blurred copy of itself filling the
-rest of its region. Nothing is centred on the whole canvas except in Blurred,
-and there are no black bars.
+The game is either **zoomed** to fill its part of the Short or shown
+**whole**. Shown whole, it sits right against the webcam: never a band of blur
+between the streamer and the game. The webcam and the game are stacked
+together, and the space left over is a blurred copy of the game, above the two
+(just clear of the platform's top bar, so the streamer's head isn't under it)
+and below them, where the platform's captions and buttons go anyway. Only
+Blurred, the game alone, sits in the middle of the Short. There are no black
+bars.
 
 With no webcam found, a layout that needs one falls back to Blurred. A layout
 that needs a Game UI or second webcam box that was never drawn falls back to
@@ -65,6 +66,10 @@ So the webcam is placed from the streamer's head, not the middle of the box:
 - the head's top lands at least 6% of the region below its top **and** below the
   chosen platform's top bar, and the chin above the caption area where the
   region allows it;
+- the chin comes first: when a tight webcam's face is too tall for its band,
+  the hair goes under the top bar (and the preview says so) rather than the
+  chin being cut off by the game. A bigger webcam share, or the whole game,
+  gives it room;
 - when the webcam itself has too little room above the head, the picture
   moves down inside its region (by just what's missing, at most 30% of the
   region), with a blurred copy above it rather than a cut-off head;
@@ -97,26 +102,28 @@ file) and **Choose a layout** opens:
 
 - **Layouts**: the eleven cards, each a live miniature of this frame;
 - **the frame**, with a box for each thing the layout uses (Webcam, Game, Game
-  UI, Webcam 2): drag a box to move it, a corner to resize it. The dashed line
-  inside is exactly what the layout will show. **Snap to the webcam's border**
-  pulls the webcam box out to the overlay's own edge;
+  UI, Webcam 2), already on it when it opens, as in StreamLadder: drag a box
+  to move it, a corner to resize it. The Game box starts on the area the
+  layout takes the game from; move it and it's yours (**Let Clips Kitty pick
+  the game area** gives it back). The dashed line inside is exactly what the
+  layout will show. **Snap to the webcam's border** pulls the webcam box out to
+  the overlay's own edge. The stream's solid panels are hatched **Left out**;
 - **Moment**: a slider over the whole video and five frames spread across it
   (nothing is downloaded for a link; each frame is read straight from the
   stream);
 - **Preview**: the 9:16 result, live, with the platform overlay and the face
   check. Drag the line between the webcam and the game to change their shares;
-- **On top**: Camera or Game. **Webcam**: *Find it*, *Draw it* or *None*.
+- **On top**: Camera or Game. **Webcam**: *Draw it* (the default: the box on
+  the frame), *Find it* (by who is talking, when processing) or *None*.
   **Game**: *Whole* or *Zoom to fill* (and then Left, Centre or Right).
-  **Draw the game area** around just the game leaves chat, alerts and panels
-  out.
 
-When it opens, Clips Kitty suggests a webcam box: a person in the same spot on
-at least four of the five frames, no more than a third of the picture, with a
-real border round at least two of its inner sides. A game character moves
-between frames minutes apart, chat has no person in it, and an avatar has no
-webcam border, so none of them are suggested. It's only a starting point, drawn
-for you to check. With no suggestion, *Find it* leaves the webcam to TalkNet
-when processing.
+When it opens, the webcam box is moved onto the webcam when Clips Kitty finds
+one: a person in the same spot on at least four of the five frames, no more
+than a third of the picture, with a real border round at least two of its
+inner sides. A game character moves between frames minutes apart, chat has no
+person in it, and an avatar has no webcam border, so none of them are
+suggested. It's only a starting point, for you to check. With no suggestion
+the box waits in the corner for you to drag onto the webcam.
 
 **Use this layout** sends it with the video. **Remember for this creator's
 next videos** keeps it for them, so their next videos (and a watched
@@ -163,15 +170,29 @@ with a webcam, every side of every box landed inside the hand-marked webcam.
 The game area is **never detected**. Earlier attempts looked for the part of
 the screen with the most going on, and scrolling chat won every time. So:
 
-- **Whole game**: the biggest picture beside the webcam that leaves it out
-  (left, right, above or below it), so the streamer isn't shown twice. With no
-  webcam, the whole stream. A chat panel at the side of the stream is part of
-  that picture; *Zoom to fill* or a drawn game area leaves it out.
-- **Zoom to fill**: a crop at the region's shape from the middle, full height,
-  where chat panels and alerts at the edges fall outside it, slid clear of the
-  webcam. A chat box *under* the game can still be inside it: draw the game
-  area.
+- **Whole game**: the biggest picture beside the webcam and the solid panels
+  (below) that leaves them out, so the streamer isn't shown twice. With no
+  webcam, the whole stream.
+- **Zoom to fill**: a crop at the region's shape, as tall as it can be while
+  it stays clear of the webcam and the solid panels, on the middle of the game
+  picture.
 - **A drawn game area** replaces both.
+
+**Solid panels** are the parts of the stream layout on their own background: a
+black chat bar under the game, a speedrun's splits timer. Cropped into the
+Short they're a useless bar, so they're found and kept out:
+
+- four or more stacked lines of text in the same place on most of five frames
+  spread through the video (the game's own text comes and goes; a panel stays);
+- on the same background colour on every frame. Behind see-through chat the
+  game changes, so chat drawn over the gameplay stays in the picture: it's
+  part of the stream;
+- grown out over that colour to the panel's own box, one side at a time.
+
+It is OpenCV only, a fraction of a second, and no motion is involved. On the
+13 test streams it found the speedrun's black chat bar and splits timer and
+nothing else: not a night-time game (its dark sky shifts between frames), not
+a HUD, not see-through chat.
 
 ## Scoring
 

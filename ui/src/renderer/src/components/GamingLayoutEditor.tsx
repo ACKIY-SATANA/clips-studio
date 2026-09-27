@@ -139,6 +139,18 @@ function Composition({
             </div>
           )
         }
+        if (e.fit === 'blur') {
+          return (
+            <div key={i} style={box}>
+              <img
+                src={frameUrl}
+                alt=""
+                draggable={false}
+                style={{ ...paint(e.src, src.w, src.h, dw, dh, 'cover'), filter: 'blur(6px) brightness(0.85)' }}
+              />
+            </div>
+          )
+        }
         const blurred = e.fit === 'contain' || e.shift > 0
         return (
           <div key={i} style={box}>
@@ -199,13 +211,28 @@ export default function GamingLayoutEditor({
   const [gameAlign, setGameAlign] = useState<'left' | 'center' | 'right'>(settings.game_align ?? 'center')
   const decided = settings.by === 'user' || settings.by === 'creator'
   const found: FrameBox | null = settings.used_cam ?? (settings.by === 'video' ? settings.cam ?? null : null)
-  const [camMode, setCamMode] = useState<CamMode>(decided && 'cam' in settings ? (settings.cam ? 'draw' : 'none') : 'auto')
+  // Draw it is the default: the webcam and game boxes are on the frame from
+  // the start, to drag onto the webcam and round the gameplay. A clip that
+  // was rendered with no webcam starts from None.
+  const [camMode, setCamMode] = useState<CamMode>(
+    decided && 'cam' in settings
+      ? settings.cam
+        ? 'draw'
+        : 'none'
+      : context === 'clip' && settings.used_preset && !settings.used_cam
+        ? 'none'
+        : 'draw'
+  )
+  const camTouched = useRef(Boolean(decided || found))
   const [boxes, setBoxes] = useState<Record<BoxRole, FrameBox | null>>({
-    cam: (decided ? settings.cam : found) ?? null,
+    cam: (decided ? settings.cam : found) ?? NEW_BOX.cam,
     cam2: settings.cam2 ?? null,
     game: settings.game_box ?? null,
     ui: settings.ui_box ?? null
   })
+  // The stream's solid panels (a black chat bar, a splits timer): the game
+  // crop keeps them out. Found by the engine; drawing the game area overrides.
+  const [panels, setPanels] = useState<FrameBox[] | undefined>(settings.panels)
   const [remember, setRemember] = useState(rememberInitially)
   const [active, setActive] = useState<BoxRole>('cam')
   const [at, setAt] = useState(context === 'video' ? FRAMES[1] : 0.5)
@@ -238,14 +265,24 @@ export default function GamingLayoutEditor({
   // A starting webcam, before processing: the same person in the same framed
   // spot across the video. Only a suggestion: it is drawn for you to check.
   useEffect(() => {
-    if (context !== 'video' || camMode !== 'auto' || boxes.cam || 'clipId' in source) return
+    if ('clipId' in source) {
+      if (settings.panels === undefined)
+        api
+          .layoutPanels(source.clipId)
+          .then((r) => setPanels(r.panels))
+          .catch(() => undefined)
+      return
+    }
+    const wantCam = context === 'video' && !camTouched.current
+    if (!wantCam && settings.panels !== undefined) return
+    if (wantCam) setNote(t('Drag the Webcam box onto the streamer’s camera and the Game box round the gameplay.'))
     api
       .layoutSuggest(source)
       .then((r) => {
-        if (!r.cam) return
+        if (settings.panels === undefined) setPanels(r.panels ?? [])
+        if (!wantCam || !r.cam || camTouched.current) return
         setBoxes((b) => ({ ...b, cam: r.cam }))
-        setCamMode('draw')
-        setNote(t('Webcam suggested: the same person in the same framed spot across the video. Check it on a few frames.'))
+        setNote(t('Webcam found: the same person in the same framed spot across the video. Check it on a few frames, and drag it if it’s off.'))
       })
       .catch(() => undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -265,7 +302,8 @@ export default function GamingLayoutEditor({
     cam: camUnknown ? PLACEHOLDER_CAM : camBox,
     cam2: boxes.cam2,
     game_box: boxes.game,
-    ui_box: boxes.ui
+    ui_box: boxes.ui,
+    panels
   })
 
   // The streamer's head on this frame: the surest person inside the webcam.
@@ -294,8 +332,10 @@ export default function GamingLayoutEditor({
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }
   }
   const startDrag = (e: React.PointerEvent, role: BoxRole, mode: Drag['mode']): void => {
-    const box = boxes[role]
+    const box = boxes[role] ?? (role === 'game' ? autoGame : null)
     if (!box) return
+    if (role === 'game' && !boxes.game) setBox('game', box)
+    if (role === 'cam') camTouched.current = true
     e.stopPropagation()
     setActive(role)
     const q = pos(e)
@@ -329,7 +369,9 @@ export default function GamingLayoutEditor({
     if (!dividerDrag.current || !previewRef.current || !spec.divider) return
     const r = previewRef.current.getBoundingClientRect()
     const y = ((e.clientY - r.top) / r.height) * OUT_H
-    const share = order === 'cam_top' ? y / OUT_H : (OUT_H - y) / OUT_H
+    const top = camEl ? camEl.dest[1] : 0
+    const bottom = camEl ? camEl.dest[1] + camEl.dest[3] : OUT_H
+    const share = order === 'cam_top' ? (y - top) / OUT_H : (bottom - y) / OUT_H
     setDivider(clamp(share, spec.divider[0], spec.divider[1]))
   }
 
@@ -349,7 +391,8 @@ export default function GamingLayoutEditor({
     if (!boxes.cam) return
     setSnapping(true)
     try {
-      const r = await api.layoutSnap(source, boxes.cam)
+      camTouched.current = true
+    const r = await api.layoutSnap(source, boxes.cam)
       setBox('cam', r.box)
       setNote(
         r.bordered.some(Boolean)
@@ -367,6 +410,7 @@ export default function GamingLayoutEditor({
     const out: GamingSettings = { preset, order, safe, game_fit: gameFit, game_align: gameAlign }
     if (divider !== undefined) out.divider = Math.round(divider * 1000) / 1000
     if (boxes.game) out.game_box = boxes.game
+    if (panels !== undefined) out.panels = panels
     if (roles.has('ui') && boxes.ui) out.ui_box = boxes.ui
     if (roles.has('cam2') && boxes.cam2) out.cam2 = boxes.cam2
     if (camMode === 'draw' && boxes.cam) Object.assign(out, { cam: boxes.cam, by: 'user' })
@@ -379,9 +423,14 @@ export default function GamingLayoutEditor({
     onClose()
   }
 
-  // Boxes drawn on the frame for this layout.
+  // Boxes drawn on the frame for this layout. The game's is where the layout
+  // takes the game from until you move it.
+  const gameEl = elementOf(p, 'game')
+  const autoGame: FrameBox | null = gameEl
+    ? [gameEl.src[0] / src.w, gameEl.src[1] / src.h, gameEl.src[2] / src.w, gameEl.src[3] / src.h]
+    : null
   const shownBoxes: BoxRole[] = []
-  if (boxes.game) shownBoxes.push('game')
+  if (boxes.game || autoGame) shownBoxes.push('game')
   if (roles.has('ui') && boxes.ui) shownBoxes.push('ui')
   if (roles.has('cam2') && boxes.cam2) shownBoxes.push('cam2')
   if (camMode === 'draw' && boxes.cam) shownBoxes.push('cam')
@@ -540,7 +589,7 @@ export default function GamingLayoutEditor({
               {/* What each element will actually show: the crops from the plan. */}
               {loaded &&
                 p.elements.map((e, i) =>
-                  e.role === 'cam' && camUnknown ? null : (
+                  (e.role === 'cam' && camUnknown) || e.role === 'bg' || (e.role === 'game' && !boxes.game) ? null : (
                     <div
                       key={`crop${i}`}
                       className="absolute pointer-events-none"
@@ -556,8 +605,26 @@ export default function GamingLayoutEditor({
                   )
                 )}
               {loaded &&
+                !boxes.game &&
+                (panels ?? []).map(([x, y, w, h], i) => (
+                  <div
+                    key={`panel${i}`}
+                    className="absolute pointer-events-none flex items-start justify-end"
+                    style={{
+                      left: `${x * 100}%`,
+                      top: `${y * 100}%`,
+                      width: `${w * 100}%`,
+                      height: `${h * 100}%`,
+                      background: 'repeating-linear-gradient(45deg, rgba(239,68,68,0.28) 0 6px, transparent 6px 12px)',
+                      outline: '1px solid rgba(239,68,68,0.8)'
+                    }}
+                  >
+                    <span className="text-[10px] px-1 rounded-bl bg-red-500 text-white">{t('Left out')}</span>
+                  </div>
+                ))}
+              {loaded &&
                 shownBoxes.map((role) => {
-                  const [x, y, w, h] = boxes[role] as FrameBox
+                  const [x, y, w, h] = (boxes[role] ?? (role === 'game' ? autoGame : null)) as FrameBox
                   return (
                     <div
                       key={role}
@@ -728,13 +795,14 @@ export default function GamingLayoutEditor({
                   </span>
                   {segment(
                     [
-                      ['auto', 'Find it'],
                       ['draw', 'Draw it'],
+                      ['auto', 'Find it'],
                       ['none', 'None']
                     ],
                     camMode,
                     (m) => {
                       setCamMode(m)
+                      camTouched.current = true
                       if (m === 'draw') {
                         if (!boxes.cam) setBox('cam', found ?? NEW_BOX.cam)
                         setActive('cam')
@@ -777,18 +845,11 @@ export default function GamingLayoutEditor({
                   )}
                 </div>
               )}
-              <button
-                className="btn-ghost !py-1 w-full"
-                onClick={() => {
-                  if (boxes.game) setBoxes((b) => ({ ...b, game: null }))
-                  else {
-                    setBox('game', NEW_BOX.game)
-                    setActive('game')
-                  }
-                }}
-              >
-                {boxes.game ? t('Let Clips Kitty pick the game area') : t('Draw the game area')}
-              </button>
+              {boxes.game && (
+                <button className="btn-ghost !py-1 w-full" onClick={() => setBoxes((b) => ({ ...b, game: null }))}>
+                  {t('Let Clips Kitty pick the game area')}
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -115,6 +115,10 @@ def clean_gaming(settings: dict | None) -> dict:
         out["game_align"] = settings["game_align"]
     if settings.get("game_fit") in ("fit", "fill"):
         out["game_fit"] = settings["game_fit"]
+    if isinstance(settings.get("panels"), list):
+        # The stream's solid panels, as found (gaming/panels.py): a few boxes.
+        panels = [_unit_box(b) for b in settings["panels"][:8]]
+        out["panels"] = [b for b in panels if b is not None]
     return out
 
 

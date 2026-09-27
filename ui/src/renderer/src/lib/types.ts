@@ -219,8 +219,10 @@ export interface GamingSettings {
   game_align?: 'left' | 'center' | 'right'
   /** The game drawn by hand; absent = found beside the webcam. */
   game_box?: FrameBox | null
-  /** 'fit' (default): the game whole, on a blurred copy of itself; 'fill': zoomed to fill. */
+  /** 'fit': the game whole, right against the webcam, blur above and below the two; 'fill': zoomed to fill. */
   game_fit?: 'fit' | 'fill'
+  /** The stream's solid panels (a black chat bar, a splits timer), kept out of the game. */
+  panels?: FrameBox[]
   /** Written by the render: what the clip actually got. */
   layout?: 'split' | 'fill'
   used_cam?: FrameBox | null

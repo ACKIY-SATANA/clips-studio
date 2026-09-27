@@ -66,6 +66,7 @@ hiddenimports += [
     "gaming.layout",
     "gaming.framing",
     "gaming.compose",
+    "gaming.panels",
     "sources.preview_frames",
 ]
 
