@@ -538,6 +538,8 @@ export interface StudioEvent {
   title?: string
   clip?: number
   total?: number
+  /** Remote rendering only: "on Gaming PC · uploading 62%", "waiting for Gaming PC". */
+  remote?: string
   clips?: number
   current?: number
   fraction?: number

@@ -189,27 +189,48 @@ def create_app(queue: RenderQueue, data_dir: Path):
     return app
 
 
+_VIRTUAL = ("virtualbox", "vmware", "vethernet", "hyper-v", "wsl", "docker", "loopback", "npcap", "bluetooth")
+
+
+def _primary() -> str:
+    """The address this PC uses to reach the network (the default route's
+    interface). A UDP connect sends nothing; it only picks the route."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 9))
+            return s.getsockname()[0]
+    except OSError:
+        return ""
+
+
 def addresses() -> list[str]:
-    """This PC's addresses a worker could reach: the local network's, and a
-    Tailscale one (100.64.0.0/10) when it's on a tailnet."""
+    """This PC's addresses a worker could reach, the one it really uses
+    first: the local network's, and a Tailscale one (100.64.0.0/10) when it's
+    on a tailnet. Virtual adapters (VirtualBox, WSL, Docker, Hyper-V) are
+    left out: a worker can't reach this PC through them."""
     import ipaddress
 
     import psutil
 
+    primary = _primary()
+    tailnet = ipaddress.ip_network("100.64.0.0/10")
     found = []
     try:
-        for addrs in psutil.net_if_addrs().values():
+        for name, addrs in psutil.net_if_addrs().items():
+            virtual = any(v in name.lower() for v in _VIRTUAL)
             for a in addrs:
                 if a.family != socket.AF_INET:
                     continue
                 ip = ipaddress.ip_address(a.address)
                 if ip.is_loopback or ip.is_link_local:
                     continue
-                if ip.is_private or ip in ipaddress.ip_network("100.64.0.0/10"):
+                if ip in tailnet or (ip.is_private and (not virtual or a.address == primary)):
                     found.append(a.address)
     except Exception:
         pass
-    return sorted(set(found), key=lambda a: (not a.startswith("192.168."), a))
+    if primary and primary not in found:
+        found.append(primary)
+    return sorted(set(found), key=lambda a: (a != primary, not a.startswith("100."), a))
 
 
 class Gateway:

@@ -42,6 +42,7 @@ import type {
   YouTubeStatus
 } from './youtube'
 import type { Capabilities, FanOut, PlatformRow, UploadPostStatus } from './uploadpost'
+import type { RemoteRenderState } from './remoteRender'
 
 export const API_BASE = 'http://127.0.0.1:8765'
 
@@ -887,7 +888,36 @@ export const api = {
   publishWatchItem: (id: number) =>
     request<WatchItem>(`/automation/items/${id}/publish`, { method: 'POST' }),
   skipWatchItem: (id: number) =>
-    request<WatchItem>(`/automation/items/${id}/skip`, { method: 'POST' })
+    request<WatchItem>(`/automation/items/${id}/skip`, { method: 'POST' }),
+
+  // ---- Remote rendering (Settings -> Advanced settings) ----
+  remoteRender: () => request<RemoteRenderState>('/remote-render'),
+  setRemoteRender: (patch: { enabled?: boolean; mode?: string; port?: number }) =>
+    request<RemoteRenderState>('/remote-render', { method: 'PUT', body: JSON.stringify(patch) }),
+  renderPairingCode: () =>
+    request<{ code: string; expires_in: number; addresses: string[]; port: number; fingerprint: string }>(
+      '/remote-render/pairing-code',
+      { method: 'POST' }
+    ),
+  removeRenderWorker: (id: string) =>
+    request<RemoteRenderState>(`/remote-render/workers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  holdRenderWorker: (id: string, held: boolean) =>
+    request<RemoteRenderState>(`/remote-render/workers/${encodeURIComponent(id)}/hold`, {
+      method: 'POST',
+      body: JSON.stringify({ held })
+    }),
+  setThisPcWorker: (patch: {
+    enabled?: boolean
+    main?: string
+    code?: string
+    max_jobs?: number
+    draining?: boolean
+  }) => request<RemoteRenderState>('/remote-render/this-pc', { method: 'PUT', body: JSON.stringify(patch) }),
+  unpairThisPc: () => request<RemoteRenderState>('/remote-render/this-pc/unpair', { method: 'POST' }),
+  renderLocally: (videoId: string) =>
+    request<{ released: number }>(`/remote-render/videos/${encodeURIComponent(videoId)}/render-locally`, {
+      method: 'POST'
+    })
 }
 
 /** The server's own words from a failed request, for showing to a person.

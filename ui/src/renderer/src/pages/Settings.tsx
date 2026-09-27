@@ -27,6 +27,7 @@ import AICard from '../components/AICard'
 import UploadPostCard from '../components/UploadPostCard'
 import WoopSocialCard from '../components/WoopSocialCard'
 import YouTubeCard from '../components/YouTubeCard'
+import RemoteRenderCard from '../components/RemoteRenderCard'
 import { Folder } from '../components/icons'
 
 // Content languages offered in the dropdown — the transcription/caption
@@ -635,6 +636,19 @@ export default function Settings(): JSX.Element {
       <UploadPostCard />
 
       <BrandingCard />
+
+      {/* For the few with more than one PC. Collapsed, and last: most people
+          never need it, and nothing it controls shows anywhere else until
+          it is switched on. */}
+      <details className="card group">
+        <summary className="cursor-pointer select-none font-semibold">
+          {t('Advanced settings')}{' '}
+          <span className="text-xs font-normal text-muted">{t('For multi-PC setups')}</span>
+        </summary>
+        <div className="mt-4">
+          <RemoteRenderCard />
+        </div>
+      </details>
 
       <div className="card text-sm text-muted">
         Local models are managed on the <span className="text-ink">Models</span> page; where the AI runs

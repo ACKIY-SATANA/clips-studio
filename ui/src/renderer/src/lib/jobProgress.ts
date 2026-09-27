@@ -10,6 +10,8 @@ export interface JobProgress {
   fraction: number
   startedAt: number
   videoId: string
+  /** Remote rendering only: where the current clip is ("on Gaming PC · rendering"). */
+  remote?: string
 }
 
 const STAGES: Record<string, { base: number; weight: number; label: string }> = {
@@ -64,8 +66,13 @@ export function applyEvent(p: JobProgress, e: StudioEvent): JobProgress {
   else if (typeof e.current === 'number' && e.total) within = Math.max(0, e.current - 1) / e.total
 
   const fraction = Math.min(0.99, stage.base + stage.weight * Math.min(1, Math.max(0, within)))
+  // Remote rendering adds where the clip is; a later local event keeps it
+  // until the stage moves on.
+  const remote = e.stage === 'render' ? (e.remote ?? p.remote) : undefined
   const label =
-    e.stage === 'render' && e.clip && e.total ? `Rendering clip ${e.clip}/${e.total}` : stage.label
+    e.stage === 'render' && e.clip && e.total
+      ? `Rendering clip ${e.clip}/${e.total}${remote ? ` · ${remote}` : ''}`
+      : stage.label
 
   return {
     active: true,
@@ -73,7 +80,8 @@ export function applyEvent(p: JobProgress, e: StudioEvent): JobProgress {
     label,
     fraction: Math.max(fraction, p.fraction), // progress never moves backwards
     startedAt,
-    videoId
+    videoId,
+    ...(remote ? { remote } : {})
   }
 }
 

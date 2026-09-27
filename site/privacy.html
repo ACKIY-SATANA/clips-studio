@@ -57,7 +57,7 @@
             service you have connected. This page explains exactly what is stored, what can
             leave your machine, and what triggers it.
           </p>
-          <p><strong>Last updated:</strong> 25 September 2026</p>
+          <p><strong>Last updated:</strong> 27 September 2026</p>
         </div>
       </div>
 
@@ -250,6 +250,25 @@
             post publicly. If you would rather send nothing, do not use the Feedback Hub; the app
             works exactly the same without it.
           </p>
+
+          <h3>Only if you turn on remote rendering</h3>
+          <p>
+            Settings &rarr; Advanced settings can let another computer of <em>yours</em>
+            render your clips. This is <strong>off by default</strong>, and it only ever talks
+            to a computer you paired yourself with a one-time code, on your own network (or
+            your own Tailscale network).
+          </p>
+          <ul>
+            <li><strong>What is sent to the render PC:</strong> the stretch of video each clip
+              comes from, the transcript lines inside it (for captions), the render settings,
+              and your watermark image if you use one. It sends the finished clip back.</li>
+            <li><strong>What is never sent:</strong> your AI keys, publishing accounts, YouTube
+              sign-in, library or anything else. The render PC only renders.</li>
+            <li><strong>It is encrypted and paired.</strong> The connection is HTTPS, the render
+              PC accepts only the certificate it saw when you paired it, and every render PC has
+              its own credential that you can revoke by removing it. There is no Clips Kitty
+              server in between.</li>
+          </ul>
 
           <h3>Only if you set it up yourself</h3>
           <p>

@@ -767,8 +767,9 @@ calls is below, because "why not yet" is usually more useful than "not yet".
 
 1. **Android companion app**: clip from a phone. Twitch, Kick and local video files
    only, to comply with Play Store policy.
-2. **Remote rendering**: hand the rendering work to another machine, so a long stream
-   doesn't tie up the computer you're using.
+2. **Remote rendering** *(shipped, experimental)*: another PC of yours renders the
+   clips, so a long stream doesn't tie up the computer you're using. Settings →
+   Advanced settings; see [docs/REMOTE-RENDERING.md](docs/REMOTE-RENDERING.md).
 3. **Fully automated posting**: the **Watched channels** page now covers the
    unattended half. It watches a YouTube, Twitch or Kick channel, clips each new video
    once, and publishes the clips through WoopSocial automatically or after you say so.

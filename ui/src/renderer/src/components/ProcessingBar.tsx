@@ -42,6 +42,18 @@ export default function ProcessingBar(): JSX.Element | null {
   const eta = etaSeconds(progress, now)
   const pct = Math.round(progress.fraction * 100)
 
+  // Remote rendering set to one worker that isn't there: the clips wait for
+  // it, and this brings them back to this PC instead.
+  const waiting = Boolean(progress.remote?.startsWith('waiting for'))
+  const renderHere = async (): Promise<void> => {
+    if (!progress.videoId) return
+    try {
+      await api.renderLocally(progress.videoId)
+    } catch {
+      // the next progress event says where the clips are
+    }
+  }
+
   const cancel = async (): Promise<void> => {
     if (!progress.videoId) return
     setCancelling(true)
@@ -74,6 +86,11 @@ export default function ProcessingBar(): JSX.Element | null {
           >
             Queue
           </button>
+          {waiting && (
+            <button className="btn-ghost !px-2.5 !py-1 text-xs" onClick={renderHere}>
+              Render here instead
+            </button>
+          )}
           <button
             className="btn-ghost !px-2.5 !py-1 text-xs"
             onClick={cancel}

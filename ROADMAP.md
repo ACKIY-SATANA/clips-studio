@@ -58,7 +58,9 @@ None of this delays the alpha.
   words spoken over it (the split layout is done: Gaming / Reaction)
 - **Android companion app** for Twitch, Kick and local files, within Google
   Play's policies
-- Remote rendering management
+- Remote rendering: shipped (experimental) under Settings → Advanced settings
+  ([docs/REMOTE-RENDERING.md](docs/REMOTE-RENDERING.md)); next, testing across
+  more real two-PC setups
 - Plugin architecture and community extensions
 - Creator analytics
 - More models, better AI workflows, more platforms where they make sense

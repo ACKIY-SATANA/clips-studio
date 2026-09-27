@@ -10,6 +10,14 @@ were often broken in a way that only showed up on somebody else's machine.
 
 ## Unreleased
 
+- **Remote rendering (experimental).** Another computer of yours can render the clips,
+  so the one you use stays free while a long stream is processed. Settings → Advanced
+  settings (off by default, and invisible until you switch it on): pair a render PC with
+  a one-time code, then render on this computer, automatically on a render PC when one
+  is free, or only on a chosen one. Only the rendering moves; the clips it sends back
+  are identical to local ones. Transfers resume, results are checked, a render PC that
+  drops out gives its clips back, and nothing needs your router opened (Tailscale for
+  PCs in different places). See docs/REMOTE-RENDERING.md.
 ### Added
 
 - **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam and
