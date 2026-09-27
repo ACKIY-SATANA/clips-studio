@@ -58,6 +58,16 @@ were often broken in a way that only showed up on somebody else's machine.
   - In gaming mode the "person on screen" part of the score is left neutral, so top-down
     games like League and Dota are no longer scored as having nobody in them.
   - For streamers on a real camera; VTubers aren't supported.
+- **Gaming streams are scored as gaming streams.** A kill streak, a boss going down or
+  a goal counts, even from a streamer who says little. Gaming / Reaction scores this
+  way, and **Gaming stream** (beside Vertical Live) does it for a live that was already
+  vertical. The AI is told which game it is (Twitch says per part of the stream; Kick
+  and YouTube give the category, title or tags) and what a highlight is in that kind
+  of game; chat's reactions mark moments and what kind (hype, laughing, surprised,
+  scared, a fail, "clip it", in any language and with a channel's own emotes); a
+  sudden shout or laugh from the streamer marks them too. Each moment becomes a
+  15-35 s candidate starting just before it, and the clip's score breakdown shows what
+  marked it. Standard scoring is unchanged.
 - **Vertical Live, for streams that were vertical all along.** A YouTube vertical live,
   the vertical feed of a Twitch Dual Format or Streamlabs Dual Output stream, or a
   downloaded Instagram or TikTok live is already a finished 9:16 video. Tick **Vertical

@@ -223,13 +223,61 @@ It is OpenCV only, a fraction of a second, and no motion is involved. On the
 nothing else: not a night-time game (its dark sky shifts between frames), not
 a HUD, not see-through chat.
 
-## Scoring
+## Scoring: how game moments are found
 
-Finding the moments works as usual, with one change: the "reaction" signal
-(is a person on screen, being emphasised?) is left neutral. On a game stream it
-counts game characters as people, and a top-down game as nobody at all. The
-streamer's reactions are in their voice, which the audio and transcript
-signals already score.
+Standard scoring judges talk: hooks, opinions, drama, quotable lines. On a game
+stream the moment is usually something that happened in the game (a kill
+streak, a boss going down, a goal) and the reaction to it, often with little
+said. Gaming / Reaction scores that way, and so does **Gaming stream**, a
+checkbox beside **Vertical Live** for a live that was already vertical (in the
+Generate bar, a queued video's settings and a watched channel's). With neither
+on, scoring is exactly the standard one.
+
+What goes into it (research: stream-highlight papers on chat, audio and
+facecam signals; what gaming clip tools look for; what performs as a Short):
+
+- **The game.** Twitch says which game is played over which part of a stream
+  (a stream that goes from Just Chatting to Rust to Fortnite), Kick gives its
+  category, and a YouTube video's title and tags often name it.
+  `config/gaming.yaml` turns about 150 game names into a kind of game (shooter,
+  battle royale, MOBA, sports, fighting, racing, horror, soulslike,
+  action-adventure, sandbox, speedrun, party, strategy, reaction) with what a
+  highlight is in it and what a streamer says when it happens.
+- **The AI is told.** Every scoring prompt says it is a gaming stream, which
+  game (for the part of the stream it is reading), what a highlight is in it,
+  that a clear in-game moment is a strong clip even when little is said, and
+  that menus, queues, loading screens and reading out donations score low.
+- **Chat's reactions** (Twitch VODs and YouTube live replays; Kick keeps no
+  chat). A burst far above the stream's own message rate marks a moment,
+  dated about 6 seconds earlier for chat's delay, and what chat says names it:
+  hype (POG, NO WAY, すご), laughing (KEKW, LUL, ｗｗｗ, ㅋㅋㅋ, хаха, jajaja),
+  surprised (！？, あ, WHAT), scared (monkaS), a fail (F, NotLikeThis, BigSad)
+  or "clip it", including a channel's own emotes by their ending (kittyPog).
+  Bursts of hellos don't count, and a burst of long messages is chat
+  discussing something, not reacting.
+- **The streamer's voice.** A sudden jump in loudness while they are talking
+  (a shout, a laugh, a scream): the cheap stand-in for seeing their face react.
+- **A game channel** in the fused score carries all of it (40% of the weight;
+  the AI's reading of the words 25%, audio 20%, visuals 10%, a person on
+  screen 5% in Vertical Live and 0% in the split). When little is said, the
+  weight the words would have had moves to the game and the audio, so a quiet
+  streamer's big play isn't marked down for its silence.
+- **Each moment is a candidate of its own**, from about 4 seconds before it to
+  the reaction, 15 to 35 seconds, even when nothing was said near it. When
+  chat and the streamer's voice (or a loud moment) agree, it gets a bonus.
+
+The clip's score breakdown shows **game** and what marked the moment.
+
+**What this can't do yet.** Chat reacts to anything: a crash, a menu, a
+stretch of talk. On a Japanese Apex Legends VOD it found a death the streamer
+took (chat: the channel's RIP emote, BigSad, NotLikeThis), and also a black screen and a
+character-select screen. The AI reads the transcript and these events, not the
+picture, so it can't tell a play from a menu. Reading the screen (on-screen
+event text, and the AI looking at frames) is what comes next.
+
+In gaming mode the "reaction" signal (is a person on screen, being
+emphasised?) is left neutral in the split: on a game stream it counts game
+characters as people, and a top-down game as nobody at all.
 
 ## Tested on
 

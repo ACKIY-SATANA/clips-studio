@@ -67,6 +67,9 @@ hiddenimports += [
     "gaming.framing",
     "gaming.compose",
     "gaming.panels",
+    # Scoring a gaming stream (imported only when it is asked for).
+    "analysis.gaming",
+    "analysis.chat_moments",
     "sources.preview_frames",
 ]
 
@@ -76,6 +79,9 @@ hiddenimports += [
 datas += [
     (str(ROOT / "config" / "settings.yaml"), "config"),
     (str(ROOT / "config" / "prompts"), "config/prompts"),
+    # What a gaming highlight looks like per kind of game, and chat's emote
+    # classes (analysis/gaming.py), for scoring a gaming stream.
+    (str(ROOT / "config" / "gaming.yaml"), "config"),
     # The three-second clip a voice model is checked with before it is used
     # for online transcription (transcription/cloud.check_model).
     (str(ROOT / "transcription" / "assets"), "transcription/assets"),

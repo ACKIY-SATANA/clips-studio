@@ -114,6 +114,7 @@ const PREF = {
   podcast: 'generate-podcast',
   vertical_live: 'generate-vertical-live',
   gaming: 'generate-gaming',
+  gaming_scoring: 'generate-gaming-scoring',
   longform: 'generate-longform',
   longform_mode: 'generate-longform-mode'
 } as const
@@ -156,6 +157,7 @@ export function seedOptions(): JobOptions {
   // remembered pair says otherwise, those win and it stays off.
   if (localStorage.getItem(PREF.vertical_live) === 'true' && !o.podcast && !o.longform) {
     o.vertical_live = true
+    if (localStorage.getItem(PREF.gaming_scoring) === 'true') o.gaming_scoring = true
   }
   // Gaming / Reaction likewise, and the older modes win over it.
   if (localStorage.getItem(PREF.gaming) === 'true' && !o.podcast && !o.longform && !o.vertical_live) {
@@ -283,7 +285,10 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
       else delete next.podcast
     } else if (key === 'vertical_live') {
       if (on) next.vertical_live = true
-      else delete next.vertical_live
+      else {
+        delete next.vertical_live
+        delete next.gaming_scoring // offered with Vertical Live, so it goes with it
+      }
     } else if (key === 'gaming') {
       if (on) next.gaming = true
       else {
@@ -319,6 +324,32 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
     remember(key, on, next.longform?.mode)
     return next
   }
+
+  /** Beside Vertical Live: score this vertical live as a gaming stream. */
+  const gamingStream = (slot: Slot): JSX.Element => (
+    <label
+      className="flex items-center gap-2 text-sm shrink-0 whitespace-nowrap cursor-pointer"
+      title={t('Score this as a gaming stream: in-game moments (a kill streak, a boss going down, a goal) and the reactions to them count, from chat and your voice, even when you say little.')}
+    >
+      <input
+        type="checkbox"
+        className="size-4 accent-[#38BDF8]"
+        checked={Boolean(slot.options.gaming_scoring)}
+        onChange={(e) => {
+          const next = { ...slot.options }
+          if (e.target.checked) next.gaming_scoring = true
+          else delete next.gaming_scoring
+          try {
+            localStorage.setItem(PREF.gaming_scoring, String(e.target.checked))
+          } catch {
+            // a blocked localStorage only means it isn't remembered
+          }
+          replaceOptions(slot.key, next)
+        }}
+      />
+      {t('Gaming stream')} <span className="text-muted">{t('(game moments)')}</span>
+    </label>
+  )
 
   const isOn = (o: JobOptions, key: ToggleKey): boolean => {
     if (key === 'captions') return o.captions !== false
@@ -494,7 +525,7 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
                 // and would simply un-tick itself — which reads as a broken
                 // checkbox. Disable it and say what is missing instead.
                 const needsProfile = tg.key === 'watermark' && !watermarkSelection().profileId
-                return (
+                const label = (
                   <label
                     key={tg.key}
                     className={`flex items-center gap-2 text-sm shrink-0 whitespace-nowrap ${
@@ -519,6 +550,14 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
                     />
                     {t(tg.label)} <span className="text-muted">{t(tg.hint)}</span>
                   </label>
+                )
+                return tg.key === 'vertical_live' && isOn(slot.options, 'vertical_live') ? (
+                  <span key={tg.key} className="contents">
+                    {label}
+                    {gamingStream(slot)}
+                  </span>
+                ) : (
+                  label
                 )
               })}
 

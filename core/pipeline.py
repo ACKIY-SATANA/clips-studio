@@ -207,6 +207,10 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     source_name, _ = identify(url)
     if source_name != "local":
         db.set_video_source(video.video_id, url, source_name)
+    # The game(s) the platform says it shows, kept so a re-run from the cached
+    # file still knows them (the gaming profile, analysis/gaming.py).
+    if getattr(video, "games", None):
+        db.set_video_games(video.video_id, video.games)
     # Creator intelligence: attach the video to its creator profile (created
     # on first sight of this channel). Failure-safe — never blocks processing.
     creator_id = None
@@ -289,16 +293,26 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     # the background too — pure network wait, free during transcription.
     # Optional signal: any failure just means no bonus.
     hype_out: dict = {}
+    gaming_scoring = modes.gaming_scoring(config)
+    known_games = list(getattr(video, "games", None) or []) or db.video_games(video.video_id)
 
     def _fetch_hype() -> None:
         try:
-            from analysis.hype import audience_curve
+            from analysis.hype import audience_signals
 
-            curve = audience_curve(url, video.video_id, video.duration)
+            curve, messages = audience_signals(url, video.video_id, video.duration)
             if curve is not None:
                 hype_out["curve"] = curve
+            # What chat said, for a gaming stream's reading of its reactions.
+            if gaming_scoring and messages:
+                hype_out["messages"] = messages
         except Exception as e:
             print(f"      (audience hype fetch failed: {e})")
+        if gaming_scoring and not known_games:
+            # A file cached before the game was recorded: ask the platform once.
+            from sources.dispatch import game_info
+
+            hype_out["games"] = game_info(url)
 
     hype_thread = threading.Thread(target=_fetch_hype, daemon=True, name="hype-prepass")
     hype_thread.start()
@@ -334,6 +348,8 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     signals_thread.join()  # usually already done — transcription takes longer
     hype_thread.join(timeout=60)  # network fetch; hard cap so it never stalls
     llm = create_backend(_with_usable_model(config["llm"]))
+    gaming_profile, chat = _gaming_scoring_inputs(config, video, db, known_games, hype_out) \
+        if gaming_scoring else (None, None)
     candidates, rejections = find_clips(
         video.path, segments, llm, config,
         signals=signals_out.get("signals"),
@@ -341,6 +357,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         weight_bias=(creator_prefs or {}).get("weight_bias"),
         audience=hype_out.get("curve"),
         **({"measure_reaction": False} if modes.is_gaming(config) else {}),
+        **({"gaming": gaming_profile, "chat": chat} if gaming_profile is not None else {}),
     )
     for r in rejections:
         db.log_rejection(
@@ -550,6 +567,33 @@ def _try_gaming_render(intermediate: Path, render_path: Path, opts: dict, config
     except Exception as e:
         print(f"      (Gaming layout failed, using the standard layout: {e})")
         return None
+
+
+def _gaming_scoring_inputs(config: dict, video, db: StateDB, games: list, hype_out: dict):
+    """(the gaming profile, what chat's reactions mark) for a gaming stream.
+    Failure-safe: anything that goes wrong scores it as a gaming stream with
+    whatever is known, never as nothing."""
+    from analysis import gaming
+
+    try:
+        if not games and hype_out.get("games"):
+            games = hype_out["games"]
+            db.set_video_games(video.video_id, games)
+        profile = gaming.profile_for(config, games, video.title)
+    except Exception as e:
+        print(f"      (gaming profile: {e}; scoring as a generic game)")
+        profile = gaming.GamingProfile(weights=dict(gaming.GAMING_WEIGHTS))
+    chat = None
+    if hype_out.get("messages"):
+        try:
+            from analysis.chat_moments import chat_signal
+
+            k = gaming.knowledge()
+            chat = chat_signal(hype_out["messages"], video.duration, k.get("chat_classes") or {},
+                               float(k.get("chat_lag_seconds", 6)), k.get("chat_ignore") or [])
+        except Exception as e:
+            print(f"      (chat moments unavailable: {e})")
+    return profile, chat
 
 
 def _cached_or_download(url: str, data_dir: Path, db: StateDB, vertical: bool = False):

@@ -50,6 +50,7 @@ class JobIn(BaseModel):
     podcast: bool | None = None   # multi-cam podcast: letterbox, no subject tracking
     vertical_live: bool | None = None  # an already-composed 9:16 live: keep its layout, no face tracking
     gaming: bool | None = None  # Gaming / Split-Screen: webcam over the game, or the game alone
+    gaming_scoring: bool | None = None  # score as a gaming stream (with Vertical Live etc.)
     gaming_layout: dict | None = None  # the split set up before processing (gaming/run.py keys)
     gaming_remember: bool | None = None  # ...also kept for this creator's next videos
     webhook_url: str | None = None  # POST once when this job reaches a terminal state
@@ -80,6 +81,7 @@ class JobPatch(BaseModel):
     podcast: bool | None = None
     vertical_live: bool | None = None
     gaming: bool | None = None
+    gaming_scoring: bool | None = None  # score as a gaming stream (with Vertical Live etc.)
     gaming_layout: dict | None = None  # the split set up before processing (gaming/run.py keys)
     gaming_remember: bool | None = None  # ...also kept for this creator's next videos
     webhook_url: str | None = None
@@ -110,6 +112,7 @@ class BatchItemIn(BaseModel):
     podcast: bool | None = None
     vertical_live: bool | None = None
     gaming: bool | None = None
+    gaming_scoring: bool | None = None  # score as a gaming stream (with Vertical Live etc.)
     gaming_layout: dict | None = None  # the split set up before processing (gaming/run.py keys)
     gaming_remember: bool | None = None  # ...also kept for this creator's next videos
     webhook_url: str | None = None
@@ -195,6 +198,7 @@ class LocalVideoIn(BaseModel):
     podcast: bool | None = None  # multi-cam podcast: letterbox, no subject tracking
     vertical_live: bool | None = None  # an already-composed 9:16 live: keep its layout, no face tracking
     gaming: bool | None = None  # Gaming / Split-Screen: webcam over the game, or the game alone
+    gaming_scoring: bool | None = None  # score as a gaming stream (with Vertical Live etc.)
     gaming_layout: dict | None = None  # the split set up before processing (gaming/run.py keys)
     gaming_remember: bool | None = None  # ...also kept for this creator's next videos
     # Where the file came from, when the user knows (a downloaded live's
@@ -440,6 +444,10 @@ def _process_options(body, into: dict | None = None) -> dict:
         payload["vertical_live"] = True
     if getattr(body, "gaming", None):
         payload["gaming"] = True
+    if getattr(body, "gaming_scoring", None):
+        # Score as a gaming stream (analysis/gaming.py) with whatever layout
+        # the video gets, e.g. an already-vertical live of a game.
+        payload["gaming_scoring"] = True
     if getattr(body, "gaming_layout", None):
         # Set up on the video's own frames before processing: it is the user's
         # choice, so no detection second-guesses the parts they set.
@@ -494,6 +502,9 @@ def _process_options(body, into: dict | None = None) -> dict:
         raise HTTPException(400, "Gaming / Split-Screen can't be combined with Vertical Live, "
                                  "Podcast or Longform: each lays out the video its own way. "
                                  "Turn one of them off.")
+    if payload.get("gaming_scoring") and (payload.get("podcast") or payload.get("longform")):
+        raise HTTPException(400, "Gaming stream scoring works with the standard layout, Vertical "
+                                 "Live and Gaming / Reaction, not with Podcast or Longform.")
     return payload
 
 

@@ -190,6 +190,10 @@ class Worker(threading.Thread):
                         # An already-composed 9:16 live (core/modes.py): keep
                         # its layout, skip face tracking and reframing.
                         cfg["clips"]["vertical_live"] = True
+                    if payload.get("gaming_scoring"):
+                        # Scored as a gaming stream (analysis/gaming.py):
+                        # in-game moments count, even with little said.
+                        cfg["clips"]["gaming_scoring"] = True
                     if payload.get("gaming"):
                         # Gaming / Reaction (gaming/): the streamer's webcam
                         # over the game, or the game alone; the split set up

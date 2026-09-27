@@ -33,6 +33,11 @@ export interface SubScores {
   visual?: number
   reaction?: number
   engagement?: number
+  /** The gaming profile: how strongly chat, the streamer and the game mark an
+   *  in-game moment here, what marked it, and the bonus when they agree. */
+  game?: number
+  game_why?: string
+  game_bonus?: number
   source?: string
   rerank_position?: number
 }
@@ -276,6 +281,10 @@ export interface JobOptions {
   /** Gaming / Reaction: the streamer's webcam over the game or the video being
    *  reacted to (gaming/). Not combined with vertical_live, podcast or longform. */
   gaming?: boolean
+  /** Score as a gaming stream (analysis/gaming.py): in-game moments and the
+   *  reactions to them count, even with little said. Offered with Vertical
+   *  Live; Gaming / Reaction always scores this way. */
+  gaming_scoring?: boolean
   /** The split set up on the video's own frames before processing. */
   gaming_layout?: GamingSettings
   /** ...and kept for this creator's next videos. */
