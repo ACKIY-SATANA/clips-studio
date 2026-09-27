@@ -201,7 +201,8 @@ def find_clips(
             segments, llm, peak_windows, events=events,
             **({"guidance": gaming.guidance("windows"), "events_title": events_title,
                 "labels": {i: "game here: " + gaming.game_at(s0, e0)[0]
-                           for i, (s0, e0) in enumerate(peak_windows) if gaming.game_at(s0, e0)[0]}}
+                           for i, (s0, e0) in enumerate(peak_windows) if gaming.game_at(s0, e0)[0]},
+                "batch": 8}
                if gaming is not None else {}),
         )
         # Signal peaks are seeded tight around the hot moment — grow them to a
@@ -370,8 +371,12 @@ def find_clips(
         # nudge. Gated on on-screen person + motion — NOT on silence, since
         # creators often narrate while they work out — so a static talking
         # head is not promoted. Tunable via scoring.action_bonus.
+        # Not for a gaming stream: a facecam over a moving game is "a person
+        # on screen and motion" all stream long (it fired on every clip of
+        # an Apex VOD); the game bonus above is its gaming counterpart.
         if (
             action_bonus > 0
+            and gaming is None
             and c.subscores.get("reaction", 50) >= 55
             and c.subscores.get("visual", 0) >= 40
         ):
@@ -590,11 +595,15 @@ def _soft_or(sources: list[tuple[np.ndarray, float]]) -> np.ndarray:
 
 def _voice_jump(audio_raw: dict, segments: list[Segment], max_events: int = 60) -> tuple[np.ndarray, list]:
     """Seconds where the streamer suddenly gets loud while talking: a shout, a
-    laugh, a scream (loudness against the last 30 s, only where words are
-    being said). The cheap stand-in for seeing their face react. Returns
-    (0..1 per second, events)."""
-    spike = np.asarray(audio_raw.get("spike", np.zeros(0)), dtype=np.float32)
-    n = spike.size
+    laugh, a scream. The cheap stand-in for seeing their face react. Returns
+    (0..1 per second, events).
+
+    Measured against their own talking over the minute either side, not the
+    stream's overall level: a quiet game stream's level is its silences, so
+    against that, just talking read as 3-5x "louder than usual", and on a
+    20-minute Apex stretch every clip had a "shout" (60, the cap)."""
+    loud = np.asarray(audio_raw.get("loudness", np.zeros(0)), dtype=np.float32)
+    n = loud.size
     if n == 0:
         return np.zeros(0, dtype=np.float32), []
     talking = np.zeros(n, dtype=bool)
@@ -603,8 +612,17 @@ def _voice_jump(audio_raw: dict, segments: list[Segment], max_events: int = 60) 
         for w in words:
             lo, hi = int(w.get("start", sg.start)), int(w.get("end", sg.end)) + 1
             talking[max(0, lo):min(n, hi)] = True
-    # 1.8x the recent level starts to count; 4x is a full shout.
-    jump = np.clip((spike - 1.8) / 2.2, 0.0, 1.0) * talking
+    if not talking.any():
+        return np.zeros(n, dtype=np.float32), []
+    usual = float(np.median(loud[talking]))
+    level = np.full(n, usual, dtype=np.float32)
+    for t in np.flatnonzero(talking):
+        near = loud[max(0, t - 60):t + 61][talking[max(0, t - 60):t + 61]]
+        if near.size >= 10:
+            level[t] = float(np.median(near))
+    ratio = loud / np.maximum(level, 1e-6)
+    # Twice their usual voice starts to count; 3.5x is a full shout.
+    jump = (np.clip((ratio - 2.0) / 1.5, 0.0, 1.0) * talking).astype(np.float32)
     events = []
     sec = 0
     while sec < n:
@@ -614,8 +632,8 @@ def _voice_jump(audio_raw: dict, segments: list[Segment], max_events: int = 60) 
         end = sec
         while end + 1 < n and jump[end + 1] >= 0.6:
             end += 1
-        peak = float(spike[sec:end + 1].max())
-        events.append((float(sec), f"STREAMER: sudden shout or laugh ({peak:.1f}x louder than usual)", peak))
+        peak = float(ratio[sec:end + 1].max())
+        events.append((float(sec), f"STREAMER: sudden shout or laugh ({peak:.1f}x their usual voice)", peak))
         sec = end + 1
     events.sort(key=lambda ev: -ev[2])
     events = sorted(((t, d) for t, d, _p in events[:max_events]), key=lambda ev: ev[0])

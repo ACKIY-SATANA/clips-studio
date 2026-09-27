@@ -247,6 +247,9 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   game (for the part of the stream it is reading), what a highlight is in it,
   that a clear in-game moment is a strong clip even when little is said, and
   that menus, queues, loading screens and reading out donations score low.
+  The moments the signals found are read eight at a time: all at once, a
+  20-minute stretch's 45 moments ran past the model's answer budget and every
+  one fell back to a neutral 50.
 - **Chat's reactions** (Twitch VODs and YouTube live replays; Kick keeps no
   chat). A burst far above the stream's own message rate marks a moment,
   dated about 6 seconds earlier for chat's delay, and what chat says names it:
@@ -257,6 +260,9 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   discussing something, not reacting.
 - **The streamer's voice.** A sudden jump in loudness while they are talking
   (a shout, a laugh, a scream): the cheap stand-in for seeing their face react.
+  It is measured against their own talking over the minute around it, twice
+  their usual voice and up. Against the stream's overall level, which on a
+  quiet game stream is its silences, just talking counted as a shout.
 - **The game's own sound.** A small sound model (PANNs, trained on AudioSet's
   527 everyday sounds; 24 MB, bundled) listens to every second for gunfire,
   explosions, a crash or a shield shattering, a crowd cheering, a referee's
@@ -302,7 +308,8 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   independent witnesses agree (chat, the game's sound, a banner on screen, the
   streamer shouting or laughing) it gets a bonus; so does chat with a loud
   moment. The game's sound with loudness alone doesn't, because gunfire is
-  loud.
+  loud. The standard "active content" bonus (a person on screen, moving)
+  doesn't apply: a facecam over a moving game is that all stream long.
 
 The clip's score breakdown shows **game** and what marked the moment.
 

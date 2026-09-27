@@ -110,16 +110,38 @@ def score_windows(
     guidance: str = "",
     events_title: str | None = None,
     labels: dict | None = None,  # window index -> a note shown with it (the game there)
+    batch: int = 0,
 ) -> list[ClipCandidate]:
     """Score specific time windows (signal peaks fusion found) in one LLM
     call, so signal candidates get real text/engagement scores and grounded
-    hooks instead of placeholders."""
+    hooks instead of placeholders.
+
+    `batch` (the gaming profile): at most this many windows a call, each
+    answer matched to its window by time. One call for 45 windows ran past
+    the model's output budget, and a cut-off answer left every window at a
+    neutral 50."""
     if not windows:
         return []
     # One call for all the windows, but on CPU that single call can take
     # minutes. Say it is happening rather than going quiet mid-analyze.
     print(f"  Scoring {len(windows)} signal-peak window(s) with the model...")
+    if batch and len(windows) > batch:
+        results: list[ClipCandidate] = []
+        total = (len(windows) + batch - 1) // batch
+        for b, i in enumerate(range(0, len(windows), batch), 1):
+            progress.emit(stage="analyze", current=b, total=total)
+            part = windows[i:i + batch]
+            part_labels = {j - i: labels[j] for j in range(i, i + len(part)) if labels and labels.get(j)}
+            results += _score_window_batch(segments, llm, part, events, guidance, events_title,
+                                           part_labels, by_time=True)
+        return results
     progress.emit(stage="analyze", current=1, total=1)
+    return _score_window_batch(segments, llm, windows, events, guidance, events_title, labels,
+                               by_time=bool(batch))
+
+
+def _score_window_batch(segments, llm, windows, events, guidance, events_title, labels,
+                        by_time: bool) -> list[ClipCandidate]:
     template = WINDOWS_PROMPT_PATH.read_text(encoding="utf-8")
 
     blocks = []
@@ -143,6 +165,16 @@ def score_windows(
 
     results = []
     by_index = dict(enumerate(parsed))
+    if by_time:
+        # The model's own start for each window, when it copied one close
+        # enough; its order only when it answered every window.
+        by_index = {}
+        for i, (start, _end) in enumerate(windows):
+            near = [c for c in parsed if abs(c.start - start) <= 2.0]
+            if near:
+                by_index[i] = near[0]
+            elif len(parsed) == len(windows):
+                by_index[i] = parsed[i]
     for i, (start, end) in enumerate(windows):
         c = by_index.get(i)
         if c is not None:

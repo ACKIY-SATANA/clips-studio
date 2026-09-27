@@ -199,17 +199,25 @@ CFG = {
 
 
 def _quiet_stream(np, n=600, shout_at=None):
-    """A quiet game stream: almost nothing said, one loud moment."""
+    """A quiet game stream: almost nothing said, one loud moment. When there
+    is a shout, the streamer talked normally half a minute before it, which
+    is what the shout is measured against."""
     from core.models import Segment
 
     spike = np.ones(n, dtype=np.float32)
     burst = np.zeros(n, dtype=np.float32)
+    loudness = np.full(n, 0.02, dtype=np.float32)
+    segments = []
     if shout_at is not None:
         spike[shout_at:shout_at + 3] = 4.5
         burst[shout_at:shout_at + 3] = 8
-    segments = [Segment(start=float(shout_at or 5), end=float((shout_at or 5) + 3), text="NO WAY",
-                        words=[{"start": float(shout_at or 5), "end": float((shout_at or 5) + 2), "word": "NO WAY"}])]
-    audio = {"spike": spike, "burst": burst, "noisiness": np.zeros(n)}
+        loudness[shout_at - 40:shout_at - 25] = 0.1
+        loudness[shout_at:shout_at + 3] = 0.4
+        segments.append(Segment(start=float(shout_at - 40), end=float(shout_at - 25), text="ok let's go in",
+                                words=[{"start": float(shout_at - 40), "end": float(shout_at - 25), "word": "ok"}]))
+    segments.append(Segment(start=float(shout_at or 5), end=float((shout_at or 5) + 3), text="NO WAY",
+                            words=[{"start": float(shout_at or 5), "end": float((shout_at or 5) + 2), "word": "NO WAY"}]))
+    audio = {"spike": spike, "burst": burst, "noisiness": np.zeros(n), "loudness": loudness}
     visual = {"motion": np.zeros(n)}
     return segments, (audio, visual)
 
@@ -299,13 +307,16 @@ def test_the_streamer_getting_loud_while_talking_is_a_voice_jump():
     from analysis import fusion
     from core.models import Segment
 
-    spike = np.ones(100, dtype=np.float32)
-    spike[20:23] = 4.0       # loud while talking
-    spike[60:63] = 4.0       # loud with nobody talking (the game)
-    segs = [Segment(start=18.0, end=25.0, text="oh my god", words=[{"start": 19.0, "end": 24.0, "word": "god"}])]
-    jump, events = fusion._voice_jump({"spike": spike}, segs)
+    loud = np.full(100, 0.02, dtype=np.float32)       # a quiet stream between lines
+    loud[10:30] = 0.1                                   # the streamer talking
+    loud[20:23] = 0.4        # 4x their own voice: a shout
+    loud[60:63] = 0.4        # loud with nobody talking (the game)
+    segs = [Segment(start=10.0, end=30.0, text="oh my god", words=[{"start": 10.0, "end": 29.0, "word": "god"}])]
+    jump, events = fusion._voice_jump({"loudness": loud}, segs)
     assert jump[21] == pytest.approx(1.0) and jump[61] == 0
-    assert [t for t, _d in events] == [20.0] and "STREAMER" in events[0][1]
+    # Just talking, 5x the quiet stream around it, is not a shout.
+    assert jump[12] == 0
+    assert [t for t, _d in events] == [20.0] and "4.0x their usual voice" in events[0][1]
 
 
 def test_the_prompts_carry_the_guidance_only_for_a_gaming_stream(monkeypatch):
@@ -351,3 +362,30 @@ def test_gaming_scoring_goes_with_vertical_live_but_not_podcast():
         "vertical_live": True, "gaming_scoring": True}
     with pytest.raises(HTTPException):
         _process_options(Body(podcast=True, gaming_scoring=True))
+
+
+def test_a_gaming_stream_scores_its_windows_in_batches_matched_by_time():
+    from analysis import highlights
+    from core.models import Segment
+
+    calls = []
+
+    class Model:
+        def generate(self, prompt, *, json_mode=False):
+            import re
+            starts = [float(s) for s in re.findall(r"WINDOW \d+ \[([\d.]+)s", prompt)]
+            calls.append(starts)
+            # Answers out of order and skips one: matched by start, not position.
+            answers = [{"start": s, "end": s + 20, "score": 70 + int(s) % 10, "engagement": 60,
+                        "hook": f"at {s:.0f}", "reason": "r"} for s in reversed(starts[1:])]
+            return json.dumps({"clips": answers})
+
+    windows = [(float(s), float(s) + 20) for s in range(0, 200, 10)]       # 20 windows
+    got = highlights.score_windows([Segment(start=0, end=1, text="x")], Model(), windows, batch=8)
+    assert [len(c) for c in calls] == [8, 8, 4]
+    assert len(got) == 20 and [c.start for c in got] == [s for s, _ in windows]
+    for batch_start in (0, 80, 160):                                       # the skipped one: neutral
+        c = next(c for c in got if c.start == batch_start)
+        assert c.score == 50 and c.hook == "High-energy moment"
+    c = next(c for c in got if c.start == 30)
+    assert c.hook == "at 30" and c.score == 70
