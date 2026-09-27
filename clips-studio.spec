@@ -70,6 +70,8 @@ hiddenimports += [
     # Scoring a gaming stream (imported only when it is asked for).
     "analysis.gaming",
     "analysis.chat_moments",
+    "analysis.game_audio",
+    "analysis.panns",
     "sources.preview_frames",
 ]
 
@@ -82,6 +84,8 @@ datas += [
     # What a gaming highlight looks like per kind of game, and chat's emote
     # classes (analysis/gaming.py), for scoring a gaming stream.
     (str(ROOT / "config" / "gaming.yaml"), "config"),
+    # The sound tagger's 527 class names, in its output order (analysis/panns.py).
+    (str(ROOT / "config" / "audioset_labels.txt"), "config"),
     # The three-second clip a voice model is checked with before it is used
     # for online transcription (transcription/cloud.check_model).
     (str(ROOT / "transcription" / "assets"), "transcription/assets"),
@@ -141,6 +145,13 @@ for weights in ("yolov8n-pose.pt", "yolov8n.pt"):
 _asd = ROOT / "models" / "pretrain_TalkSet.model"
 if _asd.exists():
     datas += [(str(_asd), ".")]
+
+# Game-sound weights (PANNs MobileNetV1, 24 MB), fetched by
+# scripts/fetch_panns.py. Without them a gaming stream is scored on chat and
+# the streamer's voice only.
+_panns = ROOT / "models" / "panns_mobilenetv1.pth"
+if _panns.exists():
+    datas += [(str(_panns), ".")]
 
 # FFmpeg, fetched by scripts/fetch_ffmpeg.py. core.binaries looks for an
 # ffmpeg/ folder next to the executable.

@@ -52,6 +52,7 @@ def find_clips(
     measure_reaction: bool = True,  # False for Gaming / Split-Screen, see below
     gaming=None,  # analysis.gaming.GamingProfile: score as a gaming stream
     chat=None,  # analysis.chat_moments.ChatSignal: what chat's reactions mark
+    sounds=None,  # analysis.game_audio.GameSounds: what the game's own sound marks
 ) -> tuple[list[ClipCandidate], list[Rejection]]:
     clips_cfg = config["clips"]
     analysis_cfg = config["analysis"]
@@ -98,6 +99,8 @@ def find_clips(
     game_curve = np.zeros(0, dtype=np.float32)
     voice = np.zeros(0, dtype=np.float32)
     chat_curve = np.zeros(0, dtype=np.float32)
+    game_sound = np.zeros(0, dtype=np.float32)
+    people_sound = np.zeros(0, dtype=np.float32)
     guidance = ""
     events_title = None
     if gaming is not None:
@@ -108,6 +111,12 @@ def find_clips(
             chat_curve = chat.curve
             sources.append((chat_curve, 0.9))
             game_events += list(chat.events)
+        if sounds is not None:
+            # The game's sound (gunfire, a goal, a crash) is the game saying
+            # so; a scream or laughter is mostly the people playing it.
+            game_sound, people_sound = sounds.game, sounds.people
+            sources += [(game_sound, 0.7), (people_sound, 0.5)]
+            game_events += list(sounds.events)
         game_curve = _soft_or(sources)
         events = sorted(events + game_events, key=lambda ev: ev[0])
         guidance = gaming.guidance("clips")
@@ -118,6 +127,7 @@ def find_clips(
         print(f"  Gaming: scoring as a {gaming.spec.get('label', 'game')} stream"
               + (f" ({gaming.game})" if gaming.game else "")
               + f": {len(chat.events) if chat is not None else 0} chat moment(s), "
+              f"{len(sounds.events) if sounds is not None else 0} game sound(s), "
               f"{len(voice_events)} voice jump(s)")
 
     # ---- 2. candidate pools ---------------------------------------------
@@ -291,20 +301,31 @@ def find_clips(
         fused = round(100 * _fuse(c, weights, c.subscores["reaction"] / 100.0, speech[id(c)]))
         if gaming is not None:
             # What marked this moment, for the clip's score breakdown, and a
-            # bonus when chat and something else agree it happened: chat is
-            # the audience saying so, independent of the stream's own sound.
-            hits = []
+            # bonus when independent witnesses agree it happened: chat (the
+            # audience), the game's own sound, and the streamer (a shout, a
+            # scream, laughing). Loudness alone only backs chat up: gunfire
+            # is loud, so it would always agree with the game's sound.
+            hits = set()
             if chat_curve.size and _window_max(chat_curve, c.start, c.end) >= 0.5:
-                hits.append("chat")
-            if voice.size and _window_max(voice, c.start, c.end) >= 0.5:
-                hits.append("voice")
+                hits.add("chat")
+            if game_sound.size and _window_max(game_sound, c.start, c.end) >= 0.5:
+                hits.add("game")
+            if ((voice.size and _window_max(voice, c.start, c.end) >= 0.5)
+                    or (people_sound.size and _window_max(people_sound, c.start, c.end) >= 0.5)):
+                hits.add("streamer")
             if _window_max(audio_excitement, c.start, c.end) >= 0.92:
-                hits.append("sound")
-            why = [desc for sec, desc in events
-                   if c.start - 1 <= sec <= c.end and desc.split(":")[0] in ("CHAT", "STREAMER")]
+                hits.add("loud")
+            why, kinds = [], set()
+            for sec, desc in events:
+                kind = desc.split(":")[0]
+                if (c.start - 1 <= sec <= c.end and kind in ("CHAT", "STREAMER", "GAME SOUND", "SOUND")
+                        and kind not in kinds):
+                    why.append(desc)
+                    kinds.add(kind)
             if why:
                 c.subscores["game_why"] = "; ".join(why[:3])
-            if game_bonus > 0 and "chat" in hits and len(hits) >= 2:
+            agree = len(hits & {"chat", "game", "streamer"}) >= 2 or {"chat", "loud"} <= hits
+            if game_bonus > 0 and agree:
                 fused = min(100, fused + game_bonus)
                 c.subscores["game_bonus"] = game_bonus
                 n_game += 1

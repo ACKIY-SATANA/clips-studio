@@ -65,7 +65,10 @@ were often broken in a way that only showed up on somebody else's machine.
   and YouTube give the category, title or tags) and what a highlight is in that kind
   of game; chat's reactions mark moments and what kind (hype, laughing, surprised,
   scared, a fail, "clip it", in any language and with a channel's own emotes); a
-  sudden shout or laugh from the streamer marks them too. Each moment becomes a
+  sudden shout or laugh from the streamer marks them too, and so does the game's own
+  sound (gunfire and explosions in a fight, a crowd or a goal explosion in a sports
+  game, a crash in a race, a scream in a horror game), heard by a small bundled sound
+  model even when chat and the streamer are quiet. Each moment becomes a
   15-35 s candidate starting just before it, and the clip's score breakdown shows what
   marked it. Standard scoring is unchanged.
 - **Vertical Live, for streams that were vertical all along.** A YouTube vertical live,

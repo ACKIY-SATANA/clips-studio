@@ -317,6 +317,27 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     hype_thread = threading.Thread(target=_fetch_hype, daemon=True, name="hype-prepass")
     hype_thread.start()
 
+    # A gaming stream's own sound (gunfire, a goal, a crash), listened for
+    # while Whisper runs: a small model, minutes of work on a CPU for a long
+    # VOD. Optional: without the model the stream is scored without it.
+    sounds_out: dict = {}
+    sounds_thread = None
+    if gaming_scoring:
+        def _listen() -> None:
+            try:
+                from analysis import game_audio, gaming, panns
+
+                if not panns.available():
+                    print("      (game sounds: the sound model isn't installed, scoring without it)")
+                    return
+                groups = gaming.knowledge().get("sound_groups") or {}
+                sounds_out["heard"] = game_audio.listen(video.path, groups)
+            except Exception as e:
+                print(f"      (game sounds unavailable: {e})")
+
+        sounds_thread = threading.Thread(target=_listen, daemon=True, name="game-sounds-prepass")
+        sounds_thread.start()
+
     print("[2/4] Transcribing...")
     progress.emit(stage="transcribe", video_id=video.video_id, title=video.title)
     # Content language: "auto" lets Whisper detect; a forced code fixes
@@ -347,9 +368,12 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     progress.emit(stage="analyze", video_id=video.video_id)
     signals_thread.join()  # usually already done — transcription takes longer
     hype_thread.join(timeout=60)  # network fetch; hard cap so it never stalls
+    if sounds_thread is not None:
+        sounds_thread.join(timeout=900)  # done long before Whisper, bar a stuck decode
     llm = create_backend(_with_usable_model(config["llm"]))
-    gaming_profile, chat = _gaming_scoring_inputs(config, video, db, known_games, hype_out) \
-        if gaming_scoring else (None, None)
+    gaming_profile, chat, sounds = _gaming_scoring_inputs(
+        config, video, db, known_games, hype_out, sounds_out.get("heard")) \
+        if gaming_scoring else (None, None, None)
     candidates, rejections = find_clips(
         video.path, segments, llm, config,
         signals=signals_out.get("signals"),
@@ -357,7 +381,8 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         weight_bias=(creator_prefs or {}).get("weight_bias"),
         audience=hype_out.get("curve"),
         **({"measure_reaction": False} if modes.is_gaming(config) else {}),
-        **({"gaming": gaming_profile, "chat": chat} if gaming_profile is not None else {}),
+        **({"gaming": gaming_profile, "chat": chat, "sounds": sounds}
+           if gaming_profile is not None else {}),
     )
     for r in rejections:
         db.log_rejection(
@@ -569,10 +594,11 @@ def _try_gaming_render(intermediate: Path, render_path: Path, opts: dict, config
         return None
 
 
-def _gaming_scoring_inputs(config: dict, video, db: StateDB, games: list, hype_out: dict):
-    """(the gaming profile, what chat's reactions mark) for a gaming stream.
-    Failure-safe: anything that goes wrong scores it as a gaming stream with
-    whatever is known, never as nothing."""
+def _gaming_scoring_inputs(config: dict, video, db: StateDB, games: list, hype_out: dict,
+                           heard: dict | None = None):
+    """(the gaming profile, what chat's reactions mark, what the game's sound
+    marks) for a gaming stream. Failure-safe: anything that goes wrong scores
+    it as a gaming stream with whatever is known, never as nothing."""
     from analysis import gaming
 
     try:
@@ -593,7 +619,19 @@ def _gaming_scoring_inputs(config: dict, video, db: StateDB, games: list, hype_o
                                float(k.get("chat_lag_seconds", 6)), k.get("chat_ignore") or [])
         except Exception as e:
             print(f"      (chat moments unavailable: {e})")
-    return profile, chat
+    sounds = None
+    if heard:
+        try:
+            from analysis.game_audio import sound_signal
+
+            k = gaming.knowledge()
+            seconds = max(v.size for v in heard.values())
+            # Weighted for the game played in each part of the stream.
+            sounds = sound_signal(heard, k.get("sound_groups") or {}, profile.genre_track(seconds),
+                                  k.get("genre_sounds") or {})
+        except Exception as e:
+            print(f"      (game sounds unavailable: {e})")
+    return profile, chat, sounds
 
 
 def _cached_or_download(url: str, data_dir: Path, db: StateDB, vertical: bool = False):

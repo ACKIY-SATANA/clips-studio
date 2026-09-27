@@ -15,6 +15,7 @@ Gaming / Reaction, or "Gaming stream" with Vertical Live. Pure Python: the
 per-second signals live in analysis/chat_moments.py and fusion.
 """
 
+import math
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -88,10 +89,28 @@ class GamingProfile:
         for g in self.games:
             name = str(g.get("name") or "").strip()
             if name and float(g.get("start") or 0) <= mid < float(g.get("end") or 0):
-                if not _is_game(name):
-                    return name, "reaction"
-                return name, genre_of(name) or ("generic" if name != self.game else self.genre)
+                return name, self._genre_for(name)
         return self.game, self.genre
+
+    def _genre_for(self, name: str) -> str:
+        if not _is_game(name):
+            return "reaction"
+        return genre_of(name) or ("generic" if name != self.game else self.genre)
+
+    def genre_track(self, seconds: int) -> list[str]:
+        """The kind of game at each second of the video, as game_at() has it."""
+        track = [self.genre] * seconds
+        known: dict[str, str] = {}
+        for g in reversed(self.games):          # the first range listed wins, as in game_at
+            name = str(g.get("name") or "").strip()
+            if not name:
+                continue
+            if name not in known:
+                known[name] = self._genre_for(name)
+            lo = max(0, math.ceil(float(g.get("start") or 0)))
+            hi = min(seconds, math.ceil(float(g.get("end") or 0)))
+            track[lo:hi] = [known[name]] * max(0, hi - lo)
+        return track
 
     def guidance(self, kind: str = "clips", start: float | None = None, end: float | None = None) -> str:
         """The block the scoring prompts carry (their {mode_guidance}), for

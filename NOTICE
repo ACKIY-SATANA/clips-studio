@@ -54,6 +54,15 @@ significant ones, with their licences:
                                          third_party/talknet/ (c) 2021 Tao
                                          Ruijie, and its pretrained weights
                                          are fetched by scripts/fetch_asd_model.py
+  PANNs (Qiuqiang Kong)     MIT          game sounds; the MobileNetV1 network
+                                         is adapted in analysis/panns.py
+                                         (c) 2018-2020 Qiuqiang Kong, and its
+                                         pretrained weights (Zenodo 3987831)
+                                         are CC BY 4.0, fetched by
+                                         scripts/fetch_panns.py. AudioSet's
+                                         class names (config/
+                                         audioset_labels.txt) are CC BY 4.0,
+                                         Google
   faster-whisper            MIT          transcription; its model weights are
                                          fetched by scripts/fetch_whisper.py
                                          and are MIT (Systran/faster-whisper,

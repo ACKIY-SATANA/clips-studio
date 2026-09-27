@@ -238,6 +238,38 @@ def test_a_quiet_play_that_chat_reacts_to_becomes_a_clip_with_a_game_bonus(fusin
     assert seen["title"].startswith("GAME / CHAT")
 
 
+def _gunfire(np, n=600, at=298):
+    """What the tagger heard: a burst of gunfire at `at`, nothing else."""
+    from analysis.game_audio import sound_signal
+
+    k = gaming.knowledge()
+    heard = {g: np.full(n, 0.01, dtype=np.float32) for g in k["sound_groups"]}
+    heard["gunfire"][at:at + 5] = 0.6
+    return sound_signal(heard, k["sound_groups"], "shooter", k["genre_sounds"])
+
+
+def test_the_game_sound_and_the_streamer_agreeing_is_a_moment_without_chat(fusing):
+    np, fusion, _seen = fusing
+    segments, signals = _quiet_stream(np, shout_at=300)
+    profile = gaming.profile_for({"clips": {"gaming_scoring": True}}, [{"name": "VALORANT"}], "")
+    kept, _ = fusion.find_clips("v.mp4", segments, _NoLLM(), CFG, signals=signals, gaming=profile,
+                                sounds=_gunfire(np))
+    c = next(c for c in kept if c.start <= 300 <= c.end)
+    assert c.subscores.get("game_bonus") == 8
+    assert "GAME SOUND: gunfire" in c.subscores["game_why"] and "STREAMER" in c.subscores["game_why"]
+
+
+def test_the_game_sound_alone_is_a_candidate_but_not_a_bonus(fusing):
+    np, fusion, _seen = fusing
+    segments, signals = _quiet_stream(np)                  # nothing loud, nothing said near it
+    profile = gaming.profile_for({"clips": {"gaming_scoring": True}}, [{"name": "VALORANT"}], "")
+    kept, _ = fusion.find_clips("v.mp4", segments, _NoLLM(), CFG, signals=signals, gaming=profile,
+                                sounds=_gunfire(np))
+    moment = [c for c in kept if c.start <= 298 <= c.end]
+    assert moment and moment[0].start <= 295                # the fight, from just before it
+    assert moment[0].subscores["game"] >= 40 and "game_bonus" not in moment[0].subscores
+
+
 def test_standard_scoring_is_untouched_by_the_gaming_profile(fusing):
     np, fusion, seen = fusing
     segments, signals = _quiet_stream(np, shout_at=300)

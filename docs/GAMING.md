@@ -257,21 +257,47 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   discussing something, not reacting.
 - **The streamer's voice.** A sudden jump in loudness while they are talking
   (a shout, a laugh, a scream): the cheap stand-in for seeing their face react.
+- **The game's own sound.** A small sound model (PANNs, trained on AudioSet's
+  527 everyday sounds; 24 MB, bundled) listens to every second for gunfire,
+  explosions, a crash or a shield shattering, a crowd cheering, a referee's
+  whistle, screaming and laughter. What each means depends on the game
+  (`config/gaming.yaml`'s `genre_sounds`): gunfire is the fight in a shooter
+  and nothing in a football game; a crowd roars at a goal, and Rocket League's
+  goals explode. A stream mostly sounds like the streamer's voice and music,
+  so a sound is judged against its own level in that stream: a Rocket League
+  goal's explosion scores about 0.25 out of 1 and still stands out. It runs
+  beside transcription, about 600x realtime on a GPU and 120x on a CPU (a
+  3-hour VOD in about a minute and a half).
 - **A game channel** in the fused score carries all of it (40% of the weight;
   the AI's reading of the words 25%, audio 20%, visuals 10%, a person on
   screen 5% in Vertical Live and 0% in the split). When little is said, the
   weight the words would have had moves to the game and the audio, so a quiet
   streamer's big play isn't marked down for its silence.
 - **Each moment is a candidate of its own**, from about 4 seconds before it to
-  the reaction, 15 to 35 seconds, even when nothing was said near it. When
-  chat and the streamer's voice (or a loud moment) agree, it gets a bonus.
+  the reaction, 15 to 35 seconds, even when nothing was said near it. When two
+  independent witnesses agree (chat, the game's sound, the streamer shouting
+  or laughing) it gets a bonus; so does chat with a loud moment. The game's
+  sound with loudness alone doesn't, because gunfire is loud.
 
 The clip's score breakdown shows **game** and what marked the moment.
 
-**What this can't do yet.** Chat reacts to anything: a crash, a menu, a
-stretch of talk. On a Japanese Apex Legends VOD it found a death the streamer
-took (chat: the channel's RIP emote, BigSad, NotLikeThis), and also a black screen and a
-character-select screen. The AI reads the transcript and these events, not the
+**What it found on real VODs** (September 2026, public Twitch VODs):
+
+- A 94-minute Japanese Apex Legends VOD. Chat alone marked 4 moments: a death
+  the streamer took (chat: the channel's RIP emote, BigSad, NotLikeThis), and
+  also a black screen and a character-select screen. With the game's sound,
+  23 moments (the budget for that length); the two where chat and gunfire
+  agreed came first, and 8 of the top 9 were fights on screen.
+- 30 minutes of Rocket League: 27 moments, nearly all goals (the explosion,
+  with its replay a few seconds later counted as the same moment). One crowd
+  cheer at the end of a match landed on the menu after it.
+- 30 minutes of a stream filed under a football game that was really two
+  streamers watching someone else's IRL stream: one weak moment, nothing
+  strong enough to become a candidate on its own.
+
+**What this can't do yet.** Chat reacts to anything, including a menu: the
+settings screen chat reacted to on the Apex VOD is still a candidate (it just
+gets no bonus now). The AI reads the transcript and these events, not the
 picture, so it can't tell a play from a menu. Reading the screen (on-screen
 event text, and the AI looking at frames) is what comes next.
 
