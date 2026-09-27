@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from remote_render import settings, tls
@@ -122,12 +123,11 @@ def state(data_dir) -> dict:
     fingerprint = gw.fingerprint if gw is not None else ""
     status_file = Path(data_dir) / "remote_render" / "worker_status.json"
     this_status = {}
-    try:
+    # No status file yet (the worker hasn't checked in): nothing to show.
+    with suppress(OSError, ValueError):
         this_status = json.loads(status_file.read_text(encoding="utf-8"))
         if time.time() - float(this_status.get("time") or 0) > 45:
             this_status["connected"] = False
-    except (OSError, ValueError):
-        pass
     return {
         "settings": settings.public(s),
         "gateway": {"running": bool(gw and gw.running), "port": s["port"], "addresses": addresses(),

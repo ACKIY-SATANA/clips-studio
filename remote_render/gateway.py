@@ -9,11 +9,13 @@ runs a command or reads a path a worker chose.
 """
 
 import json
+import os
 import re
 import shutil
 import socket
 import threading
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from remote_render import piece, protocol, tls
@@ -29,6 +31,17 @@ def _no(status: int, detail: str):
     from fastapi import HTTPException
 
     return HTTPException(status, detail)
+
+
+def _inside(folder: Path, name: str) -> Path:
+    """`folder`/`name`, refused unless it stays inside `folder`: the name
+    comes from a request (a job id, an asset's file name), so nothing it
+    could contain reaches outside the folder."""
+    base = os.path.normpath(folder)
+    target = os.path.normpath(os.path.join(base, name))
+    if not target.startswith(base + os.sep):
+        raise _no(400, "bad name")
+    return Path(target)
 
 
 def create_app(queue: RenderQueue, data_dir: Path):
@@ -101,7 +114,7 @@ def create_app(queue: RenderQueue, data_dir: Path):
         row = job_of(job_id, wid)
         if not ASSET.fullmatch(name) or name not in json.loads(row["assets"] or "{}"):
             raise _no(404, "not an asset of this job")
-        path = assets_dir / name
+        path = _inside(assets_dir, name)
         if not path.is_file():
             raise _no(404, "asset missing on the main PC")
         return FileResponse(path)
@@ -118,7 +131,7 @@ def create_app(queue: RenderQueue, data_dir: Path):
     def result_status(job_id: str, request: Request):
         wid = worker_of(request)
         job_of(job_id, wid)
-        part = uploads / f"{job_id}.part"
+        part = _inside(uploads, f"{job_id}.part")
         return {"received": part.stat().st_size if part.exists() else 0}
 
     @app.put("/v1/jobs/{job_id}/result")
@@ -129,7 +142,7 @@ def create_app(queue: RenderQueue, data_dir: Path):
         wid = worker_of(request)
         job_of(job_id, wid)
         uploads.mkdir(parents=True, exist_ok=True)
-        part = uploads / f"{job_id}.part"
+        part = _inside(uploads, f"{job_id}.part")
         have = part.stat().st_size if part.exists() else 0
         if offset != have:
             raise _no(409, json.dumps({"received": have}))
@@ -149,7 +162,7 @@ def create_app(queue: RenderQueue, data_dir: Path):
         wid = worker_of(request)
         row = job_of(job_id, wid)
         body = await request.json()
-        part = uploads / f"{job_id}.part"
+        part = _inside(uploads, f"{job_id}.part")
         if not part.exists():
             raise _no(409, json.dumps({"received": 0}))
         size = part.stat().st_size
@@ -169,7 +182,7 @@ def create_app(queue: RenderQueue, data_dir: Path):
             state = queue.fail(job_id, wid, f"the returned clip was damaged ({problem})")
             return {"ok": False, "state": state, "error": problem}
         results.mkdir(parents=True, exist_ok=True)
-        final = results / f"{job_id}.mp4"
+        final = _inside(results, f"{job_id}.mp4")
         shutil.move(str(part), final)
         if not queue.complete(job_id, wid, final, str(body.get("render_opts") or "")):
             final.unlink(missing_ok=True)       # a duplicate: the job was already done
@@ -183,7 +196,7 @@ def create_app(queue: RenderQueue, data_dir: Path):
             raise _no(400, "bad job id")
         body = await request.json()
         state = queue.fail(job_id, wid, str(body.get("error") or "render failed"), str(body.get("log") or ""))
-        (uploads / f"{job_id}.part").unlink(missing_ok=True)
+        _inside(uploads, f"{job_id}.part").unlink(missing_ok=True)
         return {"state": state}
 
     return app
@@ -215,7 +228,8 @@ def addresses() -> list[str]:
     primary = _primary()
     tailnet = ipaddress.ip_network("100.64.0.0/10")
     found = []
-    try:
+    # A machine whose interfaces can't be listed still has the primary address.
+    with suppress(Exception):
         for name, addrs in psutil.net_if_addrs().items():
             virtual = any(v in name.lower() for v in _VIRTUAL)
             for a in addrs:
@@ -226,8 +240,6 @@ def addresses() -> list[str]:
                     continue
                 if ip in tailnet or (ip.is_private and (not virtual or a.address == primary)):
                     found.append(a.address)
-    except Exception:
-        pass
     if primary and primary not in found:
         found.append(primary)
     return sorted(set(found), key=lambda a: (a != primary, not a.startswith("100."), a))
@@ -286,12 +298,11 @@ class Gateway:
 
     def _sweep(self) -> None:
         while not self._stop.wait(SWEEP_EVERY):
-            try:
+            # A locked database this time round is simply swept on the next.
+            with suppress(Exception):
                 n = self.queue.sweep()
                 if n:
                     print(f"      Remote rendering: a worker went offline; {n} job(s) back in the queue")
-            except Exception:
-                pass
 
     def stop(self) -> None:
         self._stop.set()

@@ -10,13 +10,16 @@ kills that process and everything under it, so no FFmpeg is left running,
 and a crash stays in the child.
 """
 
+import ipaddress
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import threading
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from remote_render import piece, protocol, settings, tls
@@ -29,11 +32,25 @@ class PairingError(Exception):
     pass
 
 
+_HOSTNAME = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,62})(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}))*")
+
+
 def _split(main: str) -> tuple[str, int]:
+    """(host, port) from what someone typed: an IP address or a plain host
+    name (a PC's name, a .local or tailnet name), and a port. Anything else,
+    a URL or a path, is refused before any connection is made."""
     host, _, port = str(main).strip().rpartition(":")
     if not host:
         host, port = str(main).strip(), str(settings.DEFAULTS["port"])
-    return host.strip("[]"), int(port)
+    host = host.strip("[]")
+    try:
+        host = str(ipaddress.ip_address(host))
+    except ValueError:
+        if not _HOSTNAME.fullmatch(host):
+            raise PairingError(f"{main!r} isn't an address. Use the one the main PC shows, like 192.168.1.20:8766.")
+    if not port.isdigit() or not 1 <= int(port) <= 65535:
+        raise PairingError(f"{main!r} has no valid port. The main PC shows it, like 192.168.1.20:8766.")
+    return host, int(port)
 
 
 def pair(data_dir: Path, main: str, code: str, name: str = "") -> dict:
@@ -54,10 +71,9 @@ def pair(data_dir: Path, main: str, code: str, name: str = "") -> dict:
         raise PairingError(f"Pairing failed: {e.__class__.__name__}") from e
     if r.status_code != 200:
         detail = ""
-        try:
+        # An answer that isn't JSON: the status code below says enough.
+        with suppress(Exception):
             detail = r.json().get("detail", "")
-        except Exception:
-            pass
         raise PairingError(detail or f"Pairing failed ({r.status_code})")
     body = r.json()
     settings.update(data_dir, this_pc={"main": f"{host}:{port}", "fingerprint": fingerprint,
@@ -75,13 +91,13 @@ def _child_command(job_dir: Path) -> list[str]:
 def _kill_tree(proc: subprocess.Popen) -> None:
     import psutil
 
-    try:
+    # A process that already exited, or a child that went first: nothing left to stop.
+    with suppress(Exception):
         parent = psutil.Process(proc.pid)
         for child in parent.children(recursive=True):
-            child.kill()
+            with suppress(Exception):
+                child.kill()
         parent.kill()
-    except Exception:
-        pass
 
 
 class Worker:
@@ -113,14 +129,13 @@ class Worker:
         with self._lock:
             running = [{"id": k, "stage": v["stage"], "progress": v["progress"], "label": v.get("label", "")}
                        for k, v in self._running.items()]
-        try:
+        # The status file only feeds the Settings page; the next heartbeat rewrites it.
+        with suppress(OSError):
             self.status_file.parent.mkdir(parents=True, exist_ok=True)
             self.status_file.write_text(json.dumps({
                 "time": time.time(), "connected": self.connected, "error": self.last_error,
                 "main": conf.get("main", ""), "running": running, "draining": bool(conf.get("draining")),
             }), encoding="utf-8")
-        except OSError:
-            pass
 
     def stop(self) -> None:
         self._stop.set()
@@ -210,11 +225,10 @@ class Worker:
         with self._lock:
             if job_id in self._running:
                 self._running[job_id].update(stage=stage, progress=progress)
-        try:
+        # Progress is informational; the next heartbeat carries it anyway.
+        with suppress(Exception):
             session.post(self._url(conf, f"/v1/jobs/{job_id}/progress"), timeout=15,
                          json={"stage": stage, "progress": progress})
-        except Exception:
-            pass
 
     def _cancelled(self, job_id: str) -> bool:
         with self._lock:
@@ -272,11 +286,11 @@ class Worker:
         except Exception as e:
             if not self._cancelled(job_id):
                 print(f"Render worker: job {job_id[:8]} failed: {e}")
-                try:
+                # Unreachable main PC: it requeues the job itself when this
+                # worker's heartbeats stop.
+                with suppress(Exception):
                     session.post(self._url(conf, f"/v1/jobs/{job_id}/fail"), timeout=20,
                                  json={"error": str(e)[:500], "log": log})
-                except Exception:
-                    pass
         finally:
             with self._lock:
                 self._running.pop(job_id, None)

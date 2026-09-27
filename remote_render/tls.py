@@ -53,6 +53,9 @@ def fingerprint_of_file(cert: Path) -> str:
 def fingerprint_of_server(host: str, port: int, timeout: float = 10.0) -> str:
     """The certificate a server presents, whoever signed it."""
     ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    # Read the certificate whoever signed it: that is the point (it is then
+    # pinned by its fingerprint, not trusted through a CA).
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     with socket.create_connection((host, port), timeout=timeout) as sock:

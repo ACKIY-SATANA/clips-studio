@@ -15,6 +15,7 @@ import dataclasses
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from pathlib import Path
 
 from core import cancel, progress
@@ -216,10 +217,9 @@ class RemoteRenderer:
         return lambda: (dest, opts)
 
     def _discard_piece(self, jid: str) -> None:
-        try:
+        # A piece still open elsewhere is cleared with the next one; it's scratch.
+        with suppress(OSError):
             (self.pieces / f"{jid}.mp4").unlink(missing_ok=True)
-        except OSError:
-            pass
 
     def _all_local(self, items: list, local, workers: int):
         from concurrent.futures import as_completed
