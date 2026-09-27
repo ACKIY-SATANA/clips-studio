@@ -268,6 +268,18 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   goal's explosion scores about 0.25 out of 1 and still stands out. It runs
   beside transcription, about 600x realtime on a GPU and 120x on a CPU (a
   3-hour VOD in about a minute and a half).
+- **What the game writes on screen.** Games announce their moments in big
+  letters (ELIMINATED, VICTORY ROYALE, PENTA KILL, "X A MARQUÉ", YOU DIED,
+  ENEMY FELLED) and fill the screen with text when nothing is happening (a
+  settings page, a queue). OCR (RapidOCR, bundled) reads the middle of the
+  frame in the game-moment windows, strongest first: every 2 seconds near the
+  moment, since a banner is only up for two or three, then every 4, for at
+  most 2 minutes a video (about 0.4-0.8 s a frame on a CPU). A banner with an
+  event word for that kind of game becomes an event the AI reads ("ON SCREEN:
+  ACE") and a witness for the bonus; a window where most frames show menu
+  words is marked down (-12) and gets no bonus, whatever chat made of it.
+  `config/gaming.yaml`'s `screen_text` lists the words in the languages games
+  are commonly played in. It reads Latin script and kanji, not kana.
 - **A game channel** in the fused score carries all of it (40% of the weight;
   the AI's reading of the words 25%, audio 20%, visuals 10%, a person on
   screen 5% in Vertical Live and 0% in the split). When little is said, the
@@ -275,9 +287,10 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   streamer's big play isn't marked down for its silence.
 - **Each moment is a candidate of its own**, from about 4 seconds before it to
   the reaction, 15 to 35 seconds, even when nothing was said near it. When two
-  independent witnesses agree (chat, the game's sound, the streamer shouting
-  or laughing) it gets a bonus; so does chat with a loud moment. The game's
-  sound with loudness alone doesn't, because gunfire is loud.
+  independent witnesses agree (chat, the game's sound, a banner on screen, the
+  streamer shouting or laughing) it gets a bonus; so does chat with a loud
+  moment. The game's sound with loudness alone doesn't, because gunfire is
+  loud.
 
 The clip's score breakdown shows **game** and what marked the moment.
 
@@ -287,19 +300,24 @@ The clip's score breakdown shows **game** and what marked the moment.
   the streamer took (chat: the channel's RIP emote, BigSad, NotLikeThis), and
   also a black screen and a character-select screen. With the game's sound,
   23 moments (the budget for that length); the two where chat and gunfire
-  agreed came first, and 8 of the top 9 were fights on screen.
-- 30 minutes of Rocket League: 27 moments, nearly all goals (the explosion,
-  with its replay a few seconds later counted as the same moment). One crowd
-  cheer at the end of a match landed on the menu after it.
+  agreed came first, and 8 of the top 9 were fights on screen. Reading the
+  screen marked the settings page chat had reacted to as a menu (感度, 設定),
+  and none of the 22 others; it named no kills, since the game was in
+  Japanese and its kill text is kana.
+- 30 minutes of Rocket League, played in French: 27 moments, nearly all goals
+  (the explosion, with its replay a few seconds later counted as the same
+  moment). Reading the screen named 5 of them from the banner ("A MARQUÉ"),
+  and marked the one crowd cheer that landed on the matchmaking menu after a
+  match (COMPÉTITIF, INDISPONIBLE, MODE DE JEU).
 - 30 minutes of a stream filed under a football game that was really two
   streamers watching someone else's IRL stream: one weak moment, nothing
   strong enough to become a candidate on its own.
 
-**What this can't do yet.** Chat reacts to anything, including a menu: the
-settings screen chat reacted to on the Apex VOD is still a candidate (it just
-gets no bonus now). The AI reads the transcript and these events, not the
-picture, so it can't tell a play from a menu. Reading the screen (on-screen
-event text, and the AI looking at frames) is what comes next.
+**What this can't do yet.** Reading the screen only knows the words it has
+been given, in the scripts the OCR reads, and a menu without them (or a
+black screen, or a character select) goes unnoticed. The AI reads the
+transcript and these events, not the picture. The AI looking at the frames
+of the best candidates is what comes next.
 
 In gaming mode the "reaction" signal (is a person on screen, being
 emphasised?) is left neutral in the split: on a game stream it counts game

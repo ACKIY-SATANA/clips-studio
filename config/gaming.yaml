@@ -191,6 +191,70 @@ genre_sounds:
   reaction:      {gunfire: 0.2, explosion: 0.3, crash: 0.3, crowd: 0.3, whistle: 0.0, scream: 0.9, laughter: 1.0}
   generic:       {gunfire: 0.6, explosion: 0.8, crash: 0.6, crowd: 0.5, whistle: 0.2, scream: 0.8, laughter: 0.6}
 
+# ---- on-screen text ---------------------------------------------------------
+# What the game writes on screen (analysis/game_text.py reads it with OCR in
+# the game-moment windows only). Matched ignoring case, accents and spaces
+# (a stylised banner often loses its spaces) and the OCR's usual misreads
+# (Q for O, 1 for I), as a whole word when 5 letters or fewer ("PLAY" is not
+# in "PLAYER"). Games are played in many languages; the common ones for
+# each word are listed, and kanji where the OCR reads them.
+screen_text:
+  # A banner: big text near the middle of the screen, where games announce a
+  # kill, a goal or a win (a stream's chat overlay is small and ignored).
+  events:
+    generic: [VICTORY, DEFEAT, WINNER, "YOU WIN", "YOU LOSE", "GAME OVER", "LEVEL UP",
+              "NEW RECORD", "ACHIEVEMENT UNLOCKED", "MISSION COMPLETE", "MISSION PASSED",
+              "MISSION FAILED", "YOU DIED", CHAMPION, VICTOIRE, "DÉFAITE", VICTORIA, DERROTA,
+              SIEG, NIEDERLAGE, "VITÓRIA", "勝利", "敗北"]
+    shooter: [ELIMINATED, ELIMINATION, HEADSHOT, "DOUBLE KILL", "TRIPLE KILL", "MULTI KILL",
+              "KILL STREAK", ACE, CLUTCH, FLAWLESS, "ROUND WON", "ROUND LOST", "TEAM ELIMINATED",
+              "SQUAD WIPED", "SPIKE PLANTED", "SPIKE DEFUSED", "BOMB PLANTED", "BOMB DEFUSED",
+              "ÉLIMINÉ", ELIMINADO, ELIMINIERT, "キル"]
+    battle_royale: [ELIMINATED, "KNOCKED DOWN", KNOCKED, "SQUAD ELIMINATED", "SQUAD WIPED",
+                    "VICTORY ROYALE", "WINNER WINNER", "CHICKEN DINNER", "YOU ARE THE CHAMPION",
+                    "KILL LEADER", "CHAMPION SQUAD", "ÉLIMINÉ", ELIMINADO, ELIMINIERT,
+                    "チャンピオン"]
+    moba: ["FIRST BLOOD", "DOUBLE KILL", "TRIPLE KILL", "QUADRA KILL", "PENTA KILL", PENTAKILL,
+           ACE, SHUTDOWN, LEGENDARY, GODLIKE, RAMPAGE, UNSTOPPABLE, DOMINATING, "KILLING SPREE",
+           "MEGA KILL", "ULTRA KILL", "BARON NASHOR", "DRAGON SLAIN", ROSHAN, "AEGIS",
+           "INHIBITOR DESTROYED", "TOWER DESTROYED", "ANCIENT"]
+    sports: [GOAL, GOL, "GOLAZO", TOR, BUT, SCORED, "A MARQUÉ", "MARQUÉ", "MARCÓ", ERZIELT, "HAT-TRICK", "HAT TRICK",
+             "OWN GOAL", PENALTY, "EPIC SAVE", SAVE, OVERTIME, "FULL TIME", TOUCHDOWN,
+             "HOME RUN", "BUZZER BEATER", DEMOLITION, "DÉMOLITION", MVP, "ゴール"]
+    fighting: ["K.O.", KO, PERFECT, FATALITY, "FLAWLESS VICTORY", "FINAL ROUND", "YOU WIN",
+               "CRITICAL ART", "SUPER ART", "COUNTER", "PUNISH COUNTER"]
+    racing: [FINISH, "1ST", WINNER, "FASTEST LAP", "NEW RECORD", "PERSONAL BEST", WRECKED,
+             TAKEDOWN, "FINAL LAP"]
+    horror: ["YOU DIED", "GAME OVER", CAUGHT, ESCAPED, "YOU ESCAPED", SACRIFICED, "YOU SURVIVED"]
+    soulslike: ["YOU DIED", "ENEMY FELLED", "GREAT ENEMY FELLED", "DEMIGOD FELLED",
+                "LEGEND FELLED", "GOD SLAIN", "VICTORY ACHIEVED", "HEIR OF FIRE DESTROYED",
+                "BOSS DEFEATED", "SHINOBI EXECUTION", "VOUS ÊTES MORT", "HAS MUERTO",
+                "DU BIST GESTORBEN", "YOU DEFEATED", "死"]
+    adventure: ["YOU DIED", "BOSS DEFEATED", "QUEST COMPLETE", "SHRINE COMPLETE",
+                "SPIRIT ORB", "HEART CONTAINER", "NEW RECORD", "GAME OVER"]
+    sandbox: [WASTED, BUSTED, "MISSION PASSED", "MISSION FAILED", "YOU DIED", "ADVANCEMENT MADE",
+              "CHALLENGE COMPLETE", "RAIDED", "YOU WERE KILLED"]
+    speedrun: ["PERSONAL BEST", "NEW RECORD", "WORLD RECORD", "PB", "WR"]
+    party: [IMPOSTOR, EJECTED, "WAS THE IMPOSTOR", "WAS NOT THE IMPOSTOR", CROWNED, QUALIFIED,
+            ELIMINATED, "YOU WIN"]
+    strategy: [CHECKMATE, BRILLIANT, BLUNDER, RESIGNED, "WINS BY", "ÉCHEC ET MAT", "JAQUE MATE"]
+    reaction: []
+  # A menu, a queue, a loading screen or a settings page: two of these on one
+  # screen and it isn't gameplay.
+  menu: [PLAY, READY, "READY UP", SEARCHING, MATCHMAKING, "FINDING MATCH", "FIND MATCH",
+         "IN QUEUE", QUEUE, LOBBY, LOADING, SETTINGS, OPTIONS, CONTROLS, "KEY BINDINGS",
+         GRAPHICS, AUDIO, VIDEO, GAMEPLAY, ACCESSIBILITY, "BATTLE PASS", STORE, SHOP, LOCKER,
+         INVENTORY, LOADOUT, CUSTOMIZE, CUSTOMISE, "SELECT", "CHARACTER SELECT", "CHOOSE",
+         "ACCEPT", "CANCEL", "BACK", "APPLY", "RESET TO DEFAULT", "ESTIMATED WAIT",
+         "PRESS ANY BUTTON", "CHALLENGES", "JOUER", "RECHERCHE", "ANNULER", "PARAMÈTRES",
+         "TEMPS D'ATTENTE", "BOUTIQUE", JUGAR, BUSCANDO, AJUSTES, "CONFIGURACIÓN", TIENDA,
+         SPIELEN, SUCHE, EINSTELLUNGEN, JOGAR, PROCURANDO, "CONFIGURAÇÕES", LOJA,
+         RANKED, CASUAL, COMPETITIVE, UNAVAILABLE, PLAYLIST, "GAME MODE", TOURNAMENTS,
+         SENSITIVITY, ENABLED, DISABLED, BRIGHTNESS, "FIELD OF VIEW", RESOLUTION, INDISPONIBLE,
+         "COMPÉTITIF", OCCASIONNEL, "CLASSÉ", TOURNOIS, "MODE DE JEU", "SENSIBILITÉ",
+         "設定", "マッチング", "ロード", "ショップ", "キャンセル", "準備完了", "設置", "有効", "無効",
+         "感度", "振動"]
+
 # ---- games ------------------------------------------------------------------
 # A game's name (from the platform's category, or the title) -> genre. Matched
 # case-insensitively as a phrase inside the name or title.

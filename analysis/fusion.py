@@ -18,6 +18,7 @@ models than absolute 0-100 scoring, which clusters).
 
 import json
 import re
+import time
 from pathlib import Path
 
 import numpy as np
@@ -101,6 +102,7 @@ def find_clips(
     chat_curve = np.zeros(0, dtype=np.float32)
     game_sound = np.zeros(0, dtype=np.float32)
     people_sound = np.zeros(0, dtype=np.float32)
+    screen = None
     guidance = ""
     events_title = None
     if gaming is not None:
@@ -118,6 +120,14 @@ def find_clips(
             sources += [(game_sound, 0.7), (people_sound, 0.5)]
             game_events += list(sounds.events)
         game_curve = _soft_or(sources)
+        if scoring_cfg.get("read_screen", True) and game_curve.size:
+            # What the game writes on screen in those moments: an event's
+            # banner, or a menu chat reacted to.
+            screen = _read_screen(video_path, game_curve, segments, clips_cfg, gaming)
+            if screen is not None:
+                game_events += list(screen.events)
+                game_events += [(s0, f"ON SCREEN: a menu, queue or settings screen ({words})")
+                                for s0, _e0, words in screen.menus]
         events = sorted(events + game_events, key=lambda ev: ev[0])
         guidance = gaming.guidance("clips")
         # Per chunk when the stream changes game part way through.
@@ -293,10 +303,12 @@ def find_clips(
     action_bonus = int(scoring_cfg.get("action_bonus", 10))
     audience_bonus = int(scoring_cfg.get("audience_bonus", 8))
     game_bonus = int(scoring_cfg.get("game_bonus", 8))
+    menu_penalty = int(scoring_cfg.get("menu_penalty", 12))
     n_context = 0
     n_action = 0
     n_hype = 0
     n_game = 0
+    n_menu = 0
     for c in candidates:
         fused = round(100 * _fuse(c, weights, c.subscores["reaction"] / 100.0, speech[id(c)]))
         if gaming is not None:
@@ -315,17 +327,33 @@ def find_clips(
                 hits.add("streamer")
             if _window_max(audio_excitement, c.start, c.end) >= 0.92:
                 hits.add("loud")
+            if screen is not None and any(c.start - 1 <= sec <= c.end for sec, _d in screen.events):
+                hits.add("screen")
+            # A menu, a queue or a settings screen isn't a moment, whatever
+            # chat made of it.
+            menu_here = [words for s0, e0, words in (screen.menus if screen is not None else [])
+                         if min(c.end, e0) - max(c.start, s0) >= 0.5 * (c.end - c.start)]
             why, kinds = [], set()
+            if menu_here:
+                why.append(f"ON SCREEN: a menu, queue or settings screen ({menu_here[0]})")
+                kinds.add("ON SCREEN")
             for sec, desc in events:
                 kind = desc.split(":")[0]
-                if (c.start - 1 <= sec <= c.end and kind in ("CHAT", "STREAMER", "GAME SOUND", "SOUND")
+                if (c.start - 1 <= sec <= c.end
+                        and kind in ("CHAT", "STREAMER", "GAME SOUND", "SOUND", "ON SCREEN")
                         and kind not in kinds):
                     why.append(desc)
                     kinds.add(kind)
             if why:
                 c.subscores["game_why"] = "; ".join(why[:3])
-            agree = len(hits & {"chat", "game", "streamer"}) >= 2 or {"chat", "loud"} <= hits
-            if game_bonus > 0 and agree:
+            on_menu = bool(menu_here)
+            if on_menu and menu_penalty > 0:
+                fused = max(0, fused - menu_penalty)
+                c.subscores["menu"] = -menu_penalty
+                n_menu += 1
+            agree = (len(hits & {"chat", "game", "streamer", "screen"}) >= 2
+                     or {"chat", "loud"} <= hits)
+            if game_bonus > 0 and agree and not on_menu:
                 fused = min(100, fused + game_bonus)
                 c.subscores["game_bonus"] = game_bonus
                 n_game += 1
@@ -388,6 +416,8 @@ def find_clips(
         print(f"  Audience hype boosted {n_hype} candidate(s) (max +{audience_bonus})")
     if n_game:
         print(f"  Game moments boosted {n_game} candidate(s) (+{game_bonus})")
+    if n_menu:
+        print(f"  Menus and queues marked down: {n_menu} candidate(s) (-{menu_penalty})")
 
     # ---- 4. dedup + threshold (reusing the proven logic) ------------------
     # max_clips_per_video == 0 means automatic: keep EVERY unique clip that
@@ -627,6 +657,30 @@ def _event_windows(
         if len(out) >= max(12, game.size // 240):
             break
     return sorted(out)
+
+
+def _read_screen(video_path, game_curve: np.ndarray, segments: list[Segment], clips_cfg: dict, gaming):
+    """What the game writes on screen in the game-moment windows, strongest
+    first (analysis/game_text.py); None when the OCR isn't installed."""
+    from analysis import game_text
+
+    if not game_text.available():
+        return None
+    from analysis.gaming import knowledge
+
+    windows = _event_windows(game_curve, segments, clips_cfg["min_duration"], clips_cfg["max_duration"],
+                             existing=[])
+    windows.sort(key=lambda w: -float(game_curve[int(w[0]):int(w[1]) + 1].max()))
+    t0 = time.monotonic()
+    try:
+        screen = game_text.read_screen(Path(video_path), windows, lambda s, e: gaming.game_at(s, e)[1],
+                                       knowledge().get("screen_text") or {})
+    except Exception as e:
+        print(f"  (on-screen text unavailable: {e})")
+        return None
+    print(f"  On-screen text: read {screen.frames} frame(s) in {time.monotonic() - t0:.0f}s, "
+          f"{len(screen.events)} event(s), {len(screen.menus)} menu screen(s)")
+    return screen
 
 
 def _frame_game_window(c: ClipCandidate, segments: list[Segment], min_duration: float,

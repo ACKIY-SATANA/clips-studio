@@ -68,7 +68,9 @@ were often broken in a way that only showed up on somebody else's machine.
   sudden shout or laugh from the streamer marks them too, and so does the game's own
   sound (gunfire and explosions in a fight, a crowd or a goal explosion in a sports
   game, a crash in a race, a scream in a horror game), heard by a small bundled sound
-  model even when chat and the streamer are quiet. Each moment becomes a
+  model even when chat and the streamer are quiet. The screen is read too: a banner
+  (ELIMINATED, VICTORY ROYALE, "X A MARQUÉ", YOU DIED) names the moment, and a menu,
+  queue or settings page that chat reacted to is marked down. Each moment becomes a
   15-35 s candidate starting just before it, and the clip's score breakdown shows what
   marked it. Standard scoring is unchanged.
 - **Vertical Live, for streams that were vertical all along.** A YouTube vertical live,

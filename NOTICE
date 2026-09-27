@@ -63,6 +63,9 @@ significant ones, with their licences:
                                          class names (config/
                                          audioset_labels.txt) are CC BY 4.0,
                                          Google
+  RapidOCR                  Apache-2.0   on-screen text in a gaming stream;
+                                         its bundled PaddleOCR models are
+                                         Apache-2.0 (PaddlePaddle)
   faster-whisper            MIT          transcription; its model weights are
                                          fetched by scripts/fetch_whisper.py
                                          and are MIT (Systran/faster-whisper,

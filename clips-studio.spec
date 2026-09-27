@@ -31,8 +31,12 @@ hiddenimports = []
 #   piper        — espeak-ng phoneme data (19 MB) resolved from its own
 #                  package directory at runtime, plus the espeak bridge
 #   onnxruntime  — native inference libs Piper loads by name
+#   rapidocr_onnxruntime — its OCR models (15 MB) and config.yaml, read from
+#                  its own package directory (on-screen text in a gaming stream)
+#   shapely / pyclipper — native libs RapidOCR's text detector needs
 for package in ("yt_dlp", "ultralytics", "faster_whisper", "ctranslate2",
-                "curl_cffi", "piper", "onnxruntime"):
+                "curl_cffi", "piper", "onnxruntime", "rapidocr_onnxruntime",
+                "shapely", "pyclipper"):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_datas
     binaries += pkg_binaries
@@ -72,6 +76,7 @@ hiddenimports += [
     "analysis.chat_moments",
     "analysis.game_audio",
     "analysis.panns",
+    "analysis.game_text",
     "sources.preview_frames",
 ]
 
