@@ -280,6 +280,18 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   words is marked down (-12) and gets no bonus, whatever chat made of it.
   `config/gaming.yaml`'s `screen_text` lists the words in the languages games
   are commonly played in. It reads Latin script and kanji, not kana.
+- **The AI looks at the best clips.** Last, before the final ranking, the
+  local AI model is shown four frames (at 896 pixels) of each of the best 12
+  clips, with what was said and what the signals picked up, and asked what is
+  on screen and what happens: a clear moment raises a clip by up to 10, a
+  menu, a loading or black screen lowers it by 10, ordinary play leaves it
+  alone. The clip's breakdown says what it saw ("SEEN: scores a goal"). About
+  10 seconds a clip on a GPU, for at most 4 minutes a video. Only a local
+  model that takes images does this (Gemma 3 and Gemma 4 do, gemma:7b
+  doesn't), and it is first asked the colour of a plain red square, since a
+  model can say it takes images and not get them. The video picture never
+  goes to a cloud AI, so with one this step is skipped, and the job log says
+  why.
 - **A game channel** in the fused score carries all of it (40% of the weight;
   the AI's reading of the words 25%, audio 20%, visuals 10%, a person on
   screen 5% in Vertical Live and 0% in the split). When little is said, the
@@ -309,15 +321,23 @@ The clip's score breakdown shows **game** and what marked the moment.
   moment). Reading the screen named 5 of them from the banner ("A MARQUÉ"),
   and marked the one crowd cheer that landed on the matchmaking menu after a
   match (COMPÉTITIF, INDISPONIBLE, MODE DE JEU).
+- The AI looking (gemma3:4b, the model setup installs for a PC without a
+  graphics card) at six of these moments got all six right: the Apex settings
+  page and a black screen with only the webcam (-10 each), two Apex fights
+  (+6, "firefight with multiple opponents"), a Rocket League goal (+6), and
+  the matchmaking menu (-10). At 512 pixels a frame it had taken the fights
+  for ordinary play. gemma4:e4b on the Ollama release installed here said it
+  takes images but described a settings page as "a dark, abstract
+  background": the red square catches that.
 - 30 minutes of a stream filed under a football game that was really two
   streamers watching someone else's IRL stream: one weak moment, nothing
   strong enough to become a candidate on its own.
 
-**What this can't do yet.** Reading the screen only knows the words it has
-been given, in the scripts the OCR reads, and a menu without them (or a
-black screen, or a character select) goes unnoticed. The AI reads the
-transcript and these events, not the picture. The AI looking at the frames
-of the best candidates is what comes next.
+**What this can't do.** Reading the screen only knows the words it has been
+given, in the scripts the OCR reads. The AI only looks at the best 12 clips,
+not the whole stream, and only with a local model that takes images: with
+gemma:7b or a cloud AI, a menu chat reacted to is caught only if its words are
+on the list. Nothing here has been run on a whole quiet vertical stream yet.
 
 In gaming mode the "reaction" signal (is a person on screen, being
 emphasised?) is left neutral in the split: on a game stream it counts game

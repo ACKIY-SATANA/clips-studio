@@ -44,6 +44,19 @@ class LLMBackend(ABC):
     def name(self) -> str:
         """Identifier for logging, e.g. 'ollama/gemma:7b'."""
 
+    def sees_images(self) -> bool:
+        """Whether look() can be called: a local model that takes images.
+
+        Only a local backend ever says yes. The privacy page promises the
+        video picture is never sent to a cloud provider, so a cloud backend
+        keeps this False whatever its model can do.
+        """
+        return False
+
+    def look(self, prompt: str, images: list[bytes]) -> str:
+        """One JSON completion over `prompt` and JPEG `images`, in order."""
+        raise NotImplementedError(f"{self.name} can't look at images")
+
     def chat(self, messages: list[dict], tools: list[dict]) -> ChatTurn:
         """One turn of a conversation that can call tools.
 

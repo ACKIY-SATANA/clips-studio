@@ -109,3 +109,24 @@ def test_capabilities_are_asked_once_per_backend(monkeypatch):
     for _ in range(3):
         backend.generate("p", json_mode=True)
     assert sum(url.endswith("/api/show") for url, _ in calls) == 1
+
+
+# ---- looking at frames (a gaming stream's candidates) ----------------------------------
+
+
+def test_a_vision_model_is_shown_the_frames_and_thinking_is_off(monkeypatch):
+    calls = _fake_ollama(monkeypatch, capabilities=("completion", "vision", "thinking"))
+    llm = OllamaBackend("gemma4:e4b")
+    assert llm.sees_images()
+    llm.look("what happens?", [b"\xff\xd8one", b"\xff\xd8two"])
+    body = _sent(calls)
+    assert body["images"] == ["/9hvbmU=", "/9h0d28="]          # base64 of each JPEG, in order
+    assert body["format"] == "json" and body["think"] is False  # JSON mode blanks a thinking model
+
+
+def test_a_text_model_cannot_look_and_a_plain_vision_model_is_sent_no_think(monkeypatch):
+    _fake_ollama(monkeypatch, capabilities=("completion",))
+    assert not OllamaBackend("gemma:7b").sees_images()
+    calls = _fake_ollama(monkeypatch, capabilities=("completion", "vision"))
+    OllamaBackend("gemma3:4b").look("p", [b"x"])
+    assert "think" not in _sent(calls)

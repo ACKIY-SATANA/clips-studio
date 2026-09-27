@@ -1,5 +1,7 @@
 """Ollama backend — serves Gemma, Llama, and any other model Ollama hosts."""
 
+import base64
+
 import requests
 
 from llm.base import LLMBackend
@@ -54,6 +56,29 @@ class OllamaBackend(LLMBackend):
         response = requests.post(
             f"{self.host}/api/generate", json=payload, timeout=self.timeout
         )
+        response.raise_for_status()
+        return response.json()["response"]
+
+    def sees_images(self) -> bool:
+        """Gemma 3 and Gemma 4 can (Ollama says "vision"); gemma:7b can't."""
+        return "vision" in self._capabilities()
+
+    def look(self, prompt: str, images: list[bytes]) -> str:
+        """The frames go to the local model with the prompt: nothing leaves
+        the PC."""
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "images": [base64.b64encode(img).decode("ascii") for img in images],
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.2, "num_ctx": self.num_ctx, "num_predict": 512},
+        }
+        # Gemma 4 can think, and a thinking model in JSON mode answers
+        # nothing at all (see _limit_reasoning); this question doesn't need it.
+        if "thinking" in self._capabilities():
+            payload["think"] = False
+        response = requests.post(f"{self.host}/api/generate", json=payload, timeout=self.timeout)
         response.raise_for_status()
         return response.json()["response"]
 

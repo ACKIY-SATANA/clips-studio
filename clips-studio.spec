@@ -77,6 +77,7 @@ hiddenimports += [
     "analysis.game_audio",
     "analysis.panns",
     "analysis.game_text",
+    "analysis.game_vision",
     "sources.preview_frames",
 ]
 

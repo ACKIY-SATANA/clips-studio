@@ -70,7 +70,10 @@ were often broken in a way that only showed up on somebody else's machine.
   game, a crash in a race, a scream in a horror game), heard by a small bundled sound
   model even when chat and the streamer are quiet. The screen is read too: a banner
   (ELIMINATED, VICTORY ROYALE, "X A MARQUÉ", YOU DIED) names the moment, and a menu,
-  queue or settings page that chat reacted to is marked down. Each moment becomes a
+  queue or settings page that chat reacted to is marked down. Last, a local AI model that
+  takes images (Gemma 3 or 4) looks at a few frames of the best clips: a clear moment
+  moves up, a menu or a black screen moves down. The picture never goes to a cloud AI.
+  Each moment becomes a
   15-35 s candidate starting just before it, and the clip's score breakdown shows what
   marked it. Standard scoring is unchanged.
 - **Vertical Live, for streams that were vertical all along.** A YouTube vertical live,

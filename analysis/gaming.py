@@ -78,7 +78,7 @@ class GamingProfile:
 
     @property
     def spec(self) -> dict:
-        return _genre_spec(self.genre)
+        return genre_spec(self.genre)
 
     def game_at(self, start: float, end: float | None = None) -> tuple[str, str]:
         """(game, genre) being played over [start, end]: the platform's game
@@ -116,7 +116,7 @@ class GamingProfile:
         """The block the scoring prompts carry (their {mode_guidance}), for
         the game played over [start, end] when given."""
         game, genre = (self.game, self.genre) if start is None else self.game_at(start, end)
-        spec = _genre_spec(genre)
+        spec = genre_spec(genre)
         label = spec.get("label", "game")
         highlights = " ".join(str(spec.get("highlights", "")).split())
         callouts = ", ".join(f'"{c}"' for c in (spec.get("callouts") or [])[:8])
@@ -147,7 +147,7 @@ class GamingProfile:
         return "\n".join(lines)
 
 
-def _genre_spec(genre: str) -> dict:
+def genre_spec(genre: str) -> dict:
     genres = knowledge().get("genres") or {}
     return genres.get(genre) or genres.get("generic") or {}
 

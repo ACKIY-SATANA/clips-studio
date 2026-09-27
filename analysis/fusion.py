@@ -434,6 +434,17 @@ def find_clips(
         max_segment_reuse=analysis_cfg["max_segment_reuse"],
     )
 
+    # ---- 4b. a gaming stream's best candidates, looked at -----------------
+    # The first time anything sees the picture: a local model that takes
+    # images is shown a few frames of each (analysis/game_vision.py).
+    if gaming is not None and finalists and scoring_cfg.get("look_at_game", True):
+        _look_at_game(finalists, video_path, llm, gaming, segments, events)
+        # Seen as a menu, or as nothing happening, can take a clip under the bar.
+        under = [c for c in finalists if c.score < clips_cfg["min_score"]]
+        if under:
+            finalists = [c for c in finalists if c.score >= clips_cfg["min_score"]]
+            rejections += [Rejection(c, "below_min_score") for c in under]
+
     # ---- 5. rerank: relative judgment beats absolute scoring --------------
     # Batched: head-to-head comparison is only reliable for small groups, so
     # long videos with many finalists are reranked in rerank_pool-sized
@@ -657,6 +668,36 @@ def _event_windows(
         if len(out) >= max(12, game.size // 240):
             break
     return sorted(out)
+
+
+def _look_at_game(finalists: list[ClipCandidate], video_path, llm, gaming, segments: list[Segment],
+                  events: list) -> None:
+    """Show the local model frames of the best finalists and move each by
+    what it sees (at most 10 points). Skipped, and said so, when the model
+    can't take images: a text-only one, or any cloud model, since the video
+    picture never leaves the PC."""
+    from analysis import game_vision
+
+    name = getattr(llm, "name", "the AI")
+    try:
+        sees = bool(llm.sees_images())
+    except Exception:
+        sees = False
+    if not sees:
+        print(f"  Looking at the frames: skipped, {name} isn't a local model that takes images "
+              "(Gemma 3 and Gemma 4 are)")
+        return
+    if not game_vision.can_see(llm):
+        print(f"  Looking at the frames: skipped, {name} says it takes images but couldn't tell "
+              "the colour of a test image")
+        return
+    count = min(len(finalists), game_vision.MAX_CANDIDATES)
+    print(f"  Looking at the frames of the best {count} clip(s) with {name}...")
+    t0 = time.monotonic()
+    looked = game_vision.look_at(finalists, video_path, llm, gaming, segments, events)
+    seen = [c.subscores["seen"] for c in finalists if "seen" in c.subscores]
+    print(f"  Looked at {looked} clip(s) in {time.monotonic() - t0:.0f}s: "
+          f"{sum(d > 0 for d in seen)} raised, {sum(d < 0 for d in seen)} lowered")
 
 
 def _read_screen(video_path, game_curve: np.ndarray, segments: list[Segment], clips_cfg: dict, gaming):
