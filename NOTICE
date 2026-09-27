@@ -68,6 +68,11 @@ significant ones, with their licences:
   FastAPI / Uvicorn         MIT          the local API the desktop app talks to
   Electron                  MIT          the desktop shell
   React                     MIT          the interface
+  Material Icons            Apache-2.0   a few icon shapes in the layout
+                                         editor's platform preview (Google)
+  Lucide                    ISC          a few icon shapes in the same preview;
+                                         both notices are in
+                                         third_party/icons/NOTICE.md
 
 FFmpeg is fetched at build time by scripts/fetch_ffmpeg.py rather than kept
 in this repository. The builds used are LGPL-2.1-or-later, or GPL-2.0-or-later

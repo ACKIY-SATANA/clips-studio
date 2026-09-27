@@ -33,9 +33,16 @@ were often broken in a way that only showed up on somebody else's machine.
   - The editor opens with the webcam and game boxes already on the frame to drag, as in
     StreamLadder: **Draw it** is the default, and the webcam box moves onto the webcam
     when Clips Kitty finds one.
-  - On the preview, as in StreamLadder: drag the small or round facecam to move it and its
-    corner to resize it, and the same for the Game UI layer. Dual facecam is two round
-    webcams, always the same size. The Game UI is cut to its space, with no blur round it.
+  - On the preview, as in StreamLadder: drag the small or round facecam to move it and any
+    of its eight handles to resize it, and the same for the Game UI layer. Dual facecam is
+    two round webcams, always the same size. The Game UI is cut to its space, with no blur
+    round it.
+  - Parts snap into line like a design editor: to the middle of the Short, its edges, the
+    platform's safe lines and each other, with a guide line showing it (Alt to place freely).
+    **Grid** shows thirds, the middle and the safe box.
+  - The preview draws TikTok's, Instagram Reels' or YouTube Shorts' own layout over the
+    Short, measured from each app's feed, with icons in each app's style. The safe areas
+    the face check uses come from the same measurements.
   - When the editor opens, a webcam is suggested: the same person in the same framed spot
     across the video. Found automatically when processing, the streamer is whoever TalkNet
     says is talking in sync with the audio, across several clips of the video: never the

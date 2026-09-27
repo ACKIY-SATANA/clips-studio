@@ -10,31 +10,31 @@ export const LAYOUTS = {
   "safe_zones": {
     "tiktok": {
       "label": "TikTok",
-      "top": 140,
+      "top": 180,
       "bottom": 420,
       "left": 60,
-      "right": 180
+      "right": 190
     },
     "reels": {
       "label": "Instagram Reels",
-      "top": 140,
-      "bottom": 500,
+      "top": 245,
+      "bottom": 400,
       "left": 60,
-      "right": 130
+      "right": 205
     },
     "shorts": {
       "label": "YouTube Shorts",
-      "top": 160,
-      "bottom": 320,
+      "top": 250,
+      "bottom": 350,
       "left": 60,
-      "right": 150
+      "right": 190
     },
     "all": {
       "label": "All three",
-      "top": 160,
-      "bottom": 500,
+      "top": 250,
+      "bottom": 420,
       "left": 60,
-      "right": 180
+      "right": 205
     },
     "none": {
       "label": "None",

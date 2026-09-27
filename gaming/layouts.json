@@ -1,10 +1,10 @@
 {
   "canvas": [1080, 1920],
   "safe_zones": {
-    "tiktok": {"label": "TikTok", "top": 140, "bottom": 420, "left": 60, "right": 180},
-    "reels": {"label": "Instagram Reels", "top": 140, "bottom": 500, "left": 60, "right": 130},
-    "shorts": {"label": "YouTube Shorts", "top": 160, "bottom": 320, "left": 60, "right": 150},
-    "all": {"label": "All three", "top": 160, "bottom": 500, "left": 60, "right": 180},
+    "tiktok": {"label": "TikTok", "top": 180, "bottom": 420, "left": 60, "right": 190},
+    "reels": {"label": "Instagram Reels", "top": 245, "bottom": 400, "left": 60, "right": 205},
+    "shorts": {"label": "YouTube Shorts", "top": 250, "bottom": 350, "left": 60, "right": 190},
+    "all": {"label": "All three", "top": 250, "bottom": 420, "left": 60, "right": 205},
     "none": {"label": "None", "top": 0, "bottom": 0, "left": 0, "right": 0}
   },
   "headroom": 0.06,

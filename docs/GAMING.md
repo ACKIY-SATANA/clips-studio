@@ -78,20 +78,30 @@ So the webcam is placed from the streamer's head, not the middle of the box:
 The same stream re-rendered: the head top at 135–158 px with the webcam on top
 (TikTok's top bar ends at 140), about 200 px in Small and Circle facecam.
 
-Safe areas, on a 1080×1920 Short (from the platforms' published guides, which
-agree to within tens of pixels):
+Safe areas, on a 1080×1920 Short. None of the apps publishes these for
+ordinary posts, and the guides that do disagree by tens of pixels, so they
+were measured (September 2026) from replicas of each app's feed on a phone
+taller than 9:16, where the apps fill the height (kreatli.com's safe zone
+checkers): each value is just past the app's own element — TikTok's tabs,
+the Reels and Shorts title bars, the column of buttons, and a caption block
+of two lines.
 
 | Platform | Top | Bottom | Left | Right |
 |---|---|---|---|---|
-| TikTok | 140 | 420 | 60 | 180 |
-| Instagram Reels | 140 | 500 | 60 | 130 |
-| YouTube Shorts | 160 | 320 | 60 | 150 |
-| All three | 160 | 500 | 60 | 180 |
+| TikTok | 180 | 420 | 60 | 190 |
+| Instagram Reels | 245 | 400 | 60 | 205 |
+| YouTube Shorts | 250 | 350 | 60 | 190 |
+| All three | 250 | 420 | 60 | 205 |
 
-The platform is chosen in the preview (TikTok to start), which shades its
-top bar and caption area and says whether the face is clear of them: "✓ Face
-clear of TikTok's UI", or what to change. Camera on top is usually the fix:
-with the game on top, the webcam band sits in the caption area.
+The platform is chosen in the preview (TikTok to start), which draws that
+app's layout over the Short from the same measurements: the top bar, the
+buttons down the right with their counts, the name, caption and sound at the
+bottom (Shorts with its Subscribe button). The icons are open-licensed sets in
+each app's style (Material Icons, which YouTube itself uses, and Lucide), not
+the apps' own artwork or logos; "All three" shades the areas they share. It
+says whether the face is clear of them: "✓ Face clear of TikTok's UI", or what
+to change. Camera on top is usually the fix: with the game on top, the webcam
+band sits in the caption area.
 
 ## Choose the layout before processing
 
@@ -113,9 +123,14 @@ file) and **Choose a layout** opens:
   stream);
 - **Preview**: the 9:16 result, live, with the platform overlay and the face
   check. Drag the line between the webcam and the game to change their shares.
-  In the facecam layouts drag the facecam on the preview to move it and its
-  corner to resize it (it keeps its shape; two facecams resize together), and
-  the same for the Game UI layer. **Reset** puts them back. The Game UI in
+  In the facecam layouts drag the facecam on the preview to move it, and any
+  of its eight handles to resize it (it keeps its shape, from the opposite
+  side; two facecams resize together); the same for the Game UI layer. While
+  dragging it snaps, like a design editor, to the middle of the Short, its
+  edges, the platform's safe lines and the other parts' edges and middles,
+  and a pink line shows what it lined up with (hold Alt to place it freely).
+  **Grid** shows thirds, the middle and the platform's safe box, and adds the
+  thirds to what it snaps to. **Reset** puts the layers back. The Game UI in
   Mosaic and Game UI is cut to its space's shape, like every other part: no
   blur round it;
 - **On top**: Camera or Game. **Webcam**: *Draw it* (the default: the box on

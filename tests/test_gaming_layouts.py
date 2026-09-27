@@ -114,7 +114,8 @@ def test_settings_from_before_layouts_are_half_with_the_game_right_against_the_w
     p = layout.plan(W, H, {"cam": [0.0, 0.69, 0.17, 0.31], "cam_position": "bottom"})
     assert p.preset == "half" and p.order == "game_top" and p.element("game").fit == "contain"
     game, cam = p.element("game").dest, p.element("cam").dest
-    assert game == (0, 140, 1080, 730) and cam == (0, 870, 1080, 960)
+    top = TIKTOK["top"]                                          # blur above, clear of the top bar
+    assert game == (0, top, 1080, 730) and cam == (0, top + 730, 1080, 960)
 
 
 def test_a_zoomed_game_leaves_the_webcam_and_edge_chat_out():
@@ -399,7 +400,7 @@ def test_a_real_whole_game_touches_the_webcam(stream, tmp_path, preset):
     colour = {id(cam): 2, id(game): 0}
     assert _share(frame[seam - 12:seam - 2, 40:900], colour[id(first)]) > 0.9      # (the green chat is
     assert _share(frame[seam + 2:seam + 12, 40:900], colour[id(second)]) > 0.9     # part of the game)
-    assert first[1] == 140 and float(frame[:100].max(axis=-1).mean()) > 40     # blur above, not black
+    assert first[1] == TIKTOK["top"] and float(frame[:100].max(axis=-1).mean()) > 40     # blur above, not black
 
 
 def test_a_real_circle_facecam_shows_the_game_in_its_corners(stream, tmp_path):

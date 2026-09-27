@@ -17,6 +17,8 @@ import {
   type PxBox
 } from '../lib/gamingLayout'
 import { t } from '../lib/i18n'
+import { dragLayer, type Handle, type Targets } from '../lib/layerDrag'
+import PlatformOverlay, { PLATFORM_UI } from './PlatformOverlay'
 import type { FrameBox, GamingSettings } from '../lib/types'
 
 /** The Gaming / Reaction layout editor: pick a layout, mark the webcam and the
@@ -34,9 +36,23 @@ import type { FrameBox, GamingSettings } from '../lib/types'
 
 type BoxRole = 'cam' | 'cam2' | 'game' | 'ui'
 type CamMode = 'auto' | 'draw' | 'none'
-type Drag = { role: BoxRole; mode: 'move' | 'nw' | 'se'; ox: number; oy: number; box: FrameBox }
+type Drag = { role: BoxRole; mode: Handle; ox: number; oy: number; box: FrameBox }
 /** A layer being moved or resized on the preview, in canvas px. */
-type LayerDrag = { role: Placeable; mode: 'move' | 'se'; ox: number; oy: number; dest: PxBox }
+type LayerDrag = { role: Placeable; handle: Handle; ox: number; oy: number; dest: PxBox }
+
+/** Where each resize handle sits on a layer, as fractions of its box; a round
+ *  facecam's sit on the circle. */
+const HANDLES: [Handle, number, number, string][] = [
+  ['nw', 0, 0, 'nwse-resize'],
+  ['n', 0.5, 0, 'ns-resize'],
+  ['ne', 1, 0, 'nesw-resize'],
+  ['e', 1, 0.5, 'ew-resize'],
+  ['se', 1, 1, 'nwse-resize'],
+  ['s', 0.5, 1, 'ns-resize'],
+  ['sw', 0, 1, 'nesw-resize'],
+  ['w', 0, 0.5, 'ew-resize']
+]
+const ON_CIRCLE = (f: number): number => (f === 0.5 ? 0.5 : 0.5 + (f - 0.5) * Math.SQRT1_2)
 
 const CARD_ORDER = [
   'split',
@@ -240,6 +256,9 @@ export default function GamingLayoutEditor({
   // StreamLadder: dragged and resized on the preview.
   const [places, setPlaces] = useState<Partial<Record<Placeable, FrameBox>>>(settings.places ?? {})
   const layerDrag = useRef<LayerDrag | null>(null)
+  const [selected, setSelected] = useState<Placeable | null>(null)
+  const [guides, setGuides] = useState<Targets>({ xs: [], ys: [] })
+  const [showGrid, setShowGrid] = useState(false)
   const [remember, setRemember] = useState(rememberInitially)
   const [active, setActive] = useState<BoxRole>('cam')
   const [at, setAt] = useState(context === 'video' ? FRAMES[1] : 0.5)
@@ -357,41 +376,60 @@ export default function GamingLayoutEditor({
     const q = pos(e)
     const dx = q.x - d.ox
     const dy = q.y - d.oy
-    const [x, y, w, h] = d.box
-    const MIN = 0.03
-    if (d.mode === 'move') setBox(d.role, [clamp(x + dx, 0, 1 - w), clamp(y + dy, 0, 1 - h), w, h])
-    else if (d.mode === 'se') setBox(d.role, [x, y, clamp(w + dx, MIN, 1 - x), clamp(h + dy, MIN, 1 - y)])
-    else {
-      const nx = clamp(x + dx, 0, x + w - MIN)
-      const ny = clamp(y + dy, 0, y + h - MIN)
-      setBox(d.role, [nx, ny, x + w - nx, y + h - ny])
-    }
+    // Any side or corner, like the layers on the preview (in fractions of the frame).
+    const { box } = dragLayer(d.box, d.mode, dx, dy, {
+      aspect: null,
+      canvas: [1, 1],
+      minW: 0.03,
+      minH: 0.03,
+      targets: null,
+      tol: 0
+    })
+    setBox(d.role, box as FrameBox)
   }
 
   // ---- the divider on the preview ------------------------------------------------------
   const spec = PRESETS[shownPreset]
   const canDivide = spec.type === 'stack' && spec.divider && spec.divider[0] < spec.divider[1]
-  const PW = 234
+  const PW = 270
   const k = PW / OUT_W
   const dividerY = camEl && canDivide ? (order === 'cam_top' ? camEl.dest[1] + camEl.dest[3] : camEl.dest[1]) : null
   // Layers on the preview: the facecams of the picture-in-picture layouts and
   // the Game UI. A facecam keeps its shape; two are always the same size.
   const layerRoles = new Set<string>([...(spec.type === 'pip' ? spec.cams ?? [] : []), ...(spec.overlay ?? [])])
   const layers = p.elements.filter((e) => layerRoles.has(e.role))
-  const startLayer = (e: React.PointerEvent, role: Placeable, mode: LayerDrag['mode']): void => {
+  const startLayer = (e: React.PointerEvent, role: Placeable, handle: Handle): void => {
     const el = elementOf(p, role)
     if (!el || !previewRef.current) return
     e.stopPropagation()
-    e.preventDefault()          // a drag, not a text selection
+    e.preventDefault() // a drag, not a text selection
+    setSelected(role)
     const r = previewRef.current.getBoundingClientRect()
     layerDrag.current = {
       role,
-      mode,
+      handle,
       ox: ((e.clientX - r.left) / r.width) * OUT_W,
       oy: ((e.clientY - r.top) / r.height) * OUT_H,
       dest: [...el.dest] as PxBox
     }
     previewRef.current.setPointerCapture(e.pointerId)
+  }
+  // Lines a layer snaps to: the Short's middle and edges, the platform's safe
+  // lines, the grid when it's on, and every other part's edges and middle.
+  const snapTargets = (role: Placeable): Targets => {
+    const xs = [0, OUT_W / 2, OUT_W, zone.left, OUT_W - zone.right]
+    const ys = [0, OUT_H / 2, OUT_H, zone.top, OUT_H - zone.bottom]
+    if (showGrid) {
+      xs.push(OUT_W / 3, (2 * OUT_W) / 3)
+      ys.push(OUT_H / 3, (2 * OUT_H) / 3)
+    }
+    for (const e of p.elements) {
+      if (e.role === role || e.role === 'bg') continue
+      const [x, y, w, h] = e.dest
+      xs.push(x, x + w / 2, x + w)
+      ys.push(y, y + h / 2, y + h)
+    }
+    return { xs, ys }
   }
   const moveLayer = (e: React.PointerEvent): void => {
     const d = layerDrag.current
@@ -399,25 +437,37 @@ export default function GamingLayoutEditor({
     const r = previewRef.current.getBoundingClientRect()
     const dx = ((e.clientX - r.left) / r.width) * OUT_W - d.ox
     const dy = ((e.clientY - r.top) / r.height) * OUT_H - d.oy
-    const [x, y, w, h] = d.dest
-    const aspect = d.role === 'ui' ? null : spec.pip_aspect ?? 1
-    let next: PxBox
-    if (d.mode === 'move') next = [clamp(x + dx, 0, OUT_W - w), clamp(y + dy, 0, OUT_H - h), w, h]
-    else {
-      const nw = clamp(w + dx, 0.12 * OUT_W, OUT_W - x)
-      next = [x, y, nw, aspect ? nw / aspect : clamp(h + dy, 0.02 * OUT_H, OUT_H - y)]
-    }
+    const { box: next, guides: lines } = dragLayer(d.dest, d.handle, dx, dy, {
+      aspect: d.role === 'ui' ? null : spec.pip_aspect ?? 1,
+      canvas: [OUT_W, OUT_H],
+      minW: 0.12 * OUT_W,
+      minH: 0.02 * OUT_H,
+      targets: e.altKey ? null : snapTargets(d.role), // hold Alt to place freely
+      tol: 6 / k
+    })
+    setGuides(lines)
     const norm = (b: PxBox): FrameBox => [b[0] / OUT_W, b[1] / OUT_H, b[2] / OUT_W, b[3] / OUT_H]
     setPlaces((was) => {
       const out = { ...was, [d.role]: norm(next) }
-      if (d.mode === 'se' && d.role !== 'ui') {
+      if (d.handle !== 'move' && d.role !== 'ui') {
         // Two facecams are always the same size.
         const other: Placeable = d.role === 'cam' ? 'cam2' : 'cam'
         const oe = elementOf(p, other)
-        if (oe) out[other] = norm([oe.dest[0], oe.dest[1], next[2], next[3]])
+        if (oe)
+          out[other] = norm([
+            Math.min(oe.dest[0], OUT_W - next[2]),
+            Math.min(oe.dest[1], OUT_H - next[3]),
+            next[2],
+            next[3]
+          ])
       }
       return out
     })
+  }
+  const endDrags = (): void => {
+    dividerDrag.current = false
+    layerDrag.current = null
+    setGuides({ xs: [], ys: [] })
   }
   const onPreviewMove = (e: React.PointerEvent): void => {
     if (layerDrag.current) {
@@ -698,17 +748,20 @@ export default function GamingLayoutEditor({
                       }}
                       onPointerDown={(e) => startDrag(e, role, 'move')}
                     >
-                      <span className="absolute top-0 left-0 text-[10px] px-1 rounded-br" style={{ background: COLOUR[role], color: '#0B1220' }}>
+                      <span
+                        className={`absolute left-0 text-[11px] font-semibold px-1.5 leading-4 ${
+                          role === 'game' ? 'bottom-0 rounded-tr' : 'top-0 rounded-br'
+                        }`}
+                        style={{ background: COLOUR[role], color: '#0B1220' }}
+                      >
                         {t(LABEL[role])}
                       </span>
-                      {(['nw', 'se'] as const).map((corner) => (
+                      {HANDLES.map(([handle, fx, fy, cursor]) => (
                         <span
-                          key={corner}
-                          className={`absolute w-4 h-4 rounded-sm cursor-nwse-resize ${
-                            corner === 'nw' ? '-left-2 -top-2' : '-right-2 -bottom-2'
-                          }`}
-                          style={{ background: COLOUR[role] }}
-                          onPointerDown={(e) => startDrag(e, role, corner)}
+                          key={handle}
+                          className="absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full border-2 border-white shadow"
+                          style={{ left: `${fx * 100}%`, top: `${fy * 100}%`, background: COLOUR[role], cursor }}
+                          onPointerDown={(e) => startDrag(e, role, handle)}
                         />
                       ))}
                     </div>
@@ -759,9 +812,17 @@ export default function GamingLayoutEditor({
           </div>
 
           {/* ---- the result ---- */}
-          <div className="shrink-0 w-[252px] space-y-2 text-xs">
+          <div className="shrink-0 w-[288px] space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <p className="label">{t('Preview')}</p>
+              <button
+                className={`px-1.5 py-0.5 rounded text-[11px] ${showGrid ? 'bg-accent/20 text-accent' : 'bg-raised text-muted hover:text-ink'}`}
+                aria-pressed={showGrid}
+                onClick={() => setShowGrid((g) => !g)}
+                title={t('Grid lines: thirds and the middle. Parts snap to them.')}
+              >
+                {t('Grid')}
+              </button>
               <select
                 className="input !py-0.5 !w-36 text-xs"
                 value={safe}
@@ -780,21 +841,44 @@ export default function GamingLayoutEditor({
               className="relative rounded-lg overflow-hidden touch-none"
               style={{ width: PW, height: OUT_H * k }}
               onPointerMove={onPreviewMove}
-              onPointerUp={() => {
-                dividerDrag.current = false
-                layerDrag.current = null
-              }}
-              onPointerCancel={() => {
-                dividerDrag.current = false
-                layerDrag.current = null
-              }}
+              onPointerUp={endDrags}
+              onPointerCancel={endDrags}
+              onPointerDown={() => setSelected(null)}
             >
               {loaded ? (
                 <Composition p={p} frameUrl={frameUrl} src={src} width={PW} placeholderCam={camUnknown} />
               ) : (
                 <div className="bg-black w-full h-full" />
               )}
-              {safe !== 'none' && (
+              {/* What the app draws over the Short: the real layout for one
+                  platform; the three platforms' shared no-go areas for "All". */}
+              {PLATFORM_UI[safe] && <PlatformOverlay platform={safe} />}
+              {showGrid && (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${OUT_W} ${OUT_H}`} preserveAspectRatio="none">
+                  {[OUT_W / 3, (2 * OUT_W) / 3].map((x) => (
+                    <line key={`gx${x}`} x1={x} x2={x} y1={0} y2={OUT_H} stroke="white" strokeOpacity={0.35} strokeWidth={3} strokeDasharray="14 10" />
+                  ))}
+                  {[OUT_H / 3, (2 * OUT_H) / 3].map((y) => (
+                    <line key={`gy${y}`} x1={0} x2={OUT_W} y1={y} y2={y} stroke="white" strokeOpacity={0.35} strokeWidth={3} strokeDasharray="14 10" />
+                  ))}
+                  <line x1={OUT_W / 2} x2={OUT_W / 2} y1={0} y2={OUT_H} stroke="#38BDF8" strokeOpacity={0.6} strokeWidth={3} />
+                  <line x1={0} x2={OUT_W} y1={OUT_H / 2} y2={OUT_H / 2} stroke="#38BDF8" strokeOpacity={0.6} strokeWidth={3} />
+                  {safe !== 'none' && (
+                    <rect
+                      x={zone.left}
+                      y={zone.top}
+                      width={OUT_W - zone.left - zone.right}
+                      height={OUT_H - zone.top - zone.bottom}
+                      fill="none"
+                      stroke="#FACC15"
+                      strokeOpacity={0.7}
+                      strokeWidth={3}
+                      strokeDasharray="20 12"
+                    />
+                  )}
+                </svg>
+              )}
+              {safe === 'all' && (
                 <>
                   <div
                     className="absolute left-0 right-0 top-0 bg-white/15 border-b border-white/40 pointer-events-none flex items-start justify-center"
@@ -816,22 +900,41 @@ export default function GamingLayoutEditor({
               )}
               {loaded &&
                 layers.map((e) => {
+                  const role = e.role as Placeable
                   const [x, y, w, h] = e.dest.map((v) => v * k)
+                  const round = e.shape === 'circle'
+                  const on = selected === role
                   return (
                     <div
-                      key={`layer-${e.role}`}
-                      className="absolute cursor-move border border-dashed border-white/80 hover:border-white"
-                      style={{ left: x, top: y, width: w, height: h, borderRadius: e.shape === 'circle' ? '50%' : undefined }}
-                      onPointerDown={(ev) => startLayer(ev, e.role as Placeable, 'move')}
-                      title={t('Drag to move; drag the corner to resize')}
+                      key={`layer-${role}`}
+                      className={`absolute cursor-move group ${on ? 'ring-2 ring-white' : 'ring-1 ring-white/60 hover:ring-white'}`}
+                      style={{ left: x, top: y, width: w, height: h, borderRadius: round ? '50%' : 2 }}
+                      onPointerDown={(ev) => startLayer(ev, role, 'move')}
+                      title={t('Drag to move; drag a handle to resize. Hold Alt to stop it snapping.')}
                     >
-                      <span
-                        className="absolute -right-1.5 -bottom-1.5 w-3.5 h-3.5 rounded-sm bg-white shadow cursor-nwse-resize"
-                        onPointerDown={(ev) => startLayer(ev, e.role as Placeable, 'se')}
-                      />
+                      {HANDLES.map(([handle, fx, fy, cursor]) => (
+                        <span
+                          key={handle}
+                          className={`absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-white border border-slate-700 shadow ${
+                            on ? '' : 'opacity-0 group-hover:opacity-100'
+                          }`}
+                          style={{ left: `${(round ? ON_CIRCLE(fx) : fx) * 100}%`, top: `${(round ? ON_CIRCLE(fy) : fy) * 100}%`, cursor }}
+                          onPointerDown={(ev) => startLayer(ev, role, handle)}
+                        />
+                      ))}
                     </div>
                   )
                 })}
+              {(guides.xs.length > 0 || guides.ys.length > 0) && (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${OUT_W} ${OUT_H}`} preserveAspectRatio="none">
+                  {guides.xs.map((gx) => (
+                    <line key={`sx${gx}`} x1={gx} x2={gx} y1={0} y2={OUT_H} stroke="#F472B6" strokeWidth={4} />
+                  ))}
+                  {guides.ys.map((gy) => (
+                    <line key={`sy${gy}`} x1={0} x2={OUT_W} y1={gy} y2={gy} stroke="#F472B6" strokeWidth={4} />
+                  ))}
+                </svg>
+              )}
               {dividerY !== null && (
                 <div
                   className="absolute left-0 right-0 h-3 -mt-1.5 cursor-ns-resize flex items-center justify-center"
