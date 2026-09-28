@@ -4,30 +4,87 @@ Transcripts are cached as JSON per video id so re-runs (e.g. while tuning
 the LLM prompt) skip the expensive transcription step.
 """
 
+import ctypes
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 from core import cancel, progress
 from core.binaries import whisper_model
 from core.models import Segment
 
+# faster-whisper's engine, CTranslate2, is built against CUDA 12 and loads
+# cuBLAS 12 by name the first time it runs on the GPU, not when the model
+# loads. It brings its own cuDNN, but not cuBLAS. PyTorch moved to CUDA 13
+# (for the RTX 50-series), so its folder has cublas64_13.dll, not this: it
+# comes from NVIDIA's nvidia-cublas-cu12 wheel (requirements.txt, bundled in
+# the app) or a CUDA 12 toolkit. Measured (issue #111): without either, every
+# job on an NVIDIA PC failed at "Transcribing"; a CUDA 12 toolkit on the
+# developer's PATH had hidden it.
+_CUBLAS12 = ("cublasLt64_12.dll", "cublas64_12.dll")   # the first is the second's dependency
+_GPU_LIBRARY_ERROR = re.compile(r"cublas|cudnn|cuda", re.IGNORECASE)
+_NO_CUBLAS12 = ("GPU transcription needs NVIDIA's cuBLAS 12 (cublas64_12.dll), which isn't on this PC. "
+                "Reinstalling Clips Kitty brings it back (from source: pip install -r requirements.txt).")
 
-def _add_gpu_dlls() -> None:
-    """ctranslate2 (faster-whisper's engine) needs cuBLAS/cuDNN DLLs on
-    Windows. The CUDA PyTorch wheels ship them — point the DLL search there
-    so Whisper can run on the GPU without a separate CUDA toolkit install."""
+
+def _cublas12_dirs() -> list[Path]:
+    """Where cuBLAS 12 may be, the app's own copy first."""
+    dirs: list[Path] = []
+    if getattr(sys, "frozen", False):
+        # Where the installed app's build puts it (clips-studio.spec), found
+        # even if the namespace package doesn't import in the frozen app.
+        dirs.append(Path(getattr(sys, "_MEIPASS", "")) / "nvidia" / "cublas" / "bin")
+    try:
+        import nvidia.cublas
+
+        dirs += [Path(p) / "bin" for p in nvidia.cublas.__path__]
+    except Exception:
+        pass
+    if os.environ.get("CUDA_PATH"):
+        dirs.append(Path(os.environ["CUDA_PATH"]) / "bin")
+    dirs += [Path(p) for p in os.environ.get("PATH", "").split(os.pathsep) if p]
     try:
         import torch
 
-        lib = Path(torch.__file__).parent / "lib"
-        if lib.exists():
-            os.add_dll_directory(str(lib))
-    except Exception as e:
-        # Whisper falls back to CPU further down and just looks slow.
-        # This line is the difference between that and a mystery.
-        print(f"  Whisper: could not add the CUDA DLL directory ({e})")
+        dirs.append(Path(torch.__file__).parent / "lib")   # a CUDA 12 PyTorch had them
+    except Exception:
+        pass
+    return dirs
+
+
+def _cuda12_blas(dirs: list[Path] | None = None, load=None) -> Path | None:
+    """The folder cuBLAS 12 was loaded from, or None when it isn't here.
+
+    Loaded by full path, and its folder put first on PATH: CTranslate2's own
+    later load asks for it by name, which finds a copy already loaded, and
+    os.add_dll_directory alone does not reach that load. Not Windows: the
+    system's loader finds the libraries as it always has."""
+    if os.name != "nt":
+        return Path(".")
+    load = load or ctypes.WinDLL
+    for folder in (_cublas12_dirs() if dirs is None else dirs):
+        if not all((folder / name).is_file() for name in _CUBLAS12):
+            continue
+        try:
+            for name in _CUBLAS12:
+                load(str(folder / name))
+        except OSError as e:
+            print(f"  Whisper: couldn't load cuBLAS 12 from {folder} ({e})")
+            continue
+        os.environ["PATH"] = str(folder) + os.pathsep + os.environ.get("PATH", "")
+        try:
+            os.add_dll_directory(str(folder))
+        except (OSError, AttributeError):
+            pass
+        return folder
+    return None
+
+
+def _on_gpu(model) -> bool:
+    """Whether a loaded Whisper model runs on the GPU (CTranslate2 says)."""
+    return getattr(getattr(model, "model", None), "device", "cpu") == "cuda"
 
 
 def _load_model(model_size: str, device: str):
@@ -42,9 +99,12 @@ def _load_model(model_size: str, device: str):
     def load(name: str, **kwargs):
         return WhisperModel(whisper_model(name), **kwargs)
 
-    if device in ("auto", "cuda"):
+    if device in ("auto", "cuda") and _cuda12_blas() is None:
+        if device == "cuda":
+            raise RuntimeError(_NO_CUBLAS12)   # the GPU was asked for by name
+        print(f"  Whisper: {_NO_CUBLAS12} Transcribing on the CPU, which is slower.")
+    elif device in ("auto", "cuda"):
         try:
-            _add_gpu_dlls()
             if model_size == "auto":
                 # large-v3-turbo: large-v3 accuracy with a 4-layer decoder —
                 # several times faster than medium AND more accurate. Falls
@@ -71,45 +131,8 @@ def _load_model(model_size: str, device: str):
     return load(model_size, device="cpu", compute_type="auto")
 
 
-def transcribe(
-    video_path: Path,
-    video_id: str,
-    transcript_dir: Path,
-    model_size: str = "small",
-    device: str = "auto",
-    language: str | None = None,
-    online: dict | None = None,
-) -> list[Segment]:
-    """language: force a transcription language (ISO code like 'es');
-    None = Whisper auto-detects. The detected/forced language is cached in
-    the transcript JSON — read it back with detected_language().
-
-    online: the `transcription` settings. Local Whisper unless its backend
-    names a provider, in which case the audio goes to that provider on the
-    user's own key (transcription/cloud.py) and comes back in the same shape."""
-    transcript_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = transcript_dir / f"{video_id}.json"
-
-    if cache_path.exists():
-        print(f"  Using cached transcript: {cache_path}")
-        data = json.loads(cache_path.read_text(encoding="utf-8"))
-        segments = [Segment(**seg) for seg in data["segments"]]
-        # Also repair transcripts cached before the loop guard existed, so a
-        # reprocess fixes them without paying for transcription again. The
-        # file itself is left as the raw record of what Whisper returned.
-        _collapse_repetition_loops(segments)
-        return segments
-
-    if online and str(online.get("backend") or "local") != "local":
-        from transcription import cloud
-
-        segments = cloud.transcribe(video_path, video_id, transcript_dir, online, language=language)
-        _collapse_repetition_loops(segments)
-        return segments
-
-    print(f"  Loading whisper model '{model_size}' (device={device})...")
-    model = _load_model(model_size, device)
-
+def _run(model, video_path: Path, language: str | None):
+    """(segments, info) for one pass of Whisper over the video."""
     raw_segments, info = model.transcribe(
         str(video_path),
         # None = auto-detect; a forced code fixes bilingual streams where
@@ -155,6 +178,59 @@ def transcribe(
             progress.emit(stage="transcribe", fraction=min(1.0, seg.end / info.duration))
             last_emit = seg.end
     print()
+    return segments, info
+
+
+def transcribe(
+    video_path: Path,
+    video_id: str,
+    transcript_dir: Path,
+    model_size: str = "small",
+    device: str = "auto",
+    language: str | None = None,
+    online: dict | None = None,
+) -> list[Segment]:
+    """language: force a transcription language (ISO code like 'es');
+    None = Whisper auto-detects. The detected/forced language is cached in
+    the transcript JSON — read it back with detected_language().
+
+    online: the `transcription` settings. Local Whisper unless its backend
+    names a provider, in which case the audio goes to that provider on the
+    user's own key (transcription/cloud.py) and comes back in the same shape."""
+    transcript_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = transcript_dir / f"{video_id}.json"
+
+    if cache_path.exists():
+        print(f"  Using cached transcript: {cache_path}")
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+        segments = [Segment(**seg) for seg in data["segments"]]
+        # Also repair transcripts cached before the loop guard existed, so a
+        # reprocess fixes them without paying for transcription again. The
+        # file itself is left as the raw record of what Whisper returned.
+        _collapse_repetition_loops(segments)
+        return segments
+
+    if online and str(online.get("backend") or "local") != "local":
+        from transcription import cloud
+
+        segments = cloud.transcribe(video_path, video_id, transcript_dir, online, language=language)
+        _collapse_repetition_loops(segments)
+        return segments
+
+    print(f"  Loading whisper model '{model_size}' (device={device})...")
+    model = _load_model(model_size, device)
+
+    try:
+        segments, info = _run(model, video_path, language)
+    except RuntimeError as e:
+        # The GPU's libraries are only loaded at the first encode, after the
+        # model has loaded, so a GPU that loads can still fail here. The job
+        # goes on, on the CPU, rather than failing (a cancel is not a
+        # RuntimeError, and still stops it).
+        if device == "cuda" or not _on_gpu(model) or not _GPU_LIBRARY_ERROR.search(str(e)):
+            raise
+        print(f"\n  Whisper: the GPU failed ({str(e)[:120]}); transcribing again on the CPU")
+        segments, info = _run(_load_model(model_size, "cpu"), video_path, language)
 
     looped = _collapse_repetition_loops(segments)
     if looped:

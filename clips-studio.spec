@@ -34,9 +34,12 @@ hiddenimports = []
 #   rapidocr_onnxruntime — its OCR models (15 MB) and config.yaml, read from
 #                  its own package directory (on-screen text in a gaming stream)
 #   shapely / pyclipper — native libs RapidOCR's text detector needs
+#   nvidia.cublas — cuBLAS 12 (cublas64_12.dll), loaded by name by
+#                  CTranslate2 at its first GPU run; PyTorch's CUDA 13 build
+#                  only has cuBLAS 13 (transcription/transcriber.py, #111)
 for package in ("yt_dlp", "ultralytics", "faster_whisper", "ctranslate2",
                 "curl_cffi", "piper", "onnxruntime", "rapidocr_onnxruntime",
-                "shapely", "pyclipper"):
+                "shapely", "pyclipper", "nvidia.cublas"):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_datas
     binaries += pkg_binaries

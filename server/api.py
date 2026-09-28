@@ -292,6 +292,7 @@ class SettingsPatch(BaseModel):
     content_language: str | None = None  # auto / ISO code (es, pt, hi, id...)
     translation_model: str | None = None  # local model used for translation
     outro: bool | None = None  # append the Clips Kitty end card (clips.outro)
+    min_score: int | None = None  # clips.min_score: the quality bar, 0-100
 
 
 class TranslateIn(BaseModel):
@@ -2889,6 +2890,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             # Absent counts as ON, matching how the pipeline reads it, so the
             # toggle shows the state an upgrading user actually gets.
             "outro": config.get("clips", {}).get("outro", True),
+            "min_score": int(config.get("clips", {}).get("min_score", 55)),
         }
 
     @app.patch("/settings")
@@ -2922,6 +2924,20 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             if n == 0:
                 raise HTTPException(400, "no 'clips:' section in settings.yaml")
             config.setdefault("clips", {})["outro"] = body.outro
+        if body.min_score is not None:
+            # Nested under `clips:` like outro. The "no clips" message sends
+            # people to change it in Settings (#111), where it wasn't. The
+            # line's comment is kept.
+            if not 0 <= body.min_score <= 100:
+                raise HTTPException(400, "min_score must be between 0 and 100")
+            text, n = re.subn(r"(?m)^([^\S\n]+min_score:[^\S\n]*)\d+", rf"\g<1>{body.min_score}",
+                              text, count=1)
+            if n == 0:
+                text, n = re.subn(r"(?m)^(clips:[^\S\n]*$)",
+                                  rf"\g<1>\n  min_score: {body.min_score}", text, count=1)
+            if n == 0:
+                raise HTTPException(400, "no 'clips:' section in settings.yaml")
+            config.setdefault("clips", {})["min_score"] = body.min_score
 
         edits = {
             "model": body.model,

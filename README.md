@@ -601,6 +601,12 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 **Which cards use the GPU:** GTX 16-series, RTX 20-series, and everything newer
 including the RTX 50-series.
 
+**Transcription on the GPU** also needs NVIDIA's cuBLAS 12: Whisper's engine
+(CTranslate2) is a CUDA 12 build, and the CUDA 13 PyTorch above only has cuBLAS 13.
+`pip install -r requirements.txt` installs it (`nvidia-cublas-cu12`), and the
+installed app carries it, so no CUDA toolkit is needed. Without it, transcription
+runs on the CPU and the log says why.
+
 **GTX 10-series and older are below the minimum.** They are not a supported
 configuration. The app does not refuse to start on them: detection falls back
 to the CPU and everything still works, but it will be slow, and a machine that

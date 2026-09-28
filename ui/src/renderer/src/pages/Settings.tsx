@@ -571,6 +571,66 @@ function NotificationsCard(): JSX.Element {
  * decision every user is walked through. The label says plainly what it does;
  * it does not argue the case either way.
  */
+/** The quality bar (clips.min_score). The "no clips" explanation sends
+ *  people here to lower it, so it has to be here (#111). Saved when the
+ *  field is left or Enter is pressed; put back if it doesn't save. */
+function MinScoreSetting(): JSX.Element {
+  const [saved, setSaved] = useState<number | null>(null)
+  const [draft, setDraft] = useState('')
+
+  useEffect(() => {
+    api
+      .settings()
+      .then((s) => {
+        setSaved(s.min_score)
+        setDraft(String(s.min_score))
+      })
+      .catch(() => {})
+  }, [])
+
+  const save = async (): Promise<void> => {
+    const value = Math.round(Number(draft))
+    if (saved === null || draft.trim() === '' || !Number.isFinite(value) || value === saved) {
+      setDraft(saved === null ? '' : String(saved))
+      return
+    }
+    const next = Math.max(0, Math.min(100, value))
+    setDraft(String(next))
+    try {
+      await api.patchSettings({ min_score: next })
+      setSaved(next)
+    } catch {
+      setDraft(String(saved))
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <label className="flex items-center gap-3 text-sm" htmlFor="min-score">
+        <span>{t('Minimum score')}</span>
+        <input
+          id="min-score"
+          type="number"
+          min={0}
+          max={100}
+          className="input !w-20 !py-1"
+          value={draft}
+          disabled={saved === null}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => void save()}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        />
+        <span className="text-xs text-muted">{t('0-100, 55 by default')}</span>
+      </label>
+      <p className="text-xs text-muted">
+        {t(
+          'Clips scoring below this are dropped. Lower it when a video gives few or no clips; higher keeps fewer, stronger ones.'
+        )}
+      </p>
+    </div>
+  )
+}
+
 function BrandingCard(): JSX.Element {
   const [outro, setOutro] = useState(true)
 
@@ -639,10 +699,9 @@ export default function Settings(): JSX.Element {
           never need it, and nothing it controls shows anywhere else until
           it is switched on. */}
       <div className="card space-y-3">
-        <h3 className="font-semibold">
-          {t('Advanced settings')}{' '}
-          <span className="text-xs font-normal text-muted">{t('For multi-PC setups')}</span>
-        </h3>
+        <h3 className="font-semibold">{t('Advanced settings')}</h3>
+        <MinScoreSetting />
+        <p className="text-xs text-muted border-t border-raised/60 pt-3">{t('For multi-PC setups')}</p>
         <RemoteRenderCard />
       </div>
 

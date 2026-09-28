@@ -514,6 +514,7 @@ export interface Settings {
   content_language: string // 'auto' or ISO code (es / pt / hi / id ...)
   translation_model: string // local model used for translation ('' = the main one)
   outro: boolean // append the Clips Kitty end card to each clip (clips.outro)
+  min_score: number // clips.min_score: clips scoring below it are dropped (0-100)
 }
 
 /** Events arriving over the WebSocket. */

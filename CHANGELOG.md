@@ -281,6 +281,17 @@ were often broken in a way that only showed up on somebody else's machine.
 
 ### Fixed
 
+- **Videos no longer fail at "Transcribing" on NVIDIA PCs** with "Library
+  cublas64_12.dll is not found". Whisper's engine needs NVIDIA's cuBLAS 12, which
+  the app stopped carrying when it moved to CUDA 13 for the RTX 50-series; it now
+  ships with the app, so GPU transcription works with nothing else to install. And
+  if the GPU's libraries can't be loaded for any reason, the video is transcribed on
+  the CPU (slower) with a note in the log saying why, instead of failing.
+
+- **Minimum score can be changed in Settings** (Advanced settings). When a video
+  gives no clips, the app suggests lowering it, but until now it could only be
+  changed in the settings file.
+
 - **Esc in the Gaming / Reaction layout editor no longer closes the clip editor
   behind it.** Opened from the clip editor, Esc closed both; it now leaves
   fullscreen first and then closes only the layout editor.

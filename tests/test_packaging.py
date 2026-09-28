@@ -49,6 +49,13 @@ def test_the_spec_still_bundles_what_the_app_cannot_fetch():
         )
 
 
+def test_the_spec_bundles_cublas_12_for_whisper_on_the_gpu():
+    """Issue #111: without cuBLAS 12 in the bundle, every job on an NVIDIA PC
+    failed at "Transcribing" (PyTorch's CUDA 13 build has only cuBLAS 13)."""
+    text = SPEC.read_text(encoding="utf-8")
+    assert '"nvidia.cublas"' in text, "the spec no longer bundles cuBLAS 12 (nvidia.cublas)"
+
+
 def test_the_voice_model_check_clip_ships():
     """Without it, picking an unchecked voice model in an installed copy fails."""
     text = SPEC.read_text(encoding="utf-8")
