@@ -7,6 +7,14 @@ from llm.base import ChatTurn, ToolCall
 from llm.providers.base import LLMError, ModelInfo, ProviderSpec
 from llm.providers.http import send
 
+# How long an answer may run, as the Anthropic adapter has always said and
+# Ollama's num_predict does locally. Without it a model stuck repeating itself
+# runs to the provider's own limit: one OpenRouter request of a two-hour
+# stream's scoring was still going after twenty minutes. Room enough for a
+# reasoning model's thinking and the answer (gpt-oss used ~3,300 on a chunk).
+GENERATE_MAX_TOKENS = 8192
+CHAT_MAX_TOKENS = 4096
+
 # The response format each (provider, model) turned out to accept. A model
 # that refuses a strict schema is asked for plain JSON next time straight away,
 # instead of failing the same way on every chunk of a long video.
@@ -30,7 +38,8 @@ def generate(spec: ProviderSpec, key: str, model: str, prompt: str, *,
     start = _working_format.get((spec.id, model), 0) if len(formats) > 1 else 0
     last: LLMError | None = None
     for index in range(min(start, len(formats) - 1), len(formats)):
-        body: dict = {"model": model, "messages": [{"role": "user", "content": prompt}]}
+        body: dict = {"model": model, "max_tokens": GENERATE_MAX_TOKENS,
+                      "messages": [{"role": "user", "content": prompt}]}
         if formats[index]:
             body["response_format"] = formats[index]
         try:
@@ -43,13 +52,22 @@ def generate(spec: ProviderSpec, key: str, model: str, prompt: str, *,
                 raise
             last = e
             continue
+        if formats[index] and formats[index].get("type") == "json_schema" and index + 1 < len(formats) \
+                and _choice(spec, data).get("finish_reason") == "length":
+            # Held to the schema, the model ran to the output limit: stuck
+            # where the schema and what it wanted to write disagree, writing
+            # whitespace (measured: 28,000 spaces in one answer). A looser
+            # format next, now and for this model from then on.
+            last = LLMError("bad_response", f"The {spec.label} model ran out of room in the strict format.")
+            _working_format[(spec.id, model)] = index + 1
+            continue
         _working_format[(spec.id, model)] = index
         return _text(spec, data)
     raise last or LLMError("rejected", f"{spec.label} refused every way of asking for this answer.")
 
 
 def chat(spec: ProviderSpec, key: str, model: str, messages: list[dict], tools: list[dict]) -> ChatTurn:
-    body: dict = {"model": model, "messages": [_message(m) for m in messages]}
+    body: dict = {"model": model, "max_tokens": CHAT_MAX_TOKENS, "messages": [_message(m) for m in messages]}
     if tools:
         body["tools"] = tools
     data = send(spec, key, "POST", "/chat/completions", json_body=spec.body_extras(body))

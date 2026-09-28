@@ -153,7 +153,7 @@ def _score_window_batch(segments, llm, windows, events, guidance, events_title, 
     prompt = template.replace("{windows}", "\n\n".join(blocks))
     prompt = prompt.replace("{mode_guidance}", _guidance_block(guidance))
 
-    raw = _generate_with_retry(llm, prompt)
+    raw = _generate_with_retry(llm, prompt, WINDOWS_SCHEMA)
     parsed = _parse_clips_json(raw)
     if parsed is None:
         # Model failed — keep the windows anyway with neutral text scores;
@@ -334,16 +334,23 @@ CLIPS_SCHEMA = {
     "required": ["clips"],
     "additionalProperties": False,
 }
+# The signal windows' prompt (score_windows.txt) never asks for "trending".
+# Held to CLIPS_SCHEMA anyway, a cloud model (Gemma 4 on OpenRouter) stopped
+# at `"trending": ` and wrote nothing but spaces to its output limit, twice
+# a batch: minutes each, and every window fell back to a neutral 50.
+_WINDOW = {**_CLIP, "properties": {k: v for k, v in _CLIP["properties"].items() if k != "trending"},
+           "required": [k for k in _CLIP["required"] if k != "trending"]}
+WINDOWS_SCHEMA = {**CLIPS_SCHEMA, "properties": {"clips": {"type": "array", "items": _WINDOW}}}
 
 
-def _generate_with_retry(llm: LLMBackend, prompt: str) -> str:
-    raw = generate_json(llm, prompt, CLIPS_SCHEMA)
+def _generate_with_retry(llm: LLMBackend, prompt: str, schema: dict = CLIPS_SCHEMA) -> str:
+    raw = generate_json(llm, prompt, schema)
     if _parse_clips_json(raw) is not None:
         return raw
     # One retry with an explicit reminder — local models sometimes wrap
     # JSON in prose or markdown fences on the first attempt.
     retry_prompt = prompt + "\n\nIMPORTANT: Respond with ONLY the JSON object. No markdown, no explanation."
-    return generate_json(llm, retry_prompt, CLIPS_SCHEMA)
+    return generate_json(llm, retry_prompt, schema)
 
 
 def _parse_clips_json(raw: str) -> list[ClipCandidate] | None:

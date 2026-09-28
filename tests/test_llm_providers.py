@@ -232,6 +232,36 @@ def test_a_busy_provider_is_retried_honouring_retry_after_then_reported(fake, ba
     assert fake.waits == [7.0, 7.0]  # three tries, two waits
 
 
+def test_a_model_stuck_in_the_schema_is_asked_for_plain_json_and_remembered(fake, tmp_path):
+    """Measured: Gemma 4 held to a strict schema wrote 28,000 spaces to the
+    output limit. A cut-off answer in the schema is asked again in plain JSON
+    mode, and that model is asked that way from then on."""
+    from llm.providers.adapters import chat_completions
+
+    keys.save_key(tmp_path, "openrouter", KEY)
+    stuck = Response(200, {"choices": [{"message": {"content": '{"clips": [{"start": 1, ' + " " * 500},
+                                        "finish_reason": "length"}]})
+    calls = fake({"/chat/completions": [stuck, reply('{"clips": []}'), reply('{"clips": []}')]}).calls
+    chat_completions._working_format.pop(("openrouter", "google/gemma-stuck"), None)
+    llm = CloudBackend(PROVIDERS["openrouter"], "google/gemma-stuck", tmp_path)
+    assert llm.generate("p", json_mode=True, schema={"type": "object"}) == '{"clips": []}'
+    assert [c["json"]["response_format"]["type"] for c in calls] == ["json_schema", "json_object"]
+    llm.generate("p", json_mode=True, schema={"type": "object"})
+    assert calls[-1]["json"]["response_format"]["type"] == "json_object"
+
+
+def test_every_request_caps_how_long_the_answer_may_run(fake, backend):
+    """Measured: with no cap, one OpenRouter scoring request of a two-hour
+    stream was still going after twenty minutes."""
+    from llm.providers.adapters import chat_completions
+
+    calls = fake({"/chat/completions": reply("{}")}).calls
+    backend.generate("p", json_mode=True)
+    backend.chat([{"role": "user", "content": "hi"}], [])
+    assert calls[0]["json"]["max_tokens"] == chat_completions.GENERATE_MAX_TOKENS
+    assert calls[1]["json"]["max_tokens"] == chat_completions.CHAT_MAX_TOKENS
+
+
 def test_a_free_models_limit_says_so_and_names_the_paid_version(fake, tmp_path):
     """Measured: a two-hour stream stopped at its first request on
     gemma-4-31b-it:free with "rate limiting your key", which reads like the
