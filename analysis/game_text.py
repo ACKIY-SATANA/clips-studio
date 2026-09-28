@@ -13,9 +13,10 @@ script and kanji (not kana), and config/gaming.yaml's screen_text lists
 each word in the languages games are commonly played in.
 
   - A banner (big text near the middle) with an event word becomes an
-    "ON SCREEN:" event for the model and a witness that something happened.
+    "ON SCREEN:" event for the model and the clip's breakdown. It adds no
+    points of its own: most videos never show one.
   - A window where most frames show menu words (a few different ones across
-    it) is marked as a menu, and scores lower.
+    it) is marked as a menu, and scores a little lower.
 """
 
 import re
@@ -40,8 +41,9 @@ WIDTH = 1280
 BANNER_HEIGHT = 0.035  # a banner's letters are at least this share of that height;
                        # a stream's chat overlay is 0.02-0.03
 MIN_CONFIDENCE = 0.6
-# A window is a menu, queue or settings screen when at least half its frames
-# show a menu word, and this many different ones appear across it (a
+# A window is a menu, queue or settings screen when at least two thirds of
+# its frames show a menu word (a word in someone's captions or an overlay
+# now and then doesn't make one), and this many different ones appear across it (a
 # settings page shows a few per screen, and not always the same few).
 MENU_WORDS = 2
 WHOLE_WORD = 5         # Latin words this short only match on their own
@@ -192,7 +194,7 @@ def _read_windows(windows, genre_at, lexicon: dict, grab, read, budget: float, m
                     named.add(term)
                     out.events.append((t, f"ON SCREEN: {term}"))
             t += SAMPLE_CLOSE if t - start < CLOSE_FOR else SAMPLE_EVERY
-        if read_here and menu_frames * 2 >= read_here and len(menu_seen) >= MENU_WORDS:
+        if read_here and menu_frames * 3 >= read_here * 2 and len(menu_seen) >= MENU_WORDS:
             words = sorted(menu_seen, key=lambda m: (-menu_seen[m], m))[:3]
             out.menus.append((float(start), float(end), ", ".join(words)))
     out.events.sort(key=lambda ev: ev[0])

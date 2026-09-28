@@ -70,9 +70,12 @@ So the webcam is placed from the streamer's head, not the middle of the box:
   the hair goes under the top bar (and the preview says so) rather than the
   chin being cut off by the game. A bigger webcam share, or the whole game,
   gives it room;
-- when the webcam itself has too little room above the head, the picture
-  moves down inside its region (by just what's missing, at most 30% of the
-  region), with a blurred copy above it rather than a cut-off head;
+- when a webcam at the top of the Short has too little room above the head,
+  the picture moves down inside its region (by just what's missing, at most
+  30% of the region), with a blurred copy above it rather than a cut-off
+  head. A webcam lower down (under the game in the split) doesn't move: there
+  the top bar isn't over it, and the move only put a band of blur between the
+  game and the streamer's head and pushed the chin toward the captions;
 - small and round webcams go inside the platform's safe area.
 
 The same stream re-rendered: the head top at 135–158 px with the webcam on top
@@ -243,10 +246,12 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   battle royale, MOBA, sports, fighting, racing, horror, soulslike,
   action-adventure, sandbox, speedrun, party, strategy, reaction) with what a
   highlight is in it and what a streamer says when it happens.
-- **The AI is told.** Every scoring prompt says it is a gaming stream, which
-  game (for the part of the stream it is reading), what a highlight is in it,
-  that a clear in-game moment is a strong clip even when little is said, and
-  that menus, queues, loading screens and reading out donations score low.
+- **The AI is told.** Every scoring prompt says it is a gaming or reaction
+  stream and which game (for the part of the stream it is reading), to judge
+  what is said exactly as on any stream, and to count in-game moments too:
+  what a highlight is in that game, that a clear in-game moment is a strong
+  clip even when little is said, and that menus, queues, loading screens and
+  reading out donations score low.
   The moments the signals found are read eight at a time: all at once, a
   20-minute stretch's 45 moments ran past the model's answer budget and every
   one fell back to a neutral 50.
@@ -282,8 +287,10 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   moment, since a banner is only up for two or three, then every 4, for at
   most 2 minutes a video (about 0.4-0.8 s a frame on a CPU). A banner with an
   event word for that kind of game becomes an event the AI reads ("ON SCREEN:
-  ACE") and a witness for the bonus; a window where most frames show menu
-  words is marked down (-12) and gets no bonus, whatever chat made of it.
+  ACE") and the clip's breakdown shows; it adds no points of its own, because
+  most videos never show one and a caption can look like one. A window where
+  at least two thirds of the frames show menu words is marked down a little
+  (-6) and gets no bonus, whatever chat made of it.
   `config/gaming.yaml`'s `screen_text` lists the words in the languages games
   are commonly played in. It reads Latin script and kanji, not kana.
 - **The AI looks at the best clips.** Last, before the final ranking, the
@@ -298,18 +305,22 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   model can say it takes images and not get them. The video picture never
   goes to a cloud AI, so with one this step is skipped, and the job log says
   why.
-- **A game channel** in the fused score carries all of it (40% of the weight;
-  the AI's reading of the words 25%, audio 20%, visuals 10%, a person on
-  screen 5% in Vertical Live and 0% in the split). When little is said, the
-  weight the words would have had moves to the game and the audio, so a quiet
-  streamer's big play isn't marked down for its silence.
+- **Talk first, the game on top.** A clip with talking is scored exactly as on
+  any stream, with the same weights: the words count as much as ever. The
+  game adds to that the way creator context does, never taking anything away:
+  up to +7 for how strongly the game channel (everything above) marks the
+  clip, and +5 more when two independent witnesses agree (chat, the game's
+  sound, the streamer shouting or laughing) or chat and a loud moment do;
+  +12 at most. The game's sound with loudness alone doesn't
+  count as two, because gunfire is loud. When little is said, the weight the
+  words would have had goes to the game channel and the sound instead, so a
+  quiet streamer's big play isn't marked down for its silence. (Weighting the
+  game at 40% of every clip, as this did at first, left a two-hour reaction
+  to BlizzCon with 13 clips: most of a reaction is talk.) The standard
+  "active content" bonus (a person on screen, moving) doesn't apply: a
+  facecam over a moving game is that all stream long.
 - **Each moment is a candidate of its own**, from about 4 seconds before it to
-  the reaction, 15 to 35 seconds, even when nothing was said near it. When two
-  independent witnesses agree (chat, the game's sound, a banner on screen, the
-  streamer shouting or laughing) it gets a bonus; so does chat with a loud
-  moment. The game's sound with loudness alone doesn't, because gunfire is
-  loud. The standard "active content" bonus (a person on screen, moving)
-  doesn't apply: a facecam over a moving game is that all stream long.
+  the reaction, 15 to 35 seconds, even when nothing was said near it.
 
 The clip's score breakdown shows **game** and what marked the moment.
 

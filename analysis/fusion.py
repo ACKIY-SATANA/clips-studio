@@ -63,8 +63,8 @@ def find_clips(
         {"text": 0.30, "visual": 0.20, "reaction": 0.20, "audio": 0.20, "engagement": 0.10},
     )
     if gaming is not None:
-        # A gaming stream is judged on what happens in the game (the "game"
-        # channel below) more than on the words: analysis/gaming.py.
+        # The standard weights (analysis/gaming.py): talk is judged as on any
+        # stream, and the game adds on top (the game bonus below).
         weights = dict(gaming.weights)
     if weight_bias:
         # Learned from the user's own keep/edit/export behavior for THIS
@@ -255,7 +255,8 @@ def find_clips(
     speech = {id(c): _speech_ratio(c, segments) for c in candidates}
     top_k = max(scoring_cfg.get("reaction_top_k", 8), min(24, len(candidates) // 3))
     provisional = sorted(
-        candidates, key=lambda c: _fuse(c, weights, 0.5, speech[id(c)]), reverse=True
+        candidates, key=lambda c: _fuse(c, weights, 0.5, speech[id(c)], game=gaming is not None),
+        reverse=True
     )
     react_set = list(provisional[:top_k])
     # ALSO measure every visually-active candidate (motion present). Reaction
@@ -303,15 +304,23 @@ def find_clips(
     ctx_cap = int(scoring_cfg.get("creator_context_max", 6))
     action_bonus = int(scoring_cfg.get("action_bonus", 10))
     audience_bonus = int(scoring_cfg.get("audience_bonus", 8))
-    game_bonus = int(scoring_cfg.get("game_bonus", 8))
-    menu_penalty = int(scoring_cfg.get("menu_penalty", 12))
+    # A gaming stream's game adds value like creator context does: never
+    # taking anything away, capped. Up to game_moment_max for how strongly the
+    # game channel marks the clip, and game_bonus more when independent
+    # witnesses agree something happened.
+    game_bonus = int(scoring_cfg.get("game_bonus", 5))
+    game_moment_max = int(scoring_cfg.get("game_moment_max", 7))
+    # A light touch: most videos have no on-screen text worth reading, and
+    # captions or an overlay can carry a menu word.
+    menu_penalty = int(scoring_cfg.get("menu_penalty", 6))
     n_context = 0
     n_action = 0
     n_hype = 0
     n_game = 0
     n_menu = 0
     for c in candidates:
-        fused = round(100 * _fuse(c, weights, c.subscores["reaction"] / 100.0, speech[id(c)]))
+        fused = round(100 * _fuse(c, weights, c.subscores["reaction"] / 100.0, speech[id(c)],
+                                  game=gaming is not None))
         if gaming is not None:
             # What marked this moment, for the clip's score breakdown, and a
             # bonus when independent witnesses agree it happened: chat (the
@@ -328,8 +337,6 @@ def find_clips(
                 hits.add("streamer")
             if _window_max(audio_excitement, c.start, c.end) >= 0.92:
                 hits.add("loud")
-            if screen is not None and any(c.start - 1 <= sec <= c.end for sec, _d in screen.events):
-                hits.add("screen")
             # A menu, a queue or a settings screen isn't a moment, whatever
             # chat made of it.
             menu_here = [words for s0, e0, words in (screen.menus if screen is not None else [])
@@ -352,11 +359,16 @@ def find_clips(
                 fused = max(0, fused - menu_penalty)
                 c.subscores["menu"] = -menu_penalty
                 n_menu += 1
-            agree = (len(hits & {"chat", "game", "streamer", "screen"}) >= 2
+            # On-screen text isn't a witness: most videos never show a banner,
+            # and a caption can look like one. It still informs the AI and the
+            # clip's breakdown.
+            agree = (len(hits & {"chat", "game", "streamer"}) >= 2
                      or {"chat", "loud"} <= hits)
-            if game_bonus > 0 and agree and not on_menu:
-                fused = min(100, fused + game_bonus)
-                c.subscores["game_bonus"] = game_bonus
+            strength = max(0.0, min(1.0, (c.subscores.get("game", 0) / 100.0 - 0.35) / 0.5))
+            added = round(game_moment_max * strength) + (game_bonus if agree else 0)
+            if added > 0 and not on_menu:
+                fused = min(100, fused + added)
+                c.subscores["game_bonus"] = added
                 n_game += 1
         # Trending/drama moments (a creator/celebrity named, beef, controversy)
         # ride existing attention — give them a meaningful boost.
@@ -420,7 +432,7 @@ def find_clips(
     if n_hype:
         print(f"  Audience hype boosted {n_hype} candidate(s) (max +{audience_bonus})")
     if n_game:
-        print(f"  Game moments boosted {n_game} candidate(s) (+{game_bonus})")
+        print(f"  Game moments added to {n_game} candidate(s) (up to +{game_moment_max + game_bonus})")
     if n_menu:
         print(f"  Menus and queues marked down: {n_menu} candidate(s) (-{menu_penalty})")
 
@@ -476,7 +488,8 @@ def find_clips(
     return kept, rejections
 
 
-def _fuse(c: ClipCandidate, weights: dict, reaction: float, speech_ratio: float = 1.0) -> float:
+def _fuse(c: ClipCandidate, weights: dict, reaction: float, speech_ratio: float = 1.0,
+          game: bool = False) -> float:
     """Weighted multimodal score 0..1 from a candidate's subscores.
 
     Content-adaptive: for low-speech clips (workouts, action, b-roll) the
@@ -488,6 +501,11 @@ def _fuse(c: ClipCandidate, weights: dict, reaction: float, speech_ratio: float 
     so weighting audio up would penalize the very content we want to surface.
     A big lift or a fast rep then scores on what it shows, not on empty
     dialogue. Total weight is conserved, so talky clips are unaffected.
+
+    game (a gaming stream): a quiet stretch's freed weight goes to what
+    happened in the game (its game channel) and the sound instead, so a
+    quiet streamer's big play is carried by the play itself. A clip with
+    talking scores exactly as it would on any stream.
     """
     s = c.subscores or {}
     talky = max(0.0, min(1.0, speech_ratio))
@@ -495,19 +513,14 @@ def _fuse(c: ClipCandidate, weights: dict, reaction: float, speech_ratio: float 
     w_text = weights["text"] * talky
     w_eng = weights["engagement"] * talky
     freed = (weights["text"] - w_text) + (weights["engagement"] - w_eng)
-    if "game" in weights:
-        # The gaming profile: a quiet stretch's freed weight goes to what
-        # happened in the game and to the sound, not to who is on screen: a
-        # quiet streamer's big play is carried by the play itself.
-        carriers = weights["game"] + weights["audio"]
-        boost = 1.0 + (freed / carriers if carriers > 0 else 0.0)
+    if game:
         return (
             w_text * s.get("text", 50) / 100.0
             + weights["visual"] * s.get("visual", 50) / 100.0
             + weights["reaction"] * reaction
-            + weights["audio"] * boost * s.get("audio", 50) / 100.0
-            + weights["game"] * boost * s.get("game", 50) / 100.0
+            + weights["audio"] * s.get("audio", 50) / 100.0
             + w_eng * s.get("engagement", 50) / 100.0
+            + freed * (0.7 * s.get("game", 50) + 0.3 * s.get("audio", 50)) / 100.0
         )
     carriers = weights["visual"] + weights["reaction"]
     boost = 1.0 + (freed / carriers if carriers > 0 else 0.0)

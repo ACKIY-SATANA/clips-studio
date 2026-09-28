@@ -73,12 +73,13 @@ def test_the_screen_names_moments_and_marks_menus():
         105: (["GOAL"], set()),                            # a goal in the football part
         109: (["GOAL"], set()),                            # the same banner, still up
         505: (["ELIMINATED"], set()),                      # a shooter word in a sports game
-        # Read every 2 s near the start of a window: four of its seven frames
-        # are a settings page.
+        # Read every 2 s near the start of a window: five of its seven frames
+        # are a settings page (two thirds are needed).
         901: ([], {"SETTINGS", "SENSITIVITY"}),
         903: ([], {"SETTINGS", "BACK"}),
         905: ([], {"SETTINGS", "BACK"}),
         907: ([], {"SETTINGS", "SENSITIVITY"}),
+        909: ([], {"SETTINGS"}),
     }
     genre = {100: "sports", 500: "sports", 900: "shooter"}
     out = read_screen(Path("v.mp4"), [(100, 115), (500, 515), (900, 915)],
@@ -143,15 +144,17 @@ def fused(monkeypatch):
     return run
 
 
-def test_a_menu_chat_reacted_to_is_marked_down_and_a_banner_backs_chat_up(fused):
+def test_a_menu_is_marked_down_lightly_and_a_banner_only_informs(fused):
+    """Most videos never show on-screen event text, and captions or an
+    overlay can carry a menu word: a menu costs a little, a banner is told to
+    the AI and shown in the breakdown but adds no points of its own."""
     screen = ScreenText(events=[(603.0, "ON SCREEN: ACE")], menus=[(190.0, 215.0, "SETTINGS, BACK")], frames=12)
     base = fused(ScreenText())
     read = fused(screen)
     menu = next(c for s, c in read.items() if s <= 200 <= c.end)
     ace = next(c for s, c in read.items() if s <= 600 <= c.end)
-    assert menu.subscores["menu"] == -12 and "game_bonus" not in menu.subscores
+    assert menu.subscores["menu"] == -6 and "game_bonus" not in menu.subscores
     assert "ON SCREEN: a menu" in menu.subscores["game_why"]
-    assert ace.subscores["game_bonus"] == 8 and "ON SCREEN: ACE" in ace.subscores["game_why"]
+    assert "ON SCREEN: ACE" in ace.subscores["game_why"]
     before = next(c for s, c in base.items() if s <= 600 <= c.end)
-    assert "game_bonus" not in before.subscores                 # chat alone, nothing to agree with
-    assert ace.score == min(100, before.score + 8)
+    assert ace.score == before.score

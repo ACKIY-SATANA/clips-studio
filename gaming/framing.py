@@ -57,8 +57,10 @@ def cam_crop(box: tuple, head: tuple | None, dest: tuple, safe: dict) -> tuple[t
 
     The crop has dest's shape and is the largest that fits in the webcam box.
     shift: how far the picture moves down within dest (px) because the webcam
-    has too little picture above the head; the caller fills the gap with a
-    blur of it.
+    has too little picture above the head for it to clear the platform's top
+    bar; the caller fills the gap with a blur of it. Only a camera at the top
+    of the Short moves: lower down, the move only put a band of blur above
+    the streamer's head and pushed their chin toward the captions.
     """
     bx, by, bw, bh = box
     aspect = dest[2] / dest[3]
@@ -86,7 +88,7 @@ def cam_crop(box: tuple, head: tuple | None, dest: tuple, safe: dict) -> tuple[t
     x = _clamp(hx - cw / 2, bx, bx + bw - cw)
     y = _clamp(top - (want_top - dy) / scale, by, by + bh - ch)
     lands = dy + (top - y) * scale                  # where the head top ends up
-    shift = int(round(min(max(0.0, want_top - lands), MAX_SHIFT * dh)))
+    shift = int(round(min(max(0.0, want_top - lands), MAX_SHIFT * dh))) if dy < safe["top"] else 0
     return (_pos(x), _pos(y), _even(cw), _even(ch)), shift
 
 

@@ -50,12 +50,15 @@ def test_unknown_games_score_as_a_generic_game():
     assert gaming.profile_for({"clips": {"gaming_scoring": True}}, [], "chill stream").genre == "generic"
 
 
-def test_the_split_layout_moves_the_unmeasured_reaction_weight_to_the_game():
+def test_a_gaming_stream_is_weighted_like_any_stream_and_the_game_adds_on_top():
+    """A reaction to BlizzCon is talk: weighting a game channel at 40% left a
+    two-hour reaction with 13 clips. The words weigh what they do anywhere."""
     split = gaming.profile_for({"clips": {"gaming": True}}, [], "")
     vertical = gaming.profile_for({"clips": {"gaming_scoring": True, "vertical_live": True}}, [], "")
-    assert split.weights["reaction"] == 0 and split.weights["game"] == pytest.approx(0.45)
-    assert vertical.weights["reaction"] == pytest.approx(0.05) and vertical.weights["game"] == pytest.approx(0.40)
-    assert sum(split.weights.values()) == pytest.approx(1.0) == sum(vertical.weights.values())
+    assert split.weights == vertical.weights == gaming.STANDARD_WEIGHTS
+    assert "game" not in split.weights
+    mine = {"text": 0.4, "visual": 0.2, "reaction": 0.1, "audio": 0.2, "engagement": 0.1}
+    assert gaming.profile_for({"clips": {"gaming": True}, "scoring": {"weights": mine}}, [], "").weights == mine
 
 
 def test_settings_can_set_the_gaming_weights():
@@ -72,7 +75,9 @@ def test_the_guidance_names_the_game_and_counts_quiet_plays():
     assert "little is said" in text and "menus" in text
     assert "kills and multi-kills" in text
     reaction = gaming.GamingProfile(genre="reaction").guidance()
-    assert "reaction stream" in reaction and "what they are watching" in reaction
+    assert "reaction stream" in reaction and "they're watching" in reaction
+    # Talk is judged as on any stream; the game adds to it.
+    assert "exactly as you would on any stream" in text and "off-topic" not in text
     assert len(gaming.GamingProfile().guidance("rerank")) < len(gaming.GamingProfile().guidance())
 
 
@@ -240,7 +245,7 @@ def test_a_quiet_play_that_chat_reacts_to_becomes_a_clip_with_a_game_bonus(fusin
     assert moment, [(c.start, c.end) for c in kept]
     c = moment[0]
     assert c.start <= 297 and c.end - c.start >= 10                # starts before the play
-    assert c.subscores["game"] >= 60 and c.subscores.get("game_bonus") == 8
+    assert c.subscores["game"] >= 60 and 5 <= c.subscores.get("game_bonus", 0) <= 12
     assert "CHAT: hype" in c.subscores["game_why"]
     assert "VALORANT (shooter)" in seen["guidance"] and "VALORANT" in seen["windows_guidance"]
     assert seen["title"].startswith("GAME / CHAT")
@@ -263,7 +268,7 @@ def test_the_game_sound_and_the_streamer_agreeing_is_a_moment_without_chat(fusin
     kept, _ = fusion.find_clips("v.mp4", segments, _NoLLM(), CFG, signals=signals, gaming=profile,
                                 sounds=_gunfire(np))
     c = next(c for c in kept if c.start <= 300 <= c.end)
-    assert c.subscores.get("game_bonus") == 8
+    assert 5 <= c.subscores.get("game_bonus", 0) <= 12
     assert "GAME SOUND: gunfire" in c.subscores["game_why"] and "STREAMER" in c.subscores["game_why"]
 
 
@@ -275,7 +280,8 @@ def test_the_game_sound_alone_is_a_candidate_but_not_a_bonus(fusing):
                                 sounds=_gunfire(np))
     moment = [c for c in kept if c.start <= 298 <= c.end]
     assert moment and moment[0].start <= 295                # the fight, from just before it
-    assert moment[0].subscores["game"] >= 40 and "game_bonus" not in moment[0].subscores
+    # The play itself adds a little; nothing agreeing with it, so no more.
+    assert moment[0].subscores["game"] >= 40 and moment[0].subscores.get("game_bonus", 0) < 5
 
 
 def test_standard_scoring_is_untouched_by_the_gaming_profile(fusing):
@@ -293,10 +299,14 @@ def test_little_talking_moves_weight_to_the_game_not_the_screen():
 
     c = ClipCandidate(start=0, end=20, score=0)
     c.subscores = {"text": 0, "engagement": 0, "audio": 50, "visual": 0, "game": 100}
-    w = gaming.GAMING_WEIGHTS
-    quiet = fusion._fuse(c, w, reaction=0.0, speech_ratio=0.0)
-    talky = fusion._fuse(c, w, reaction=0.0, speech_ratio=1.0)
+    w = gaming.STANDARD_WEIGHTS
+    quiet = fusion._fuse(c, w, reaction=0.0, speech_ratio=0.0, game=True)
+    talky = fusion._fuse(c, w, reaction=0.0, speech_ratio=1.0, game=True)
     assert quiet > talky                          # silence over a big play isn't penalised
+    # With talking, a gaming stream's clip scores exactly as on any stream.
+    c.subscores = {"text": 85, "engagement": 80, "audio": 50, "visual": 40, "game": 10}
+    assert fusion._fuse(c, w, 0.5, 1.0, game=True) == fusion._fuse(c, w, 0.5, 1.0)
+    c.subscores = {"text": 0, "engagement": 0, "audio": 50, "visual": 0, "game": 100}
     standard = {"text": 0.30, "visual": 0.20, "reaction": 0.20, "audio": 0.20, "engagement": 0.10}
     c.subscores["visual"] = 100
     assert fusion._fuse(c, standard, 0.0, 0.0) == pytest.approx(0.20 * 2.0 + 0.20 * 0.5)

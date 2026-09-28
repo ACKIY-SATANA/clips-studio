@@ -635,7 +635,7 @@ def _gaming_scoring_inputs(config: dict, video, db: StateDB, games: list, hype_o
         profile = gaming.profile_for(config, games, video.title)
     except Exception as e:
         print(f"      (gaming profile: {e}; scoring as a generic game)")
-        profile = gaming.GamingProfile(weights=dict(gaming.GAMING_WEIGHTS))
+        profile = gaming.GamingProfile(weights=dict(gaming.STANDARD_WEIGHTS))
     chat = None
     if hype_out.get("messages"):
         try:

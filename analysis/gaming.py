@@ -23,13 +23,12 @@ from pathlib import Path
 
 KNOWLEDGE_PATH = Path(__file__).resolve().parent.parent / "config" / "gaming.yaml"
 
-# The fused score's weights for a gaming stream. The game channel (evidence
-# that something happened in the game: chat, the streamer's voice, and later
-# game sounds and on-screen text) carries the most; the model's reading of
-# the words still counts, less than for talk. Reaction (a person on screen,
-# being emphasised) only means something where it is measured: Vertical Live.
-GAMING_WEIGHTS = {"text": 0.20, "engagement": 0.05, "audio": 0.20, "visual": 0.10,
-                  "reaction": 0.05, "game": 0.40}
+# The fused score's weights for a gaming stream: the standard ones. What is
+# said is judged exactly as on any stream (a reaction to BlizzCon is talk,
+# and weighting a game channel at 40% left a two-hour reaction with 13
+# clips). The game adds value on top instead, like creator context: fusion's
+# game bonus, and a quiet stretch's share of the weight (fusion._fuse).
+STANDARD_WEIGHTS = {"text": 0.30, "visual": 0.20, "reaction": 0.20, "audio": 0.20, "engagement": 0.10}
 
 
 @lru_cache(maxsize=1)
@@ -124,26 +123,27 @@ class GamingProfile:
         if genre == "reaction":
             what = f"a reaction / talking part of the stream ({game})" if game else "a reaction stream"
         lines = [
-            f"THIS IS A GAMING / REACTION STREAM: {what}. Judge it the way a gaming clip "
-            "channel would:",
-            f"- The best clips are what happens in the game and the reaction to it: {highlights}.",
+            f"THIS IS FROM A GAMING / REACTION STREAM: {what}. Judge what is said exactly as "
+            "you would on any stream (a strong take, a funny line, a story, a heated moment), "
+            "and ALSO count what happens in the game:",
+            f"- In-game moments are strong clips too: {highlights}.",
             f"- The streamer's callouts show when something just happened ({callouts}), and the "
             "GAME / CHAT events listed with the transcript mark it too.",
             "- A clear in-game moment is a strong clip even when little is said: a shout, a laugh, "
             "a scream or silence over a big play still counts. Do not mark a moment down just "
             "because there is little talking.",
-            "- The payoff is the play and the reaction. Include a few seconds of setup before it "
-            "and end once the reaction lands; 15-35 seconds for one moment is ideal.",
+            "- For an in-game moment, include a few seconds of setup before it and end once the "
+            "reaction lands; 15-35 seconds for one moment is ideal.",
             "- Score low: menus, lobbies, queues and loading screens, reading out donations or "
-            "subscriptions, long off-topic chatting, and dead time between plays.",
+            "subscriptions, and dead time between plays.",
         ]
         if genre == "reaction":
-            lines.append("- In a reaction, the payoff is the streamer's strongest reactions to "
-                         "what they are watching (shock, laughter, a strong take), not the "
-                         "watched video on its own.")
+            lines.append("- When the streamer reacts to something they're watching, their "
+                         "strongest reactions and takes are the payoff (shock, laughter, a strong "
+                         "opinion), not the watched video on its own.")
         if kind == "rerank":
-            lines = [*lines[:2], "- Prefer the clip with a real in-game moment and a reaction "
-                                 "over one that is only talk."]
+            lines = [lines[0], "- Between clips that are otherwise as good, prefer the one with a "
+                               "real in-game moment or a big reaction."]
         return "\n".join(lines)
 
 
@@ -183,13 +183,9 @@ def profile_for(config: dict, games: list | None = None, title: str = "") -> Gam
         hints = " ".join(str(g.get("hint") or "") for g in games or [])
         genre = genre_of(title) or genre_of(hints)
     split = modes.is_gaming(config)
-    weights = dict(((config.get("scoring") or {}).get("profiles") or {}).get("gaming", {})
-                   .get("weights") or GAMING_WEIGHTS)
-    weights.setdefault("game", GAMING_WEIGHTS["game"])
-    if split:
-        # Nothing measures a person on screen in the split layout, so its
-        # weight moves to the game instead of scoring a constant.
-        weights["game"] = weights.get("game", 0) + weights.get("reaction", 0)
-        weights["reaction"] = 0.0
+    scoring = config.get("scoring") or {}
+    weights = dict((scoring.get("profiles") or {}).get("gaming", {}).get("weights")
+                   or scoring.get("weights") or STANDARD_WEIGHTS)
+    weights.pop("game", None)       # the game adds on top; it has no weight of its own
     return GamingProfile(genre=genre or "generic", game=game, games=list(games or []),
                          split_layout=split, weights=weights)

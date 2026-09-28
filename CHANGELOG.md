@@ -30,8 +30,9 @@ were often broken in a way that only showed up on somebody else's machine.
   line between them, and see the 9:16 result live. Remembered per creator if you want.
   - Faces stay clear of TikTok's, Reels' and Shorts' buttons and captions. The webcam is
     placed from where the streamer's head is, and the preview shows the chosen platform's
-    UI with "✓ Face clear", or what to change. A webcam with no room above the head is
-    moved down on a blur, never cut off at the top.
+    UI with "✓ Face clear", or what to change. A webcam at the top with no room above the
+    head is moved down on a blur, never cut off at the top; one under the game stays
+    right against it, with no blur between the game and the streamer's head.
   - A whole game sits right against the webcam: never a band of blur between the
     streamer and the game. The blur goes above the two (clear of the platform's top bar)
     and below them. No black bars.
@@ -69,7 +70,9 @@ were often broken in a way that only showed up on somebody else's machine.
 - **Gaming streams are scored as gaming streams.** A kill streak, a boss going down or
   a goal counts, even from a streamer who says little. Gaming / Reaction scores this
   way, and **Gaming stream** (beside Vertical Live) does it for a live that was already
-  vertical. The AI is told which game it is (Twitch says per part of the stream; Kick
+  vertical. What is said still counts exactly as on any stream (a reaction is mostly
+  talk); the game adds to a clip on top of that, up to +12, like creator context does,
+  and carries the quiet stretches. The AI is told which game it is (Twitch says per part of the stream; Kick
   and YouTube give the category, title or tags) and what a highlight is in that kind
   of game; chat's reactions mark moments and what kind (hype, laughing, surprised,
   scared, a fail, "clip it", in any language and with a channel's own emotes); a

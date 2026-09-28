@@ -276,6 +276,17 @@ def test_the_face_stays_in_its_band_wherever_it_sits_in_the_webcam(where, head):
             assert top >= TIKTOK["top"] - 1, where
 
 
+def test_a_camera_under_the_game_gets_no_band_of_blur_above_the_head():
+    """Measured on a reaction stream: with the game on top, a head at the top
+    of its webcam was moved down under a band of blur, which only pushed the
+    chin toward TikTok's captions. Only a camera at the top of the Short
+    moves (to clear the top bar)."""
+    under = _plan("split", cam=HIGH_CAM, heads={"cam": HIGH_HEAD}, order="game_top").element("cam")
+    assert under.dest[1] > TIKTOK["top"] and under.shift == 0
+    on_top = _plan("split", cam=HIGH_CAM, heads={"cam": HIGH_HEAD}, order="cam_top").element("cam")
+    assert on_top.shift > 0
+
+
 def test_with_no_head_to_go_on_the_crop_is_centred():
     e = _plan("split", cam=(0.1, 0.1, 0.2, 0.4)).element("cam")
     sx, sy, sw, sh = e.src

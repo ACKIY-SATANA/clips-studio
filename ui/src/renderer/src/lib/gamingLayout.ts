@@ -130,7 +130,9 @@ export function camCrop(box: PxBox, head: Head | null, dest: PxBox, safe: SafeZo
   const x = clamp(hx - cw / 2, bx, bx + bw - cw)
   const y = clamp(top - (wantTop - dy) / scale, by, by + bh - ch)
   const lands = dy + (top - y) * scale
-  const shift = roundHalfEven(Math.min(Math.max(0, wantTop - lands), MAX_SHIFT * dh))
+  // Only a camera at the top of the Short moves down (to clear the top bar);
+  // lower down it would only put blur above the head (gaming/framing.py).
+  const shift = dy < safe.top ? roundHalfEven(Math.min(Math.max(0, wantTop - lands), MAX_SHIFT * dh)) : 0
   return [[pos(x), pos(y), even(cw), even(ch)], shift]
 }
 
