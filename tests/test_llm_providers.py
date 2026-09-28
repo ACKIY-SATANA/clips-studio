@@ -279,6 +279,18 @@ def test_a_free_models_limit_says_so_and_names_the_paid_version(fake, tmp_path):
     assert "free version" not in err.value.message
 
 
+def test_a_busy_upstream_provider_is_named_and_the_key_not_blamed(fake, backend):
+    """Measured: Gemma 3 4B's only provider on OpenRouter (DeepInfra) answered
+    429 "Provider returned error" to every request; the key was fine."""
+    fake({"/chat/completions": Response(429, {"error": {
+        "code": 429, "message": "Provider returned error", "metadata": {"provider_name": "DeepInfra"}}})})
+    with pytest.raises(LLMError) as err:
+        backend.generate("p")
+    assert err.value.kind == "rate_limited"
+    assert err.value.message.startswith("DeepInfra, which runs this model for OpenRouter, is busy")
+    assert "your key is fine" in err.value.message
+
+
 def test_openrouter_names_its_preferred_models_for_the_card():
     preferred = PROVIDERS["openrouter"].public()["preferred"]
     assert preferred == {"text": "google/gemma-4-26b-a4b-it", "stt": "openai/whisper-large-v3-turbo"}

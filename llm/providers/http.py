@@ -101,6 +101,17 @@ def error_from(spec: ProviderSpec, status: int, body) -> LLMError:
         return LLMError("invalid_key", f"{label} didn't accept the API key. "
                                        "Check it, or paste a new one in Settings → AI.")
     if status == 429:
+        # OpenRouter names the company that actually turned it away. Measured:
+        # Gemma 3 4B's only provider (DeepInfra) answered 429 to every request
+        # while the key was fine, and "rate limiting your key" sent the user
+        # looking at the key.
+        upstream = str((err.get("metadata") or {}).get("provider_name") or "").strip()[:60] \
+            if isinstance(err.get("metadata"), dict) else ""
+        if upstream:
+            return LLMError("rate_limited", f"{upstream}, which runs this model for {label}, is busy and "
+                                            "turned the request away (your key is fine). Wait a minute and "
+                                            "try again, or choose a model more providers run, such as the "
+                                            "preferred one.")
         return LLMError("rate_limited", f"{label} is rate limiting your key. Wait a minute and try again.")
     if status == 404:
         return LLMError("model_unavailable", f"{label} doesn't offer that model to your key. "
