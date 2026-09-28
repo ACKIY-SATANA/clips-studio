@@ -123,27 +123,27 @@ class GamingProfile:
         if genre == "reaction":
             what = f"a reaction / talking part of the stream ({game})" if game else "a reaction stream"
         lines = [
-            f"THIS IS FROM A GAMING / REACTION STREAM: {what}. Judge what is said exactly as "
-            "you would on any stream (a strong take, a funny line, a story, a heated moment), "
-            "and ALSO count what happens in the game:",
+            (f"THIS IS FROM A GAMING / REACTION STREAM: {what}. Judge what is said exactly as "
+             "you would on any stream (a strong take, a funny line, a story, a heated moment), "
+             "and ALSO count what happens in the game:"),
             f"- In-game moments are strong clips too: {highlights}.",
-            f"- The streamer's callouts show when something just happened ({callouts}), and the "
-            "GAME / CHAT events listed with the transcript mark it too.",
-            "- A clear in-game moment is a strong clip even when little is said: a shout, a laugh, "
-            "a scream or silence over a big play still counts. Do not mark a moment down just "
-            "because there is little talking.",
-            "- For an in-game moment, include a few seconds of setup before it and end once the "
-            "reaction lands; 15-35 seconds for one moment is ideal.",
-            "- Score low: menus, lobbies, queues and loading screens, reading out donations or "
-            "subscriptions, and dead time between plays.",
+            (f"- The streamer's callouts show when something just happened ({callouts}), and the "
+             "GAME / CHAT events listed with the transcript mark it too."),
+            ("- A clear in-game moment is a strong clip even when little is said: a shout, a laugh, "
+             "a scream or silence over a big play still counts. Do not mark a moment down just "
+             "because there is little talking."),
+            ("- For an in-game moment, include a few seconds of setup before it and end once the "
+             "reaction lands; 15-35 seconds for one moment is ideal."),
+            ("- Score low: menus, lobbies, queues and loading screens, reading out donations or "
+             "subscriptions, and dead time between plays."),
         ]
         if genre == "reaction":
             lines.append("- When the streamer reacts to something they're watching, their "
                          "strongest reactions and takes are the payoff (shock, laughter, a strong "
                          "opinion), not the watched video on its own.")
         if kind == "rerank":
-            lines = [lines[0], "- Between clips that are otherwise as good, prefer the one with a "
-                               "real in-game moment or a big reaction."]
+            lines = [lines[0], ("- Between clips that are otherwise as good, prefer the one with a "
+                                "real in-game moment or a big reaction.")]
         return "\n".join(lines)
 
 
