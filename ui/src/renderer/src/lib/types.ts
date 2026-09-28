@@ -380,6 +380,9 @@ export interface AIProvider {
   privacy: string
   stt: boolean
   stt_models?: string[]
+  /** The model the card puts first for each job: the cheapest that does it
+   *  well (OpenRouter: Gemma for text, Whisper large-v3 turbo for voice). */
+  preferred?: { text?: string; stt?: string }
   has_key: boolean
   key_tail: string
   /** The region the saved key belongs to, for providers whose keys only

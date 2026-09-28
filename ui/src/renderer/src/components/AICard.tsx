@@ -402,6 +402,10 @@ function ProviderPanel({
 
   const current = models.find((m) => m.id === inUse)
   const missing = !!inUse && !loading && !loadError && models.length > 0 && !current
+  // The cheapest that does this job well, first in the list and one click away.
+  const preferred = models.find((m) => m.id === provider.preferred?.[kind])
+  // A free version's limits stop a long video: its paid version, one click away.
+  const paid = inUse.endsWith(':free') ? models.find((m) => m.id === inUse.slice(0, -':free'.length)) : undefined
 
   return (
     <div className="space-y-2">
@@ -458,9 +462,18 @@ function ProviderPanel({
               </button>
             </p>
           ) : job === 'ai' ? (
-            <ModelPicker models={models} loading={loading} inUse={inUse} busy={busy} onChoose={choose} />
+            <ModelPicker models={models} loading={loading} inUse={inUse} busy={busy} onChoose={choose} preferred={preferred} />
           ) : (
-            <VoicePicker models={models} loading={loading} inUse={inUse} busy={busy} onChoose={choose} />
+            <VoicePicker models={models} loading={loading} inUse={inUse} busy={busy} onChoose={choose} preferred={preferred} />
+          )}
+          {preferred && inUse !== preferred.id && (
+            <p className="text-[11px] text-muted">
+              ★ {t('Preferred')}: <span className="text-ink">{preferred.name}</span> · {shortPrice(preferred)} ·{' '}
+              {job === 'ai' ? t('the cheapest for text') : t('the cheapest with word timings')}{' '}
+              <button className="text-accent hover:underline" disabled={busy} onClick={() => choose(preferred.id)}>
+                {t('Use it')}
+              </button>
+            </p>
           )}
 
           {checking && (
@@ -507,7 +520,20 @@ function ProviderPanel({
               {t('Prices from')} {provider.label} · {t('updated')} {ago(fetchedAt)}
             </p>
           )}
-          {current?.note && <p className="text-[11px] text-amber-400">{current.note}</p>}
+          {current?.note && (
+            <p className="text-[11px] text-amber-400">
+              {current.note}
+              {paid && (
+                <>
+                  {' '}
+                  {t('When it stops a job with "rate limiting", that is this limit.')}{' '}
+                  <button className="text-accent hover:underline" disabled={busy} onClick={() => choose(paid.id)}>
+                    {t('Use the paid version')} ({shortPrice(paid)})
+                  </button>
+                </>
+              )}
+            </p>
+          )}
           {test && (
             <p className={`text-[11px] ${test.ok ? 'text-success' : 'text-red-400'}`}>
               {test.ok ? '✓ ' : ''}
@@ -961,23 +987,29 @@ function ModelPicker({
   loading,
   inUse,
   busy,
-  onChoose
+  onChoose,
+  preferred
 }: {
   models: AIModel[]
   loading: boolean
   inUse: string
   busy: boolean
   onChoose: (id: string) => void
+  preferred?: AIModel
 }): JSX.Element {
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'maker' | 'price'>('maker')
   const grouped = sort === 'maker' && models.some((m) => m.vendor)
   const needle = filter.trim().toLowerCase()
-  const shown = models.filter((m) => !needle || `${m.id} ${m.name}`.toLowerCase().includes(needle))
+  const matches = (m: AIModel): boolean => !needle || `${m.id} ${m.name}`.toLowerCase().includes(needle)
+  // The preferred model heads the list, once.
+  const top = preferred && matches(preferred) ? preferred : undefined
+  const shown = models.filter((m) => matches(m) && m.id !== top?.id)
   // Cheapest first by input price, as the website sorts; "varies" last.
   const byPrice = [...shown].sort((a, b) => (a.price?.input ?? 1e9) - (b.price?.input ?? 1e9))
 
   const groups: [string, AIModel[]][] = []
+  if (top) groups.push([t('★ Preferred: the cheapest for text'), [top]])
   if (grouped) {
     const claimed = new Set<string>()
     for (const [label, prefixes] of VENDOR_GROUPS) {
@@ -1029,9 +1061,9 @@ function ModelPicker({
                 ))}
               </optgroup>
             ))
-          : (sort === 'price' ? byPrice : shown).slice(0, 400).map((m) => (
+          : [...(top ? [top] : []), ...(sort === 'price' ? byPrice : shown).slice(0, 400)].map((m) => (
               <option key={m.id} value={m.id}>
-                {optionLabel(m)}
+                {m.id === top?.id ? `★ ${optionLabel(m)}` : optionLabel(m)}
               </option>
             ))}
       </select>
@@ -1051,16 +1083,19 @@ function VoicePicker({
   loading,
   inUse,
   busy,
-  onChoose
+  onChoose,
+  preferred
 }: {
   models: AIModel[]
   loading: boolean
   inUse: string
   busy: boolean
   onChoose: (id: string) => void
+  preferred?: AIModel
 }): JSX.Element {
-  const known = models.filter((m) => m.verified)
-  const others = models.filter((m) => !m.verified)
+  const rest = models.filter((m) => m.id !== preferred?.id)
+  const known = rest.filter((m) => m.verified)
+  const others = rest.filter((m) => !m.verified)
   const option = (m: AIModel): JSX.Element => (
     <option key={m.id} value={m.id}>
       {[m.name, shortPrice(m)].filter(Boolean).join(' · ')}
@@ -1075,6 +1110,7 @@ function VoicePicker({
       aria-label={t('Voice model')}
     >
       <option value="">{loading ? t('Loading models…') : inUse || t('Choose a voice model')}</option>
+      {preferred && <optgroup label={t('★ Preferred: the cheapest with word timings')}>{option(preferred)}</optgroup>}
       {known.length > 0 && <optgroup label={t('✓ Returns word timings')}>{known.map(option)}</optgroup>}
       {others.length > 0 && (
         <optgroup label={t('Other voice models (checked with a test clip when chosen)')}>

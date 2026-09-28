@@ -27,12 +27,31 @@ class CloudBackend(LLMBackend):
 
     def generate(self, prompt: str, *, json_mode: bool = False, schema: dict | None = None) -> str:
         spec, key = self._keyed()
-        return self._adapter.generate(spec, key, self.model, prompt,
-                                      json_mode=json_mode, schema=schema)
+        try:
+            return self._adapter.generate(spec, key, self.model, prompt,
+                                          json_mode=json_mode, schema=schema)
+        except LLMError as e:
+            raise self._said_plainly(e) from e
 
     def chat(self, messages: list[dict], tools: list[dict]) -> ChatTurn:
         spec, key = self._keyed()
-        return self._adapter.chat(spec, key, self.model, messages, tools)
+        try:
+            return self._adapter.chat(spec, key, self.model, messages, tools)
+        except LLMError as e:
+            raise self._said_plainly(e) from e
+
+    def _said_plainly(self, e: LLMError) -> LLMError:
+        """OpenRouter's free versions (":free") are limited to a few requests a
+        minute and a small daily allowance, which one long video uses up (it
+        stopped a two-hour stream at its first request). "Rate limiting your
+        key" alone reads like the key's fault; this says what to do."""
+        if e.kind == "rate_limited" and self.spec.id == "openrouter" and self.model.endswith(":free"):
+            paid = self.model[: -len(":free")]
+            return LLMError("rate_limited", f"OpenRouter's free version of {paid} is rate limited: a few "
+                                            "requests a minute and a small daily allowance, which one long "
+                                            f"video can use up. Choose the paid version ({paid}) in Settings "
+                                            "→ AI (it costs cents a video), or wait and try again.")
+        return e
 
     @property
     def name(self) -> str:

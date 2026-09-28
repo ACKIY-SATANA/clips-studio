@@ -58,6 +58,15 @@ export default function UploadPostCard(): JSX.Element {
         if (!mounted.current) return
         setStatus(s)
         setProfile(s.profile)
+        // Only when it's on and has a key: asked otherwise, the engine
+        // answers "not enabled", an error in the log each time Settings opens.
+        if (s.enabled && s.has_key)
+          api
+            .uploadPostConnections()
+            .then((got) => mounted.current && setConnected(got.connected))
+            .catch(() => {
+              /* the linked accounts show once Upload-Post answers */
+            })
         setCommon(s.common_description)
         setCommonSaved(s.common_description)
         setAffiliateDraft(s.affiliate_url)
@@ -70,12 +79,6 @@ export default function UploadPostCard(): JSX.Element {
   useEffect(() => {
     mounted.current = true
     load()
-    api
-      .uploadPostConnections()
-      .then((got) => mounted.current && setConnected(got.connected))
-      .catch(() => {
-        /* off, or no key yet */
-      })
     return () => {
       mounted.current = false
       if (watcher.current) clearInterval(watcher.current)

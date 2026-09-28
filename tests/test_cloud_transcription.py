@@ -34,6 +34,7 @@ def audio(monkeypatch, tmp_path):
         return out
 
     monkeypatch.setattr(cloud, "_extract", extract)
+    monkeypatch.setattr(cloud, "_speech_in", lambda audio: None)   # no voice detector: every word kept
     checks = []
     monkeypatch.setattr(cloud.cancel, "check_active", lambda: checks.append(1))
     monkeypatch.setattr(http, "sleep", lambda s: None)
@@ -101,6 +102,71 @@ def test_whisper_words_get_their_punctuation_back():
 def test_no_word_timings_is_refused_rather_than_drifting_captions():
     with pytest.raises(LLMError):
         cloud._whisper_words({"text": "hi", "segments": [{"text": "hi"}]})
+    with pytest.raises(LLMError):
+        cloud._whisper_words({"text": "", "segments": [{"text": " hi"}]})
+
+
+def test_a_part_where_nothing_is_said_is_not_a_failure(audio, monkeypatch, tmp_path):
+    """Measured: a stream with 10 minutes of music before anyone spoke. Its
+    first parts came back with no words and no text, which stopped the job
+    as "no word timings" whatever the model."""
+    keys.save_key(tmp_path, "openrouter", KEY)
+    answers = [
+        {"language": "english", "text": "", "segments": [], "words": []},
+        {"language": "english", "text": " ", "words": None},
+        {"language": "english", "segments": [{"text": "Okay, hello."}],
+         "words": [{"word": "Okay", "start": 5.0, "end": 5.4}, {"word": "hello", "start": 5.4, "end": 5.9}]},
+    ]
+    calls = []
+
+    def transport(method, url, **kw):
+        calls.append(1)
+        return Response(answers[len(calls) - 1])
+
+    monkeypatch.setattr(http, "transport", transport)
+    online = {"backend": "openrouter", "model": "openai/whisper-large-v3-turbo", "data_dir": str(tmp_path)}
+    segments = cloud.transcribe(tmp_path / "v.mp4", "vid00000002", tmp_path / "t", online)
+    assert [(w["word"], w["start"]) for s in segments for w in s.words] == [("Okay,", 363.0), ("hello.", 363.4)]
+
+
+def test_words_made_up_where_nobody_speaks_are_dropped_and_silent_parts_not_sent(audio, monkeypatch, tmp_path):
+    """Measured: "Thank you." 640 times in one two-hour stream, in every quiet
+    stretch. The voice detector local Whisper uses runs on each part first."""
+    keys.save_key(tmp_path, "openrouter", KEY)
+    speech = iter([[], [(10.0, 14.0)], [(4.0, 7.0)]])     # part 1: nobody speaks
+    monkeypatch.setattr(cloud, "_speech_in", lambda audio: next(speech))
+    answers = [
+        {"segments": [{"text": "Thank you. So this is it."}],
+         "words": [{"word": "Thank", "start": 2.0, "end": 2.3}, {"word": "you.", "start": 2.3, "end": 2.6},
+                   {"word": "So", "start": 10.5, "end": 10.7}, {"word": "this", "start": 10.7, "end": 11.0},
+                   {"word": "is", "start": 11.0, "end": 11.2}, {"word": "it.", "start": 11.2, "end": 11.6}]},
+        {"segments": [{"text": "Right."}], "words": [{"word": "Right.", "start": 5.0, "end": 5.4}]},
+    ]
+    calls = []
+
+    def transport(method, url, **kw):
+        calls.append(1)
+        return Response(answers[len(calls) - 1])
+
+    monkeypatch.setattr(http, "transport", transport)
+    online = {"backend": "openrouter", "model": "openai/whisper-large-v3-turbo", "data_dir": str(tmp_path)}
+    segments = cloud.transcribe(tmp_path / "v.mp4", "vid00000004", tmp_path / "t", online)
+    assert len(calls) == 2                                # the silent part wasn't sent
+    assert [w["word"] for s in segments for w in s.words] == ["So", "this", "is", "it.", "Right."]
+
+
+def test_a_word_counts_as_spoken_close_to_detected_speech():
+    speech = [(10.0, 14.0)]
+    assert cloud._spoken({"start": 14.1, "end": 14.5}, speech)          # within the pad
+    assert not cloud._spoken({"start": 15.0, "end": 15.4}, speech)
+    assert not cloud._spoken({"start": 2.0, "end": 2.3}, speech)
+
+
+def test_a_video_where_nothing_is_said_has_an_empty_transcript(audio, monkeypatch, tmp_path):
+    keys.save_key(tmp_path, "openrouter", KEY)
+    monkeypatch.setattr(http, "transport", lambda *a, **k: Response({"text": "", "segments": [], "words": []}))
+    online = {"backend": "openrouter", "model": "openai/whisper-large-v3-turbo", "data_dir": str(tmp_path)}
+    assert cloud.transcribe(tmp_path / "v.mp4", "vid00000003", tmp_path / "t", online) == []
 
 
 @pytest.mark.parametrize("value,code", [("english", "en"), ("en", "en"), ("Spanish", "es"), ("", "")])

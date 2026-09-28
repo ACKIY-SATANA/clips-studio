@@ -62,7 +62,10 @@ to a provider directly; it makes it simpler.
    or sorted by lowest price, and each line shows the context size and the input
    and output price per million tokens. Under it, the model in use shows every
    price OpenRouter lists for it (cached input, reasoning, per request and so on),
-   what it can do, and a link to its OpenRouter page.
+   what it can do, and a link to its OpenRouter page. **★ Preferred** heads
+   the list: Gemma 4 31B (`google/gemma-4-31b-it`), the cheapest that does
+   the job well, at $0.09 / $0.34 per million tokens (September 2026), a few
+   cents for a two-hour stream. Under the list, **Use it** switches to it.
 5. Optional: **Test connection** checks the key and the model without spending
    anything.
 
@@ -75,12 +78,28 @@ model** from OpenRouter's live speech catalogue. The key is shared, so you only
 paste it once. Captions need the time of every word, and OpenRouter's catalogue
 does not say which models give it, so:
 
+- **★ Preferred** heads the list: Whisper large-v3 turbo
+  (`openai/whisper-large-v3-turbo`), the cheapest with word timings, about
+  $0.01 an hour of audio (Parakeet is about $0.09). **Use it** under the list
+  switches to it.
 - The Whisper models known to return word timings are listed first and chosen
   straight away.
 - Any other voice model is checked when you pick it: Clips Kitty sends it a
   three-second test clip once (a tiny fraction of a cent on your key) and only
   switches to it if word timings come back. If they don't, it says so and
   nothing changes.
+- A part where nothing is said (a stream's music-only intro) comes back with
+  no words, and that's fine. Measured: a stream with ten minutes of music
+  before anyone spoke used to stop at its first part as "no word timings",
+  whichever model was chosen.
+- Whisper makes words up where nobody speaks ("Thank you." 640 times in that
+  two-hour stream, one in every quiet stretch). Local Whisper never shows them
+  because it runs a voice detector (Silero) first, and the same one now runs
+  on each part before it's sent: a part where nobody speaks isn't sent (or
+  paid for), and words outside the speech it finds are dropped. On that
+  stream: 4 of 41 parts not sent, 2,133 made-up words dropped, and the first
+  word at 647.8 s as local Whisper has it (647.6 s), with 5,266 words to
+  local's 5,119.
 
 Prices come from OpenRouter each time the lists are loaded, and are kept for a
 few hours at most; the card says when they were fetched, and **Refresh models**
@@ -102,8 +121,13 @@ The website shows them the same way.
   no markup on inference, and a fee when you buy credits. See
   [openrouter.ai/models](https://openrouter.ai/models) for current prices.
 - Models whose id ends in `:free` cost nothing but are limited per day (50
-  requests a day, or 1,000 once you have bought $10 of credit). A long video
-  sends a few dozen requests, so the free allowance can run out partway.
+  requests a day, or 1,000 once you have bought $10 of credit) and per
+  minute, and their providers are often busy. A long video sends a few dozen
+  requests, so the free allowance can run out partway, or before the first
+  request (measured: `gemma-4-31b-it:free` stopped a two-hour stream there).
+  The job then says it was the free version's limit and names the paid
+  version, and the card offers **Use the paid version** next to the free
+  model's note.
 - As a rough guide to volume: a two-hour VOD is analysed in five-minute chunks,
   plus one request for titles for each batch of clips.
 

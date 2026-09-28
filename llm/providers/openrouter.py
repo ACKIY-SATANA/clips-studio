@@ -188,4 +188,10 @@ SPEC = ProviderSpec(
     stt={"format": "openrouter", "chunk_seconds": 180,
          "models": ["openai/whisper-large-v3-turbo", "openai/whisper-large-v3", "openai/whisper-1"],
          "catalog": "/models?output_modalities=transcription&limit=100"},
+    # The cheapest that do each job well (OpenRouter's prices, September 2026):
+    # Gemma 4 31B at $0.09 / $0.34 per million tokens, a few cents for a
+    # two-hour stream, and not its ":free" version, whose limits stop a long
+    # video; Whisper large-v3 turbo at about $0.01 an hour of audio, with word
+    # timings (Parakeet is about $0.09).
+    preferred={"text": "google/gemma-4-31b-it", "stt": "openai/whisper-large-v3-turbo"},
 )

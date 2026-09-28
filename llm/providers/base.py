@@ -120,6 +120,9 @@ class ProviderSpec:
     # that says so. See llm/signin/ for the plans that can.
     plan_note: str = ""
     plan_note_url: str = ""
+    # The model the card puts first for each job, {"text": id, "stt": id}:
+    # the cheapest that does the job well, written here and nowhere in the UI.
+    preferred: dict = field(default_factory=dict)
 
     def in_region(self, region: str) -> "ProviderSpec":
         """This provider at the address of one of its regions. Unknown or
@@ -149,4 +152,5 @@ class ProviderSpec:
             "stt_models": list(self.stt.get("models") or []),
             "plan_note": self.plan_note,
             "plan_note_url": self.plan_note_url,
+            "preferred": dict(self.preferred),
         }

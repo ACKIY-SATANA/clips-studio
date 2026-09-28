@@ -192,6 +192,15 @@ were often broken in a way that only showed up on somebody else's machine.
     catalogue, each showing OpenRouter's current prices (and when they were
     fetched), with a refresh. A voice model not yet known to give word timings
     is checked with a three-second test clip before it is used.
+  - **★ Preferred** models head each list, one click away: Gemma 4 31B for text
+    (a few cents for a two-hour stream) and Whisper large-v3 turbo for voice (about
+    $0.01 an hour, with word timings). A free (`:free`) model's note offers its paid
+    version, and a job it stops says it was the free version's limit.
+  - Online transcription no longer stops at a stretch where nothing is said: a
+    stream's ten-minute music intro used to fail it as "no word timings". And the
+    voice detector local Whisper uses now runs on each part first, so the "Thank
+    you." Whisper makes up in quiet stretches (640 in one stream) is dropped, and a
+    part where nobody speaks isn't sent or paid for.
   - Your key is checked before it is saved, stored encrypted, and never shown
     again apart from its last four characters. **Test connection** checks the
     key and model without spending anything.

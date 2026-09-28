@@ -521,6 +521,17 @@ def _clean_render_gaming(render_opts: dict) -> dict:
     return render_opts
 
 
+def _quiet_connection_resets(loop, context: dict) -> None:
+    """Windows' event loop reports a connection the other side already closed
+    (the app's window reloading, a websocket dropped) as a traceback when it
+    shuts its end, WinError 10054, and it landed in job logs as if a job had
+    failed. Only that is dropped; anything else is reported as before."""
+    if (isinstance(context.get("exception"), ConnectionResetError)
+            and "_call_connection_lost" in str(context.get("message") or "")):
+        return
+    loop.default_exception_handler(context)
+
+
 def create_app(config: dict, settings_path: Path) -> FastAPI:
     from server import feedback as feedback_mod
 
@@ -562,6 +573,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
 
     @app.on_event("startup")
     async def _startup():
+        asyncio.get_running_loop().set_exception_handler(_quiet_connection_resets)
         broadcaster.attach_loop(asyncio.get_running_loop())
         worker.start()
         publish_worker.start()

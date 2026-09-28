@@ -12,8 +12,18 @@ absolute seconds from the start of the video. Captions, filler cuts, the
 editor's word tools, sentence snapping and translation all read that.
 
 Only providers that return word timings are offered: without them captions
-would drift and word editing would vanish. Nothing falls back to local
-Whisper; a failing provider fails the job, in plain words.
+would drift and word editing would vanish. A part where nothing is said (a
+stream's music-only intro: measured, 10 minutes of one) has no words and
+that's fine; a part with text but no word timings is the model's limit.
+
+Whisper makes words up where nobody speaks: "Thank you." 640 times in one
+two-hour stream, "谢谢大家" and the like, one in every quiet stretch. Local
+Whisper never shows them because faster-whisper runs a voice detector
+(Silero) first. The same detector runs here, on each part before it is
+sent: a part where nobody speaks isn't sent at all (and isn't paid for),
+and a word the model returns outside the speech it found is dropped.
+Nothing falls back to local Whisper; a failing provider fails the job, in
+plain words.
 """
 
 import base64
@@ -36,6 +46,7 @@ from llm.providers.http import send
 PROBE = Path(__file__).resolve().parent / "assets" / "probe.mp3"
 
 OVERLAP = 2.0          # seconds of audio shared by neighbouring chunks
+SPEECH_PAD = 0.2       # a word counts as spoken this close to detected speech
 PAUSE = 0.6            # a gap this long between words starts a new segment
 MAX_SEGMENT = 15.0     # and no segment runs longer than this
 STT_TIMEOUT = 300
@@ -60,13 +71,22 @@ def transcribe(video_path: Path, video_id: str, transcript_dir: Path, online: di
 
     words: list[dict] = []
     detected = ""
+    silent = made_up = 0
     with tempfile.TemporaryDirectory(prefix="ck-stt-") as tmp:
         for i, start in enumerate(starts):
             cancel.check_active()
             progress.emit(stage="transcribe", fraction=i / len(starts))
             clip_from = max(0.0, start - OVERLAP)
             audio = _extract(video_path, Path(tmp) / f"part{i}.mp3", clip_from, length + 2 * OVERLAP)
+            speech = _speech_in(audio)
+            if speech == []:
+                silent += 1
+                continue
             part_words, part_language = _request(spec, key, model, audio, language)
+            if speech is not None:
+                kept = [w for w in part_words if _spoken(w, speech)]
+                made_up += len(part_words) - len(kept)
+                part_words = kept
             detected = detected or part_language
             # A word belongs to the part its start falls in; the overlap is
             # context for the model, so words at a boundary are not cut off.
@@ -76,6 +96,8 @@ def transcribe(video_path: Path, video_id: str, transcript_dir: Path, online: di
                 if start <= absolute["start"] < end:
                     words.append(absolute)
     progress.emit(stage="transcribe", fraction=1.0)
+    if silent or made_up:
+        print(f"      Nobody speaks in {silent} part(s), not sent; {made_up} word(s) outside speech dropped")
 
     segments = group_words(words)
     lang = (language or normalize_language(detected) or "en").lower()
@@ -105,6 +127,31 @@ def check_model(spec, key: str, model: str) -> tuple[bool, str]:
         return False, (f"{model} didn't return word timings, which captions and word editing "
                        "need. Choose another voice model.")
     return True, f"{model} works: it returned word timings for the test clip."
+
+
+# ---- where someone speaks --------------------------------------------------------
+
+
+def _speech_in(audio: Path) -> list[tuple[float, float]] | None:
+    """Where someone speaks in a part, in seconds from its start, by the voice
+    detector local Whisper uses (Silero, through faster-whisper, with its
+    defaults). None when it can't run: then every word is kept, as before."""
+    try:
+        from faster_whisper.audio import decode_audio
+        from faster_whisper.vad import VadOptions, get_speech_timestamps
+    except ImportError:
+        return None
+    try:
+        samples = decode_audio(str(audio), sampling_rate=16000)
+        found = get_speech_timestamps(samples, VadOptions(), sampling_rate=16000)
+    except Exception as e:  # a part it can't read is sent as before
+        print(f"      (couldn't check a part for speech: {e})")
+        return None
+    return [(t["start"] / 16000, t["end"] / 16000) for t in found]
+
+
+def _spoken(word: dict, speech: list[tuple[float, float]]) -> bool:
+    return any(word["start"] < end + SPEECH_PAD and word["end"] > start - SPEECH_PAD for start, end in speech)
 
 
 # ---- one request per provider format -------------------------------------------
@@ -144,10 +191,16 @@ def _request(spec, key: str, model: str, audio: Path, language: str | None) -> t
 def _whisper_words(answer: dict) -> list[dict]:
     """Words from a Whisper verbose_json answer, with the segment text's
     punctuation put back: whisper-1 returns bare words ("there", not
-    "there."), and captions and sentence grouping need the punctuation."""
+    "there."), and captions and sentence grouping need the punctuation.
+    Empty for a part where nothing is said; text without word timings is
+    refused."""
     words = [{"start": float(w["start"]), "end": float(w["end"]), "word": str(w.get("word") or "").strip()}
              for w in answer.get("words") or [] if isinstance(w, dict) and str(w.get("word") or "").strip()]
     if not words:
+        segments = [s for s in answer.get("segments") or [] if isinstance(s, dict)]
+        said = str(answer.get("text") or "").strip() or any(str(s.get("text") or "").strip() for s in segments)
+        if not said:
+            return []   # nothing said in this part: music, a "starting soon" screen
         raise LLMError("bad_response", "The transcription came back without word timings, which "
                                        "captions need. Choose a different transcription model.")
     return _punctuate(words, answer.get("segments") or [])

@@ -232,6 +232,30 @@ def test_a_busy_provider_is_retried_honouring_retry_after_then_reported(fake, ba
     assert fake.waits == [7.0, 7.0]  # three tries, two waits
 
 
+def test_a_free_models_limit_says_so_and_names_the_paid_version(fake, tmp_path):
+    """Measured: a two-hour stream stopped at its first request on
+    gemma-4-31b-it:free with "rate limiting your key", which reads like the
+    key's fault. A paid model keeps the plain message."""
+    keys.save_key(tmp_path, "openrouter", KEY)
+    fake({"/chat/completions": Response(429, {"error": {"message": "free-models-per-min"}})})
+    free = CloudBackend(PROVIDERS["openrouter"], "google/gemma-4-31b-it:free", tmp_path)
+    with pytest.raises(LLMError) as err:
+        free.generate("p")
+    assert err.value.kind == "rate_limited"
+    assert "free version" in err.value.message and "(google/gemma-4-31b-it)" in err.value.message
+    paid = CloudBackend(PROVIDERS["openrouter"], "google/gemma-4-31b-it", tmp_path)
+    with pytest.raises(LLMError) as err:
+        paid.generate("p")
+    assert "free version" not in err.value.message
+
+
+def test_openrouter_names_its_preferred_models_for_the_card():
+    preferred = PROVIDERS["openrouter"].public()["preferred"]
+    assert preferred == {"text": "google/gemma-4-31b-it", "stt": "openai/whisper-large-v3-turbo"}
+    assert not preferred["text"].endswith(":free")
+    assert preferred["stt"] in PROVIDERS["openrouter"].stt["models"]   # known to return word timings
+
+
 def test_an_error_inside_a_200_is_still_an_error(fake, backend):
     fake({"/chat/completions": Response(200, {"error": {"code": 402, "message": "out of credit"}})})
     with pytest.raises(LLMError) as err:
