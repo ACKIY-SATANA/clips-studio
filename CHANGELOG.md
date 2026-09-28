@@ -292,6 +292,11 @@ were often broken in a way that only showed up on somebody else's machine.
   gives no clips, the app suggests lowering it, but until now it could only be
   changed in the settings file.
 
+- **Closing the window closes the app when nothing is being watched.** With "Keep
+  watching when the window is closed" ticked, Clips Kitty went to the system tray
+  even with watching switched off or no channels on. It now stays in the tray only
+  while it's actually watching a channel.
+
 - **Esc in the Gaming / Reaction layout editor no longer closes the clip editor
   behind it.** Opened from the clip editor, Esc closed both; it now leaves
   fullscreen first and then closes only the layout editor.

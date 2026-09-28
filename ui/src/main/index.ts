@@ -99,6 +99,22 @@ function dropTray(): void {
   tray = null
 }
 
+/** True only when the engine says watching is switched on with at least one
+ *  channel on. Anything else, an engine that is down or doesn't answer
+ *  included, is false: then there is nothing to keep running for. */
+async function isWatching(): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${API_PORT}/automation`, {
+      signal: AbortSignal.timeout(3000)
+    })
+    if (!res.ok) return false
+    const status = (await res.json()) as { enabled?: unknown; watching?: unknown }
+    return status.enabled === true && typeof status.watching === 'number' && status.watching > 0
+  } catch {
+    return false
+  }
+}
+
 ipcMain.handle('tray:get', () => ({ keepInTray }))
 
 ipcMain.handle('tray:set', (_event, on: unknown) => {
@@ -245,20 +261,31 @@ function createWindow(): void {
   mainWindow = win
   setupUpdater(win)
 
-  // With "keep watching" on, closing hides the window and the backend keeps
-  // running. A real quit sets `quitting` first, so it is never intercepted.
+  // With "keep watching" on and channels actually being watched, closing
+  // hides the window and the backend keeps running. With nothing to watch
+  // it closes as usual. A real quit sets `quitting` first, so it is never
+  // intercepted.
+  let closeChecked = false
   win.on('close', (event) => {
-    if (quitting || !keepInTray) return
+    if (quitting || !keepInTray || closeChecked) return
     event.preventDefault()
-    win.hide()
-    void ensureTray()
-    if (!toldAboutTray && Notification.isSupported()) {
-      toldAboutTray = true
-      new Notification({
-        title: 'Clips Kitty is still watching',
-        body: 'It keeps running in the system tray. Quit it from the tray icon.'
-      }).show()
-    }
+    win.hide() // at once: asking the engine can take a moment
+    void isWatching().then((watching) => {
+      if (win.isDestroyed()) return
+      if (!watching) {
+        closeChecked = true
+        win.close()
+        return
+      }
+      void ensureTray()
+      if (!toldAboutTray && Notification.isSupported()) {
+        toldAboutTray = true
+        new Notification({
+          title: 'Clips Kitty is still watching',
+          body: 'It keeps running in the system tray. Quit it from the tray icon.'
+        }).show()
+      }
+    })
   })
   // Windows logging off or shutting down skips before-quit, so say it here.
   win.on('session-end', () => {

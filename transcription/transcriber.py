@@ -41,7 +41,7 @@ def _cublas12_dirs() -> list[Path]:
 
         dirs += [Path(p) / "bin" for p in nvidia.cublas.__path__]
     except Exception:
-        pass
+        pass  # no cuBLAS wheel installed: the other places are still looked at
     if os.environ.get("CUDA_PATH"):
         dirs.append(Path(os.environ["CUDA_PATH"]) / "bin")
     dirs += [Path(p) for p in os.environ.get("PATH", "").split(os.pathsep) if p]
@@ -50,7 +50,7 @@ def _cublas12_dirs() -> list[Path]:
 
         dirs.append(Path(torch.__file__).parent / "lib")   # a CUDA 12 PyTorch had them
     except Exception:
-        pass
+        pass  # no PyTorch here: one place fewer to look
     return dirs
 
 
@@ -77,7 +77,7 @@ def _cuda12_blas(dirs: list[Path] | None = None, load=None) -> Path | None:
         try:
             os.add_dll_directory(str(folder))
         except (OSError, AttributeError):
-            pass
+            pass  # the libraries are loaded and the folder is on PATH already
         return folder
     return None
 
