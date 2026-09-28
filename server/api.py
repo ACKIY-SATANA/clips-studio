@@ -503,7 +503,7 @@ def _process_options(body, into: dict | None = None) -> dict:
                                  "Podcast or Longform: each lays out the video its own way. "
                                  "Turn one of them off.")
     if payload.get("gaming_scoring") and (payload.get("podcast") or payload.get("longform")):
-        raise HTTPException(400, "Gaming / reaction stream scoring works with the standard layout, Vertical "
+        raise HTTPException(400, "Gaming / reaction scoring works with the standard layout, Vertical "
                                  "Live and Gaming / Reaction, not with Podcast or Longform.")
     return payload
 

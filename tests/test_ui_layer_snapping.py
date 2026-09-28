@@ -111,3 +111,29 @@ def test_a_game_box_already_over_the_webcam_is_not_held(tmp_path):
 def test_a_game_box_that_misses_the_webcam_goes_where_it_was_put(tmp_path):
     (got,) = _drag(tmp_path, [[[0, 0, 400, 250], "move", [100, 20, 400, 250], [WALL], FRAME]], fn="keepOut")
     assert got["box"] == [100, 20, 400, 250]
+
+
+def test_a_game_box_pulled_into_the_webcam_keeps_its_shape(tmp_path):
+    """Zoomed to fill, the game box keeps its space's shape (here 1:1): cut
+    short by the webcam on one side, the other follows."""
+    wall, frame = [600, 0, 400, 300], [1000, 1000]         # a webcam top right
+    (got,) = _drag(tmp_path, [[[0, 100, 400, 400], "e", [0, 0, 700, 700], [wall], frame, 1.0]], fn="keepOut")
+    assert got["box"] == [0, 50, 600, 600]              # stopped at the webcam, still square, same middle
+
+
+# ---- the game box takes the shape of its space on the Short ---------------------------
+
+
+def test_a_game_box_takes_a_new_shape_with_its_middle_and_size_kept(tmp_path):
+    box = [0.3, 0.2, 0.4, 0.3]                      # 0.12 of the frame, middle at (0.5, 0.35)
+    (tall, back) = _drag(tmp_path, [[box, 0.5, [1, 1]], [[0.3, 0.2, 0.4, 0.3], 0.4 / 0.3, [1, 1]]], fn="reshape")
+    x, y, w, h = tall
+    assert abs(w / h - 0.5) < 1e-9 and abs(w * h - 0.12) < 1e-9
+    assert abs(x + w / 2 - 0.5) < 1e-9 and abs(y + h / 2 - 0.35) < 1e-9
+    assert back == box                              # already that shape: untouched
+
+
+def test_a_reshaped_game_box_stays_inside_the_frame(tmp_path):
+    (got,) = _drag(tmp_path, [[[0.0, 0.0, 0.9, 0.9], 0.3, [1, 1]]], fn="reshape")
+    x, y, w, h = got
+    assert x >= 0 and y >= 0 and x + w <= 1 + 1e-9 and y + h <= 1 + 1e-9 and abs(w / h - 0.3) < 1e-9

@@ -408,26 +408,30 @@ export default function Watch({
                 {t(label)}
               </label>
             ))}
-            {addClip.vertical_live && (
-              <label className="flex items-center gap-2 cursor-pointer" title={t('Score this as a gaming or reaction stream: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}>
-                <input
-                  type="checkbox"
-                  className="size-4 accent-[#38BDF8]"
-                  checked={Boolean(addClip.gaming_scoring)}
-                  onChange={(e) => {
-                    const next = { ...addClip }
-                    if (e.target.checked) next.gaming_scoring = true
-                    else delete next.gaming_scoring
-                    setAddClip(next)
-                  }}
-                />
-                {t('Gaming / reaction stream')}
-              </label>
-            )}
             <span className="text-xs text-muted">
               {t('Starts from your Generate settings. Caption style and more are in Clip settings after you add it.')}
             </span>
           </div>
+          {addClip.vertical_live && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="label shrink-0">{t('Vertical Live content')}</span>
+              <select
+                className="input !w-72"
+                value={addClip.gaming_scoring ? 'gaming' : 'standard'}
+                onChange={(e) => {
+                  const next = { ...addClip }
+                  if (e.target.value === 'gaming') next.gaming_scoring = true
+                  else delete next.gaming_scoring
+                  setAddClip(next)
+                }}
+                aria-label={t('Vertical Live content')}
+                title={t('Gaming / reaction: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
+              >
+                <option value="standard">{t('Talking / IRL')}</option>
+                <option value="gaming">{t('Gaming / reaction')}</option>
+              </select>
+            </div>
+          )}
           {mode !== 'off' && (
             <>
               <WatchSchedule value={addSchedule} onChange={setAddSchedule} />

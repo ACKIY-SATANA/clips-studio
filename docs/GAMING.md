@@ -125,7 +125,14 @@ file) and **Choose a layout** opens:
   the frame, 1% of the frame past the webcam box so its border is left out
   too, and the game box snaps to them and stops there instead of going over
   the webcam, so the streamer isn't shown in the game as well. With Alt it
-  goes over, and a note says the webcam will show in the game. The Game box starts on the area the
+  goes over, and a note says the webcam will show in the game. **Zoomed to
+  fill, the Game box has the shape of the game's space on the Short**: change
+  the webcam's share on the preview, the layout or which goes on top, and the
+  box takes the new shape (its size and middle kept, clear of the webcam), so
+  what's inside it is exactly what renders. Before, the render cut a slice of
+  a different shape out of the middle of the box. The box as drawn is kept, so
+  going back and forth doesn't wear it down; with **Whole** the game is shown
+  whole, so the box stays as drawn. The Game box starts on the area the
   layout takes the game from; move it and it's yours (**Let Clips Kitty pick
   the game area** gives it back). The dashed line inside is exactly what the
   layout will show. **Snap to the webcam's border** pulls the webcam box out to
@@ -280,10 +287,12 @@ a HUD, not see-through chat.
 Standard scoring judges talk: hooks, opinions, drama, quotable lines. On a game
 stream the moment is usually something that happened in the game (a kill
 streak, a boss going down, a goal) and the reaction to it, often with little
-said. Gaming / Reaction scores that way, and so does **Gaming / reaction
-stream**, a checkbox beside **Vertical Live** for a live that was already
-vertical (in the Generate bar, a queued video's settings and a watched
-channel's), whether it's a game or reacting to videos. Everything below
+said. Gaming / Reaction scores that way, and so does a live that was already
+vertical: tick **Vertical Live** and set **Vertical Live content** (the row
+under it, like Longform's output) to **Gaming / reaction** instead of
+**Talking / IRL**, in the Generate bar, a queued video's settings and a
+watched channel's, whether it's a game or reacting to videos. One Vertical
+Live, two kinds of content, not two pipelines. Everything below
 applies to both; only the framing differs (a Vertical Live keeps its own
 9:16 layout, so the webcam and game area aren't needed). With neither
 on, scoring is exactly the standard one.
@@ -416,7 +425,7 @@ Scored as gaming, the "reaction" signal (is a person on screen, being
 emphasised?) is left neutral, in the split and in a Vertical Live alike: on a
 game stream it counts game characters as people, and a top-down game as
 nobody at all; on a reaction stream, the people in the video being watched.
-A Vertical Live without **Gaming / reaction stream** keeps it.
+A Vertical Live set to **Talking / IRL** keeps it.
 
 ## Tested on
 

@@ -68,8 +68,9 @@ def is_gaming(config_or_opts: dict | None) -> bool:
 def gaming_scoring(config_or_opts: dict | None) -> bool:
     """Score this job as a gaming stream (analysis/gaming.py): in-game moments
     and the reactions to them count, even when little is said. Gaming /
-    Reaction always does; "Gaming / reaction stream" asks for it with any
-    other layout, such as Vertical Live. Off unless asked for."""
+    Reaction always does; with Vertical Live it's the "Vertical Live content:
+    Gaming / reaction" choice (the API takes it with the standard layout
+    too). Off unless asked for."""
     if not config_or_opts:
         return False
     if is_gaming(config_or_opts) or config_or_opts.get("gaming_scoring"):

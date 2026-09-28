@@ -182,7 +182,6 @@ export default function QueueItemSettings({
           },
           'A livestream that was already vertical when it was streamed: keeps its own 9:16 layout, no face tracking or reframing. For a watched channel, videos with no vertical version are skipped.'
         )}
-        {verticalLive && toggle('Gaming / reaction stream', '', gamingScoring, setGamingScoring, 'Score this as a gaming or reaction stream: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
         {toggle(
           'Podcast',
           '(multi-cam)',
@@ -219,6 +218,22 @@ export default function QueueItemSettings({
           'Burn your logo / channel handle into every clip of this video.'
         )}
       </div>
+
+      {verticalLive && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <p className="label shrink-0">{t('Vertical Live content')}</p>
+          <select
+            className="input !w-72"
+            value={gamingScoring ? 'gaming' : 'standard'}
+            onChange={(e) => setGamingScoring(e.target.value === 'gaming')}
+            aria-label={t('Vertical Live content')}
+            title={t('Gaming / reaction: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
+          >
+            <option value="standard">{t('Talking / IRL')}</option>
+            <option value="gaming">{t('Gaming / reaction')}</option>
+          </select>
+        </div>
+      )}
 
       {longform && (
         <div className="flex items-center gap-3 flex-wrap">

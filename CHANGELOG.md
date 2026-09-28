@@ -55,6 +55,8 @@ were often broken in a way that only showed up on somebody else's machine.
     isn't shown in the game too (Alt places it anyway, with a note saying so). The
     automatic game area keeps the same distance, so the webcam's border no longer shows
     as a line down the game.
+  - Zoomed to fill, the game box has the shape of the game's space on the Short and follows
+    it as the webcam's share or the layout changes, so what's inside the box is what renders.
   - The layout editor has fullscreen (like a video player, Esc to leave, remembered) and
     minimise to a bar in the corner.
   - The preview draws TikTok's, Instagram Reels' or YouTube Shorts' own layout over the
@@ -81,8 +83,9 @@ were often broken in a way that only showed up on somebody else's machine.
   - For streamers on a real camera; VTubers aren't supported.
 - **Gaming streams are scored as gaming streams.** A kill streak, a boss going down or
   a goal counts, even from a streamer who says little. Gaming / Reaction scores this
-  way, and **Gaming / reaction stream** (beside Vertical Live) does it for a live that was
-  already vertical, the same scoring in full (game characters and the people in a watched
+  way, and so does a live that was already vertical with **Vertical Live content** set to
+  **Gaming / reaction** (a row under Vertical Live, like Longform's output), the same scoring
+  in full (game characters and the people in a watched
   video aren't taken for the streamer there either). What is said still counts exactly as on any stream (a reaction is mostly
   talk); the game adds to a clip on top of that, up to +12, like creator context does,
   and carries the quiet stretches. The AI is told which game it is (Twitch says per part of the stream; Kick

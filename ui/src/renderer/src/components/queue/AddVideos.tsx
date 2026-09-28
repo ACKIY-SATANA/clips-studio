@@ -325,31 +325,19 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
     return next
   }
 
-  /** Beside Vertical Live: score this vertical live as a gaming or reaction stream. */
-  const gamingStream = (slot: Slot): JSX.Element => (
-    <label
-      className="flex items-center gap-2 text-sm shrink-0 whitespace-nowrap cursor-pointer"
-      title={t('Score this as a gaming or reaction stream: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
-    >
-      <input
-        type="checkbox"
-        className="size-4 accent-[#38BDF8]"
-        checked={Boolean(slot.options.gaming_scoring)}
-        onChange={(e) => {
-          const next = { ...slot.options }
-          if (e.target.checked) next.gaming_scoring = true
-          else delete next.gaming_scoring
-          try {
-            localStorage.setItem(PREF.gaming_scoring, String(e.target.checked))
-          } catch {
-            // a blocked localStorage only means it isn't remembered
-          }
-          replaceOptions(slot.key, next)
-        }}
-      />
-      {t('Gaming / reaction stream')}
-    </label>
-  )
+  /** Under Vertical Live, like Longform's output: what the live is. Gaming /
+   *  reaction scores it as a gaming stream (gaming_scoring). */
+  const setVerticalContent = (slot: Slot, gaming: boolean): void => {
+    const next = { ...slot.options }
+    if (gaming) next.gaming_scoring = true
+    else delete next.gaming_scoring
+    try {
+      localStorage.setItem(PREF.gaming_scoring, String(gaming))
+    } catch {
+      // a blocked localStorage only means it isn't remembered
+    }
+    replaceOptions(slot.key, next)
+  }
 
   const isOn = (o: JobOptions, key: ToggleKey): boolean => {
     if (key === 'captions') return o.captions !== false
@@ -551,14 +539,7 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
                     {t(tg.label)} <span className="text-muted">{t(tg.hint)}</span>
                   </label>
                 )
-                return tg.key === 'vertical_live' && isOn(slot.options, 'vertical_live') ? (
-                  <span key={tg.key} className="contents">
-                    {label}
-                    {gamingStream(slot)}
-                  </span>
-                ) : (
-                  label
-                )
+                return label
               })}
 
               {/* Always removable once it holds something. Hiding this on the
@@ -582,6 +563,22 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
                 </button>
               )}
             </div>
+
+            {slot.options.vertical_live && (
+              <div className="flex items-center gap-3 flex-wrap mt-2">
+                <span className="label shrink-0">{t('Vertical Live content')}</span>
+                <select
+                  className="input !w-72"
+                  value={slot.options.gaming_scoring ? 'gaming' : 'standard'}
+                  onChange={(e) => setVerticalContent(slot, e.target.value === 'gaming')}
+                  aria-label={`${t('Vertical Live content')} ${n + 1}`}
+                  title={t('Gaming / reaction: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
+                >
+                  <option value="standard">{t('Talking / IRL')}</option>
+                  <option value="gaming">{t('Gaming / reaction')}</option>
+                </select>
+              </div>
+            )}
 
             {slot.options.longform && (
               <div className="flex items-center gap-3 flex-wrap mt-2">

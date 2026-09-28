@@ -127,11 +127,19 @@ const overlaps = (a: Box, b: Box): boolean =>
  *  box: the webcams, a little past their border): one that started clear
  *  stops at a wall's edge instead of going over it, so the webcam doesn't show
  *  in the game too. Moved, it goes to the nearest side of the wall that fits
- *  the frame; resized, the edge being pulled stops at the wall. A box already
+ *  the frame; resized, the edge being pulled stops at the wall (and with
+ *  `aspect`, the other side follows so the box keeps its shape). A box already
  *  over a wall isn't held by it, and when nothing fits the box goes where it
  *  was put. `next` is where dragLayer put it; the wall edges it stopped at come
  *  back as guides, to draw. */
-export function keepOut(start: Box, handle: Handle, next: Box, walls: Box[], canvas: [number, number]): DragResult {
+export function keepOut(
+  start: Box,
+  handle: Handle,
+  next: Box,
+  walls: Box[],
+  canvas: [number, number],
+  aspect: number | null = null
+): DragResult {
   const [W, H] = canvas
   const guides: Targets = { xs: [], ys: [] }
   const holding = walls.filter((w) => !overlaps(start, w))
@@ -155,6 +163,7 @@ export function keepOut(start: Box, handle: Handle, next: Box, walls: Box[], can
       if (handle.includes('s') && sy + sh <= wy) options.push({ box: [x, y, w, wy - y], line: wy, axis: 'ys' })
       if (handle.includes('n') && sy >= wy + wh)
         options.push({ box: [x, wy + wh, w, y + h - (wy + wh)], line: wy + wh, axis: 'ys' })
+      if (aspect) for (const o of options) o.box = keepShape(o.box, box, handle, aspect)
     }
     const fits = options.filter(
       (o) =>
@@ -175,4 +184,36 @@ export function keepOut(start: Box, handle: Handle, next: Box, walls: Box[], can
     guides[best.axis].push(best.line)
   }
   return { box, guides }
+}
+
+/** A resized box whose width or height a wall cut short, given back its shape:
+ *  the other side follows, from the edge the handle isn't pulling (the middle
+ *  for a side handle), the way dragLayer grows a facecam. */
+function keepShape(cut: Box, pulled: Box, handle: Handle, aspect: number): Box {
+  const [x, y, w, h] = cut
+  if (w !== pulled[2]) {
+    const nh = w / aspect
+    const ny = handle.includes('n') ? y + h - nh : handle.includes('s') ? y : y + (h - nh) / 2
+    return [x, ny, w, nh]
+  }
+  const nw = h * aspect
+  const nx = handle.includes('w') ? x + w - nw : handle.includes('e') ? x : x + (w - nw) / 2
+  return [nx, y, nw, h]
+}
+
+/** A box given another shape (width / height) with its middle and its area
+ *  kept, inside the canvas: the frame editor's game box takes the shape of the
+ *  game's space on the Short as that changes (the webcam's share, the layout),
+ *  and going back and forth doesn't wear it down, since the box drawn is kept
+ *  and only this one is shown and used. */
+export function reshape(box: Box, aspect: number, canvas: [number, number]): Box {
+  const [W, H] = canvas
+  const [x, y, w, h] = box
+  if (Math.abs(w / h - aspect) <= 1e-9 * aspect) return box
+  let nw = Math.sqrt(w * h * aspect)
+  let nh = nw / aspect
+  const fit = Math.min(1, W / nw, H / nh)
+  nw *= fit
+  nh *= fit
+  return [clamp(x + w / 2 - nw / 2, 0, W - nw), clamp(y + h / 2 - nh / 2, 0, H - nh), nw, nh]
 }

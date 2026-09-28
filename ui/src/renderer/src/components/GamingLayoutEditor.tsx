@@ -18,7 +18,7 @@ import {
   type PxBox
 } from '../lib/gamingLayout'
 import { t } from '../lib/i18n'
-import { dragLayer, keepOut, type Box, type Handle, type Targets } from '../lib/layerDrag'
+import { dragLayer, keepOut, reshape, type Box, type Handle, type Targets } from '../lib/layerDrag'
 import { Maximize, Minimize, Restore } from './icons'
 import PlatformOverlay, { PLATFORM_UI } from './PlatformOverlay'
 import type { FrameBox, GamingSettings } from '../lib/types'
@@ -403,11 +403,8 @@ export default function GamingLayoutEditor({
   const camWalls: FrameBox[] = [camBox, roles.has('cam2') ? boxes.cam2 : null]
     .filter((b): b is FrameBox => !!b)
     .map(clearZone)
-  const game = boxes.game
-  const gameOverCam =
-    !!game && camWalls.some((w) => game[0] < w[0] + w[2] && w[0] < game[0] + game[2] && game[1] < w[1] + w[3] && w[1] < game[1] + game[3])
 
-  const settingsFor = (p: string): LayoutSettings => ({
+  const settingsFor = (p: string, gameBox: FrameBox | null = boxes.game): LayoutSettings => ({
     preset: p,
     order,
     divider,
@@ -416,7 +413,7 @@ export default function GamingLayoutEditor({
     game_align: gameAlign,
     cam: camUnknown ? PLACEHOLDER_CAM : camBox,
     cam2: boxes.cam2,
-    game_box: boxes.game,
+    game_box: gameBox,
     ui_box: boxes.ui,
     panels,
     places
@@ -433,7 +430,25 @@ export default function GamingLayoutEditor({
   }
   const heads = { cam: camUnknown ? undefined : headIn(camBox), cam2: headIn(boxes.cam2) }
   const cleanHeads = Object.fromEntries(Object.entries(heads).filter(([, v]) => v)) as Record<string, Head>
-  const p = plan(src.w, src.h, settingsFor(preset), cleanHeads)
+  const base = plan(src.w, src.h, settingsFor(preset), cleanHeads)
+  // Zoomed to fill, the game is cut to the shape of its space on the Short,
+  // which changes with the webcam's share, the layout and which goes on top.
+  // The game box takes that shape (its middle and size as drawn, clear of the
+  // webcam), so what's inside it is what renders; the box as drawn is kept, so
+  // going back and forth doesn't wear it down. Whole shows any box whole.
+  const baseGame = elementOf(base, 'game')
+  const gameShape = baseGame && baseGame.fit === 'cover' ? (baseGame.dest[2] / baseGame.dest[3]) * (src.h / src.w) : null
+  const drawnGame = boxes.game
+  const gameBox: FrameBox | null =
+    drawnGame && gameShape
+      ? (keepOut(drawnGame, 'move', reshape(drawnGame, gameShape, [1, 1]), camWalls, [1, 1]).box as FrameBox)
+      : drawnGame
+  const p = gameBox === drawnGame ? base : plan(src.w, src.h, settingsFor(preset, gameBox), cleanHeads)
+  const gameOverCam =
+    !!gameBox &&
+    camWalls.some(
+      (w) => gameBox[0] < w[0] + w[2] && w[0] < gameBox[0] + gameBox[2] && gameBox[1] < w[1] + w[3] && w[1] < gameBox[1] + gameBox[3]
+    )
   const shownPreset = p.preset
   const zone = safeZone(safe)
   const camEl = elementOf(p, 'cam')
@@ -448,9 +463,9 @@ export default function GamingLayoutEditor({
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }
   }
   const startDrag = (e: React.PointerEvent, role: BoxRole, mode: Drag['mode']): void => {
-    const box = boxes[role] ?? (role === 'game' ? autoGame : null)
+    const box = role === 'game' ? gameBox ?? autoGame : boxes[role]
     if (!box) return
-    if (role === 'game' && !boxes.game) setBox('game', box)
+    if (role === 'game') setBox('game', box) // from the shape it's shown in
     if (role === 'cam') camTouched.current = true
     e.stopPropagation()
     e.preventDefault()
@@ -483,7 +498,7 @@ export default function GamingLayoutEditor({
     for (const role of ['cam', 'cam2', 'game', 'ui'] as BoxRole[]) {
       if (role === d.role) continue
       if (walls.length > 0 && (role === 'cam' || role === 'cam2')) continue // the game snaps to the walls instead
-      const b = role === 'game' ? boxes.game ?? autoGame : role === 'cam' ? camBox : boxes[role]
+      const b = role === 'game' ? gameBox ?? autoGame : role === 'cam' ? camBox : boxes[role]
       if (b && (role !== 'ui' || roles.has('ui')) && (role !== 'cam2' || roles.has('cam2'))) others.push(b)
     }
     for (const b of others) {
@@ -491,15 +506,18 @@ export default function GamingLayoutEditor({
       xs.push(x, x + w / 2, x + w)
       ys.push(y, y + h / 2, y + h)
     }
+    // Zoomed to fill, the game box keeps its space's shape as it's resized.
+    const shape = d.role === 'game' && gameShape ? gameShape * (fw / fh) : null
     const { box, guides: lines } = dragLayer(px(d.box), d.mode, (q.x - d.ox) * fw, (q.y - d.oy) * fh, {
-      aspect: null,
+      aspect: shape,
       canvas: [fw, fh],
       minW: 0.03 * fw,
       minH: 0.03 * fh,
       targets: e.altKey ? null : { xs, ys }, // hold Alt to place freely
       tol: 6
     })
-    const kept = e.altKey || walls.length === 0 ? { box, guides: lines } : keepOut(px(d.box), d.mode, box, walls, [fw, fh])
+    const kept =
+      e.altKey || walls.length === 0 ? { box, guides: lines } : keepOut(px(d.box), d.mode, box, walls, [fw, fh], shape)
     const shown = kept.box === box ? lines : kept.guides
     setFrameGuides({ xs: shown.xs.map((v) => v / fw), ys: shown.ys.map((v) => v / fh) })
     setBox(d.role, [kept.box[0] / fw, kept.box[1] / fh, kept.box[2] / fw, kept.box[3] / fh])
@@ -635,7 +653,7 @@ export default function GamingLayoutEditor({
   const done = (): void => {
     const out: GamingSettings = { preset, order, safe, game_fit: gameFit, game_align: gameAlign }
     if (divider !== undefined) out.divider = Math.round(divider * 1000) / 1000
-    if (boxes.game) out.game_box = boxes.game
+    if (gameBox) out.game_box = gameBox // as shown: what renders
     if (panels !== undefined) out.panels = panels
     if (Object.keys(places).length > 0) out.places = places
     if (roles.has('ui') && boxes.ui) out.ui_box = boxes.ui
@@ -908,7 +926,7 @@ export default function GamingLayoutEditor({
                 ))}
               {loaded &&
                 shownBoxes.map((role) => {
-                  const [x, y, w, h] = (boxes[role] ?? (role === 'game' ? autoGame : null)) as FrameBox
+                  const [x, y, w, h] = (role === 'game' ? gameBox ?? autoGame : boxes[role]) as FrameBox
                   return (
                     <div
                       key={role}
