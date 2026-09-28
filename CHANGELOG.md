@@ -192,8 +192,8 @@ were often broken in a way that only showed up on somebody else's machine.
     catalogue, each showing OpenRouter's current prices (and when they were
     fetched), with a refresh. A voice model not yet known to give word timings
     is checked with a three-second test clip before it is used.
-  - **★ Preferred** models head each list, one click away: Gemma 4 31B for text
-    (a few cents for a two-hour stream) and Whisper large-v3 turbo for voice (about
+  - **★ Preferred** models head each list, one click away: Gemma 4 26B-A4B for text
+    (about a cent for a two-hour stream) and Whisper large-v3 turbo for voice (about
     $0.01 an hour, with word timings). A free (`:free`) model's note offers its paid
     version, and a job it stops says it was the free version's limit.
   - Online transcription no longer stops at a stretch where nothing is said: a

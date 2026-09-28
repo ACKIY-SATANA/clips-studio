@@ -63,9 +63,11 @@ to a provider directly; it makes it simpler.
    and output price per million tokens. Under it, the model in use shows every
    price OpenRouter lists for it (cached input, reasoning, per request and so on),
    what it can do, and a link to its OpenRouter page. **★ Preferred** heads
-   the list: Gemma 4 31B (`google/gemma-4-31b-it`), the cheapest that does
-   the job well, at $0.09 / $0.34 per million tokens (September 2026), a few
-   cents for a two-hour stream. Under the list, **Use it** switches to it.
+   the list: Gemma 4 26B-A4B (`google/gemma-4-26b-a4b-it`), the smaller
+   Gemma 4 (4B of its 26B parameters active at a time, so quick), the cheapest
+   that does the job well: about $0.04 / $0.22 per million tokens (September
+   2026), about a cent for a two-hour stream, where Gemma 4 31B is about two.
+   Under the list, **Use it** switches to it.
 5. Optional: **Test connection** checks the key and the model without spending
    anything.
 
