@@ -1033,6 +1033,11 @@ def _render_files(
     if wants_card:
         _outro.finish(render_path, final_path, config)
 
+    # A clip the gaming layout handed to the standard renderer (the camera
+    # filled the frame) is saved as what it got, so the editor shows that and
+    # a re-render frames it the same way.
+    if gaming and gaming_kept is None:
+        opts = {k: v for k, v in opts.items() if k != "gaming"}
     render_opts_json = json.dumps(
         {
             **opts,

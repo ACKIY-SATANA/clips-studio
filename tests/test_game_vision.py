@@ -79,6 +79,25 @@ def test_the_best_candidates_are_looked_at_and_moved():
     assert "3s: GAME SOUND: an explosion" in prompt
 
 
+def test_what_the_picture_shows_only_takes_points_off_a_quiet_clip():
+    """Just chatting, or a reaction with no gameplay in the picture, is
+    judged on the talk: no gameplay costs a clip full of talk nothing, half
+    as much when half of it is talk, and the full 10 when it is silent. A
+    clear moment adds the same either way."""
+    np = pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
+
+    clips = _clips([80, 70, 60, 50])
+    talk = {0.0: 0.0, 100.0: 0.5, 200.0: 1.0, 300.0: 1.0}
+    none = {"gameplay": False, "moment": "the streamer talking to chat", "strength": 0}
+    llm = _Seer([none, none, none, {"gameplay": True, "moment": "wins the fight", "strength": 9}])
+    profile = gaming.profile_for({"clips": {"gaming_scoring": True}}, [{"name": "Apex Legends"}], "")
+    game_vision.look_at(clips, "v.mp4", llm, profile, [], [], talk=lambda c: talk[c.start],
+                        grab=lambda t: np.full((720, 1280, 3), 40, dtype=np.uint8), max_candidates=4)
+    assert [c.subscores["seen"] for c in clips] == [-10, -5, 0, 8]
+    assert [c.score for c in clips] == [70, 65, 60, 58]
+
+
 def test_a_model_that_says_it_sees_but_does_not_is_found_out():
     pytest.importorskip("numpy")
     pytest.importorskip("cv2")

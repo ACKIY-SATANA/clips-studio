@@ -62,6 +62,13 @@ were often broken in a way that only showed up on somebody else's machine.
     taken for the streamer. Tested on 13 streams including World of Warcraft, Zelda, GTA V
     and League of Legends (docs/GAMING.md has each result).
   - The webcam box stops just inside the webcam's own border: no chat or panel beside it.
+  - A stream that changes partway is handled clip by clip. An hour of Just Chatting before
+    the game, or a reaction streamer going full screen on their camera between videos: those
+    clips are framed like a talking-head clip, even with the webcam drawn or remembered for
+    the creator, and the rest keep the split. A webcam that moves when the streamer changes
+    scene is followed to where it is in each clip. The automatic webcam search looks past
+    full-screen clips, so a long chatting opening no longer leaves the game clips without
+    the streamer.
   - The clip editor's Effects tab has the same editor (Layout → **Gaming / Reaction** →
     **Change layout…**) to change one clip.
   - In gaming mode the "person on screen" part of the score is left neutral, so top-down
@@ -84,6 +91,8 @@ were often broken in a way that only showed up on somebody else's machine.
   queue or settings page that chat reacted to is marked down. Last, a local AI model that
   takes images (Gemma 3 or 4) looks at a few frames of the best clips: a clear moment
   moves up, a menu or a black screen moves down. The picture never goes to a cloud AI.
+  A menu or no gameplay only costs a quiet clip: a Just Chatting clip full of talk
+  loses nothing for it.
   Each moment becomes a
   15-35 s candidate starting just before it, and the clip's score breakdown shows what
   marked it. Standard scoring is unchanged.

@@ -197,6 +197,45 @@ to the webcam overlay's own border where there is a clear one, and stops just
 inside it, so the half shows the webcam and nothing beside it. On six streams
 with a webcam, every side of every box landed inside the hand-marked webcam.
 
+## A stream that changes partway
+
+Streams don't keep one layout. Many open with an hour of Just Chatting
+before the game; a reaction streamer often goes full screen on their camera
+between videos; and the webcam itself moves when the streamer changes scene
+(measured: top left over a browser while chatting, lower down on the left
+for the game; bottom left, then top left, in a two-hour reaction). So the
+layout is decided per clip, from what is on screen in it, not per video, and
+not from the stream's category (YouTube and Kick don't say which part of a
+stream is which). Each clip gets a quick look (two frames a second), and
+somebody at the webcam keeps the split with no more checks. Otherwise, even
+with a webcam drawn in the setup or remembered for the creator:
+
+- **The streamer's camera filling the frame: framed like a talking-head
+  clip** by the standard renderer. TalkNet runs only when somebody on screen
+  is too big to be in a webcam, and only a confident real person takes the
+  clip: the streamer watching an old stream of their own, their face filling
+  the video, kept the split with their real webcam.
+- **The webcam somewhere else: followed there.** The clip is looked at the
+  way the setup editor suggests a webcam (a person in the same spot in
+  nearly all of six frames, overlay-sized, inside a real border), about
+  half a second a clip, and the split uses that box for this clip. Game
+  characters standing around in GTA were never taken for it.
+- **Nothing certain** (a cutscene, an empty chair) keeps the webcam that was
+  set up: a person's choice isn't overridden on absence alone.
+- **The automatic webcam search looks past those clips.** A clip showing the
+  camera filling the frame says nothing about where the webcam is, so it
+  doesn't count as one of the four looks; another clip, from further across
+  the stream, is looked at instead (eight at most). Before, an opening hour
+  of chatting could take three of the four, leave one vote for the webcam,
+  and every game clip rendered without the streamer.
+- **Such a clip is saved as what it got**, so the clip editor shows its
+  standard framing and a re-render keeps it; **Gaming / Reaction** in its
+  Layout row switches it back.
+- **Scoring is the same across the parts.** What is said counts as on any
+  stream, and the game adds on top; what the picture shows only takes points
+  off a quiet clip, so a Just Chatting clip with no gameplay isn't marked
+  down for it.
+
 ## Where the game comes from
 
 The game area is **never detected**. Earlier attempts looked for the part of
@@ -290,7 +329,8 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   ACE") and the clip's breakdown shows; it adds no points of its own, because
   most videos never show one and a caption can look like one. A window where
   at least two thirds of the frames show menu words is marked down a little
-  (-6) and gets no bonus, whatever chat made of it.
+  (-6, less the more is said over it: nothing for a clip full of talk) and
+  gets no bonus, whatever chat made of it.
   `config/gaming.yaml`'s `screen_text` lists the words in the languages games
   are commonly played in. It reads Latin script and kanji, not kana.
 - **The AI looks at the best clips.** Last, before the final ranking, the
@@ -298,7 +338,9 @@ facecam signals; what gaming clip tools look for; what performs as a Short):
   clips, with what was said and what the signals picked up, and asked what is
   on screen and what happens: a clear moment raises a clip by up to 10, a
   menu, a loading or black screen lowers it by 10, ordinary play leaves it
-  alone. The clip's breakdown says what it saw ("SEEN: scores a goal"). About
+  alone. What takes points off counts only as far as the clip is quiet: the
+  full 10 when nothing is said, half when half of it is talk, nothing for a
+  Just Chatting clip full of talk. The clip's breakdown says what it saw ("SEEN: scores a goal"). About
   10 seconds a clip on a GPU, for at most 4 minutes a video. Only a local
   model that takes images does this (Gemma 3 and Gemma 4 do, gemma:7b
   doesn't), and it is first asked the colour of a plain red square, since a
@@ -382,11 +424,15 @@ with what was found.
 | Dota 2 | two casters' webcams and a player cam | ✓ split with a caster's webcam |
 | Persona 3 Reload | VTuber, voiced characters | ✓ the game alone: no character was taken for a webcam |
 | Pixel-art game | VTuber | not supported: the game shows alone |
+| Grand Theft Auto V, after an hour of Just Chatting | camera full screen at the start, then the webcam top left over a browser, then lower on the left in the game | ✓ 27 of 27 clips (9 clips, each with the webcam drawn on a chat frame, drawn on a game frame, and found): full-screen camera framed the standard way, the webcam followed to where it was in each part |
+| World of Warcraft reaction to a games showcase | webcam bottom left, top left for a while | ✓ followed to the top left in that stretch; the other 5 of 6 clips kept the drawn webcam |
 
 Time on an RTX 3060: finding the webcam looks at four 40-second pieces of the
-video, about 15 seconds each (6 for person tracking, 8 for TalkNet). Each clip
-then checks that the webcam is there, a few seconds, instead of the standard
-face tracking. A split set up before processing skips the search.
+video, about 15 seconds each (6 for person tracking, 8 for TalkNet), and a
+few more when some show the camera filling the frame. Each clip then checks
+that the webcam is there, a few seconds, instead of the standard face
+tracking. A split set up before processing skips the search; its clips get
+the quicker look (two frames a second) for a camera filling the frame.
 
 `scripts/gaming_detect_bench.py` repeats the measurement on any footage.
 
@@ -394,7 +440,8 @@ face tracking. A split set up before processing skips the search.
 
 - **VTubers aren't supported.** The detection is for people on camera.
 - **One layout per clip.** A clip that moves between the game and a
-  full-screen camera keeps one layout.
+  full-screen camera, or across a webcam move, keeps one layout: the one
+  most of the clip shows.
 - **The Game UI and second webcam boxes are drawn by hand.** Nothing looks
   for a scoreboard or a second streamer.
 - **YouTube frames for the editor are read over IPv4.** On some networks

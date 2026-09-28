@@ -245,6 +245,7 @@ def run(monkeypatch):
     plans = []
     monkeypatch.setattr(compose, "render", lambda _i, out, p, **_k: plans.append(p) or out)
     monkeypatch.setattr(modes, "probe_size", lambda _p: (1920, 1080))
+    monkeypatch.setattr(detect, "clip_cam", lambda *_a, **_k: None)     # no webcam of the clip's own
     return run_mod, plans
 
 
@@ -261,13 +262,78 @@ def _seen(monkeypatch, tracks, finding=None):
 WEBCAM = _track([i / 8 for i in range(300)], box=(0, 720, 480, 1080), cx=0.12)
 
 
-def test_a_box_the_user_drew_wins_without_any_detection(run, monkeypatch):
+FULL = _track([i / 8 for i in range(300)], box=(400, 50, 1500, 1080), cx=0.5)   # the camera fills the frame
+DRAWN = [0.0, 0.66, 0.25, 0.34]
+
+
+def test_a_box_the_user_drew_wins_while_somebody_is_at_it(run, monkeypatch):
     run_mod, plans = run
-    monkeypatch.setattr(detect, "sample_tracks", lambda *_a, **_k: pytest.fail("detection ran"))
-    kept = run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": [0.7, 0.0, 0.3, 0.3], "by": "user"}, CONFIG)
-    assert plans[-1].kind == "split" and kept["layout"] == "split"
+    _seen(monkeypatch, {0: WEBCAM})
+    monkeypatch.setattr(detect, "speaking_scores", lambda *_a, **_k: pytest.fail("TalkNet ran"))
+    kept = run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": DRAWN, "by": "user"}, CONFIG)
+    assert plans[-1].kind == "split" and kept["used_cam"] == DRAWN
+
+
+def test_a_camera_filling_the_frame_takes_the_clip_from_a_drawn_webcam(run, monkeypatch):
+    """A stream that opens with an hour of just chatting, or a reaction
+    streamer between videos: nobody at the drawn webcam, the streamer's
+    camera fills the frame, so the standard renderer frames them. The same
+    for a creator's saved layout and for "no webcam"."""
+    run_mod, plans = run
+    real = detect.Face((0.2, 0.0, 0.6, 1.0), 1.0, 1.0, 2.5, False)
+    _seen(monkeypatch, {0: FULL}, detect.ClipFinding({0: real}, 0))
+    for g in ({"cam": DRAWN, "by": "user"}, {"cam": DRAWN, "by": "creator"}, {"cam": None, "by": "user"}):
+        assert run_mod.render(Path("c.mp4"), Path("o.mp4"), g, CONFIG) is None
+    assert plans == []
+
+
+def test_a_drawn_webcam_is_kept_without_a_camera_filling_the_frame(run, monkeypatch):
+    """Nothing sure enough to override a person's choice: a big face TalkNet
+    isn't confident about (a cutscene, the video being reacted to), a small
+    webcam-sized face somewhere else, or nobody at all. The box stays."""
+    run_mod, plans = run
+    unsure = detect.Face((0.2, 0.0, 0.6, 1.0), 1.0, 0.7, -0.65, False)
+    _seen(monkeypatch, {0: FULL}, detect.ClipFinding({0: unsure}, 0))
+    kept = run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": DRAWN, "by": "user"}, CONFIG)
+    assert plans[-1].kind == "split" and kept["used_cam"] == DRAWN
+
+    corner = _track([i / 8 for i in range(300)], box=(1500, 0, 1900, 300), cx=0.88)
+    _seen(monkeypatch, {0: corner})
+    monkeypatch.setattr(detect, "speaking_scores", lambda *_a, **_k: pytest.fail("TalkNet ran"))
+    run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": DRAWN, "by": "user"}, CONFIG)
+    assert plans[-1].kind == "split"
+
+    _seen(monkeypatch, {})
+    run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": DRAWN, "by": "user"}, CONFIG)
+    assert plans[-1].kind == "split"
     run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": None, "by": "user"}, CONFIG)
     assert plans[-1].kind == "fill"
+
+
+MOVED = [0.03, 0.05, 0.2, 0.26]     # measured: top left for the chatting, lower down on the left for the game
+
+
+@pytest.mark.parametrize("by", ["user", "creator", "video"])
+def test_a_webcam_that_moved_is_followed_to_where_it_is_in_the_clip(run, monkeypatch, by):
+    """A stream whose webcam sat top left over a browser for an hour of Just
+    Chatting, then lower down on the left for the game: in the chatting
+    clips nobody is at the webcam drawn (or found) on the game, and the
+    clip's own webcam (found as the editor suggests one) is used."""
+    run_mod, plans = run
+    streamer = _track([i / 8 for i in range(300)], box=(60, 50, 440, 330), cx=0.13)
+    _seen(monkeypatch, {0: streamer})
+    monkeypatch.setattr(detect, "clip_cam", lambda *_a, **_k: MOVED)
+    kept = run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": [0.04, 0.25, 0.17, 0.29], "by": by}, CONFIG)
+    assert plans[-1].kind == "split" and kept["used_cam"] == MOVED
+
+
+def test_a_webcam_somebody_is_at_is_never_looked_for_again(run, monkeypatch):
+    run_mod, _plans = run
+    _seen(monkeypatch, {0: WEBCAM})
+    monkeypatch.setattr(detect, "clip_cam", lambda *_a, **_k: pytest.fail("looked again"))
+    run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": DRAWN, "by": "user"}, CONFIG)
+    cam = list(detect.webcam_box(WEBCAM, 1920, 1080)[0])
+    run_mod.render(Path("c.mp4"), Path("o.mp4"), {"cam": cam, "by": "video"}, CONFIG)
 
 
 def test_the_videos_webcam_is_used_when_somebody_is_at_it(run, monkeypatch):
@@ -329,6 +395,29 @@ def test_the_video_is_searched_once_across_clips_spread_through_it(monkeypatch, 
     assert looked == [100, 900, 1500, 3000] and g == {"cam": list(CORNER), "by": "video", "panels": []}
 
 
+def test_clips_where_the_camera_fills_the_frame_dont_count_as_looks(monkeypatch, tmp_path):
+    """An hour of just chatting before the game, with most clips from it:
+    three of the four spread clips show the streamer's camera filling the
+    frame, which never votes, and one vote isn't enough. Others are looked at
+    until four useful ones, and the webcam is found."""
+    from core.models import ClipCandidate
+    from gaming import run as run_mod
+
+    looked, stilled = [], []
+    monkeypatch.setattr("video.cutter.cut_clip", lambda _s, c, out, **_k: looked.append(c.start))
+    monkeypatch.setattr(detect, "stills", lambda probe, *_a, **_k: stilled.append(looked[-1]) or [])
+    corner = detect.Face(CORNER, 0.9, 0.9, 2.0, True)
+    full = detect.Face((0.2, 0.0, 0.6, 1.0), 1.0, 1.0, 2.5, False)
+    monkeypatch.setattr(detect, "find_cam", lambda *_a, **_k: detect.ClipFinding(
+        {"s": full if looked[-1] < 3600 else corner}, "s"))
+    chatting = [ClipCandidate(start=s, end=s + 60, score=80) for s in range(0, 3200, 400)]
+    game = [ClipCandidate(start=s, end=s + 60, score=80) for s in (4000, 5000, 6000)]
+    g = run_mod.prepare(tmp_path / "src.mp4", chatting + game, CONFIG, tmp_path)
+    assert g["cam"] == list(CORNER) and g["by"] == "video"
+    assert looked == [0, 1200, 2800, 6000, 400, 1600, 2400, 5000]
+    assert stilled == [6000, 5000]                  # the border is found from the webcam, not a face
+
+
 def test_a_webcam_saved_for_the_creator_skips_the_search(monkeypatch, tmp_path):
     from gaming import run as run_mod
 
@@ -363,7 +452,8 @@ def test_find_it_automatically_still_keeps_the_rest_of_the_setup(monkeypatch, tm
 
 def test_a_creator_layout_is_trusted_like_one_drawn_for_the_clip(run, monkeypatch):
     run_mod, plans = run
-    monkeypatch.setattr(detect, "sample_tracks", lambda *_a, **_k: pytest.fail("detection ran"))
+    _seen(monkeypatch, {0: WEBCAM})
+    monkeypatch.setattr(detect, "speaking_scores", lambda *_a, **_k: pytest.fail("TalkNet ran"))
     run_mod.render(Path("c.mp4"), Path("o.mp4"),
                    {"cam": [0.0, 0.66, 0.25, 0.34], "game_box": [0.17, 0.0, 0.83, 0.82], "by": "creator"}, CONFIG)
     p = plans[-1]
@@ -435,8 +525,12 @@ def test_anything_gaming_cant_do_falls_back_to_the_standard_layout(pipeline, mon
         return None                                     # a camera filling the frame
 
     monkeypatch.setattr(run_mod, "render", render)
-    final, _opts = _render_clip(pipeline_mod, tmp_path, gaming=True)
+    final, opts = _render_clip(pipeline_mod, tmp_path, {"gaming": {"cam": [0, 0.6, 0.3, 0.4], "by": "user"}},
+                               gaming=True)
     assert ran == ["standard"] and final.exists()
+    # Saved as what it got: the editor shows the standard framing, and a
+    # re-render frames it the same way.
+    assert "gaming" not in opts
 
 
 def test_vertical_live_and_podcast_take_precedence_over_gaming(pipeline, monkeypatch, tmp_path):

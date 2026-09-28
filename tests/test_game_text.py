@@ -119,7 +119,7 @@ def fused(monkeypatch):
         ClipCandidate(start=s, end=e, score=60, hook="h", source="signal") for s, e in windows])
     monkeypatch.setattr(fusion, "reaction_for_window", lambda *_a, **_k: 0.5)
 
-    def run(screen):
+    def run(screen, segments=None):
         from analysis.chat_moments import chat_signal
 
         monkeypatch.setattr(fusion, "_read_screen", lambda *_a, **_k: screen)
@@ -131,7 +131,7 @@ def fused(monkeypatch):
         k = gaming.knowledge()
         chat = chat_signal(msgs, n, k["chat_classes"], k["chat_lag_seconds"])
         audio = {"spike": np.ones(n, dtype=np.float32), "burst": np.zeros(n), "noisiness": np.zeros(n)}
-        segments = [Segment(start=5.0, end=8.0, text="hello")]
+        segments = segments or [Segment(start=5.0, end=8.0, text="hello")]
         profile = gaming.profile_for({"clips": {"gaming_scoring": True}}, [{"name": "VALORANT"}], "")
         cfg = {"clips": {"min_duration": 10, "max_duration": 60, "min_score": 0, "max_clips_per_video": 0},
                "analysis": {"chunk_seconds": 600, "chunk_overlap_seconds": 30,
@@ -142,6 +142,19 @@ def fused(monkeypatch):
                                     gaming=profile, chat=chat)
         return {round(c.start): c for c in kept}
     return run
+
+
+def test_talking_over_a_menu_is_judged_on_the_talk(fused):
+    """A streamer chatting in the lobby between rounds: the menu takes
+    nothing off a clip full of talk (and the game adds nothing to it)."""
+    from core.models import Segment
+
+    talk = [Segment(start=float(t), end=float(t + 2), text="so here is what I think about it")
+            for t in range(150, 260, 2)]
+    read = fused(ScreenText(menus=[(190.0, 215.0, "SETTINGS, BACK")], frames=12), talk)
+    menu = next(c for s, c in read.items() if s <= 200 <= c.end)
+    assert "menu" not in menu.subscores and "game_bonus" not in menu.subscores
+    assert "ON SCREEN: a menu" in menu.subscores["game_why"]
 
 
 def test_a_menu_is_marked_down_lightly_and_a_banner_only_informs(fused):

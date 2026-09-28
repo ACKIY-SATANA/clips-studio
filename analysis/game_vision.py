@@ -9,7 +9,10 @@ or a menu, a loading screen, nothing at all.
 Only a local model that takes images does it (Gemma 3 and Gemma 4 through
 Ollama; gemma:7b can't). The video picture never leaves the PC, as the
 privacy page promises, so a cloud AI skips this step. Its verdict moves a
-clip by at most 10 points either way, within a time budget.
+clip by at most 10 points either way, within a time budget. It only takes
+points off as far as the clip is quiet: what is said counts as on any stream,
+so a just-chatting stretch or a reaction with no gameplay in the picture
+isn't marked down for that.
 """
 
 import json
@@ -103,10 +106,12 @@ def verdict_delta(data: dict | None) -> tuple[int, str] | None:
 
 
 def look_at(candidates: list, video_path, llm, gaming, segments, events, grab=None,
-            budget: float = TIME_BUDGET, max_candidates: int = MAX_CANDIDATES) -> int:
+            budget: float = TIME_BUDGET, max_candidates: int = MAX_CANDIDATES, talk=None) -> int:
     """Adjust the best `candidates` (by score) by what the model sees in
     them; returns how many were looked at. `grab` (second -> frame) stands in
-    for the video in tests."""
+    for the video in tests. `talk` (candidate -> 0 silent .. 1 steady talking)
+    scales a verdict that takes points off: none of it for a clip full of
+    talk, all of it for a silent one."""
     from core import cancel
 
     template = PROMPT_PATH.read_text(encoding="utf-8")
@@ -114,7 +119,7 @@ def look_at(candidates: list, video_path, llm, gaming, segments, events, grab=No
     if not ranked:
         return 0
     if grab is not None:
-        return _look(ranked, template, llm, gaming, segments, events, grab, budget, cancel)
+        return _look(ranked, template, llm, gaming, segments, events, grab, budget, cancel, talk)
     import cv2
 
     from video.capture import video_capture
@@ -127,10 +132,10 @@ def look_at(candidates: list, video_path, llm, gaming, segments, events, grab=No
             cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
             ok, img = cap.read()
             return img if ok else None
-        return _look(ranked, template, llm, gaming, segments, events, grab_frame, budget, cancel)
+        return _look(ranked, template, llm, gaming, segments, events, grab_frame, budget, cancel, talk)
 
 
-def _look(ranked, template, llm, gaming, segments, events, grab, budget, cancel) -> int:
+def _look(ranked, template, llm, gaming, segments, events, grab, budget, cancel, talk=None) -> int:
     from analysis.gaming import genre_spec
 
     t0 = time.monotonic()
@@ -165,6 +170,8 @@ def _look(ranked, template, llm, gaming, segments, events, grab, budget, cancel)
         if result is None:
             continue
         delta, moment = result
+        if delta < 0 and talk is not None:
+            delta = round(delta * (1.0 - max(0.0, min(1.0, talk(c)))))
         c.score = max(0, min(100, c.score + delta))
         c.subscores = c.subscores or {}
         c.subscores["seen"] = delta

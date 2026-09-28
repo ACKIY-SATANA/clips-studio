@@ -311,7 +311,8 @@ def find_clips(
     game_bonus = int(scoring_cfg.get("game_bonus", 5))
     game_moment_max = int(scoring_cfg.get("game_moment_max", 7))
     # A light touch: most videos have no on-screen text worth reading, and
-    # captions or an overlay can carry a menu word.
+    # captions or an overlay can carry a menu word. It only applies as far as
+    # the clip is quiet: talking in a lobby is judged on the talk.
     menu_penalty = int(scoring_cfg.get("menu_penalty", 6))
     n_context = 0
     n_action = 0
@@ -355,9 +356,10 @@ def find_clips(
             if why:
                 c.subscores["game_why"] = "; ".join(why[:3])
             on_menu = bool(menu_here)
-            if on_menu and menu_penalty > 0:
-                fused = max(0, fused - menu_penalty)
-                c.subscores["menu"] = -menu_penalty
+            marked = round(menu_penalty * (1.0 - speech[id(c)])) if on_menu else 0
+            if marked > 0:
+                fused = max(0, fused - marked)
+                c.subscores["menu"] = -marked
                 n_menu += 1
             # On-screen text isn't a witness: most videos never show a banner,
             # and a caption can look like one. It still informs the AI and the
@@ -434,7 +436,7 @@ def find_clips(
     if n_game:
         print(f"  Game moments added to {n_game} candidate(s) (up to +{game_moment_max + game_bonus})")
     if n_menu:
-        print(f"  Menus and queues marked down: {n_menu} candidate(s) (-{menu_penalty})")
+        print(f"  Menus and queues marked down: {n_menu} candidate(s) (up to -{menu_penalty})")
 
     # ---- 4. dedup + threshold (reusing the proven logic) ------------------
     # max_clips_per_video == 0 means automatic: keep EVERY unique clip that
@@ -704,7 +706,8 @@ def _event_windows(
 def _look_at_game(finalists: list[ClipCandidate], video_path, llm, gaming, segments: list[Segment],
                   events: list) -> None:
     """Show the local model frames of the best finalists and move each by
-    what it sees (at most 10 points). Skipped, and said so, when the model
+    what it sees (at most 10 points; taking points off only as far as the
+    clip is quiet). Skipped, and said so, when the model
     can't take images: a text-only one, or any cloud model, since the video
     picture never leaves the PC."""
     from analysis import game_vision
@@ -725,7 +728,8 @@ def _look_at_game(finalists: list[ClipCandidate], video_path, llm, gaming, segme
     count = min(len(finalists), game_vision.MAX_CANDIDATES)
     print(f"  Looking at the frames of the best {count} clip(s) with {name}...")
     t0 = time.monotonic()
-    looked = game_vision.look_at(finalists, video_path, llm, gaming, segments, events)
+    looked = game_vision.look_at(finalists, video_path, llm, gaming, segments, events,
+                                 talk=lambda c: _speech_ratio(c, segments))
     seen = [c.subscores["seen"] for c in finalists if "seen" in c.subscores]
     print(f"  Looked at {looked} clip(s) in {time.monotonic() - t0:.0f}s: "
           f"{sum(d > 0 for d in seen)} raised, {sum(d < 0 for d in seen)} lowered")

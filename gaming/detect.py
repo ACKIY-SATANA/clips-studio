@@ -422,8 +422,8 @@ def video_cam(findings: list) -> tuple | None:
     return tuple(float(v) for v in np.median(np.array([f.box for f in best]), axis=0))
 
 
-def stills(clip_path: Path, n: int = 6) -> list:
-    """n greyscale frames spread over the clip, STILLS_WIDTH wide."""
+def _spread_frames(clip_path: Path, n: int) -> list:
+    """n frames spread over the clip, as read."""
     import cv2
 
     out = []
@@ -437,10 +437,20 @@ def stills(clip_path: Path, n: int = 6) -> list:
             ok, frame = cap.read()
             if not ok:
                 break
-            h, w = frame.shape[:2]
-            grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            out.append(cv2.resize(grey, (STILLS_WIDTH, round(h * STILLS_WIDTH / w))))
+            out.append(frame)
     return out
+
+
+def _grey(frame):
+    import cv2
+
+    h, w = frame.shape[:2]
+    return cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), (STILLS_WIDTH, round(h * STILLS_WIDTH / w)))
+
+
+def stills(clip_path: Path, n: int = 6) -> list:
+    """n greyscale frames spread over the clip, STILLS_WIDTH wide."""
+    return [_grey(f) for f in _spread_frames(clip_path, n)]
 
 
 def _edge(profile: np.ndarray, lo: int, hi: int, near: int) -> int | None:
@@ -613,13 +623,24 @@ def suggest_cam(image_paths: list, model_name: str = "yolov8n-pose.pt") -> list 
     anything that moves."""
     import cv2
 
+    return _steady_cam([f for f in (cv2.imread(str(p)) for p in image_paths) if f is not None], model_name)
+
+
+def clip_cam(clip_path: Path, model_name: str = "yolov8n-pose.pt", n: int = 6) -> list | None:
+    """This clip's own webcam, by suggest_cam's test on n frames spread over
+    it. For a stream whose webcam moves partway (measured: top left over a
+    browser for an hour of Just Chatting, then lower down on the left for
+    the game): nobody is at the webcam found or drawn, and the clip shows
+    where it went. About half a second a clip on a GPU."""
+    return _steady_cam(_spread_frames(clip_path, n), model_name)
+
+
+def _steady_cam(images: list, model_name: str) -> list | None:
+    """suggest_cam's test on frames as read."""
     frames, boxes = [], []
-    for path in image_paths:
-        frame = cv2.imread(str(path))
-        if frame is None:
-            continue
+    for frame in images:
         fh, fw = frame.shape[:2]
-        frames.append(cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), (STILLS_WIDTH, round(fh * STILLS_WIDTH / fw))))
+        frames.append(_grey(frame))
         boxes.append([((d[0] / fw, d[1] / fh, (d[2] - d[0]) / fw, (d[3] - d[1]) / fh), d[4])
                       for d in _detect(_get_model(model_name), frame, MIN_CONFIDENCE)])
     if len(frames) < 3:
