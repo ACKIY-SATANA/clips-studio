@@ -400,6 +400,44 @@ function ProviderPanel({
     }, `${t('Transcribing online with')} ${model}.`).finally(() => setChecking(''))
   }
 
+  // Signing in with the provider in the user's own browser: the engine gets
+  // the key back itself, and this waits for it to appear.
+  const [waiting, setWaiting] = useState(false)
+  // The sign-in page's address, for another browser or a private window:
+  // it signs in whichever OpenRouter account that browser is signed in to.
+  const [signInUrl, setSignInUrl] = useState('')
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!waiting) return
+    const started = Date.now()
+    const timer = setInterval(() => {
+      if (Date.now() - started > 15 * 60 * 1000) {
+        setWaiting(false)
+        return
+      }
+      api
+        .ai()
+        .then((s) => {
+          if (s.providers.find((p) => p.id === provider.id)?.has_key) {
+            setWaiting(false)
+            void run(async () => s, `${t('Connected to')} ${provider.label}. ${t('Now choose a model.')}`)
+          }
+        })
+        .catch(() => undefined)
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [waiting]) // eslint-disable-line react-hooks/exhaustive-deps
+  const signIn = (): void => {
+    void run(async () => {
+      const { url } = await api.connectAI(provider.id)
+      setSignInUrl(url)
+      setCopied(false)
+      void window.studio.openExternal(url)
+      setWaiting(true)
+      return null
+    })
+  }
+
   const current = models.find((m) => m.id === inUse)
   const missing = !!inUse && !loading && !loadError && models.length > 0 && !current
   // The cheapest that does this job well, first in the list and one click away.
@@ -417,7 +455,63 @@ function ProviderPanel({
         </p>
       )}
 
-      {recommended && !provider.has_key && (
+      {provider.oauth && !provider.has_key && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted">
+            {t('Sign in with your')} {provider.label} {t('account and approve Clips Kitty. It gets a key of your own, on your')}{' '}
+            {provider.label} {t('credits: nothing to copy or paste. Add credit on')} {provider.label}{' '}
+            {t('first, or start with its free models.')}
+          </p>
+          {waiting ? (
+            <div className="space-y-1">
+              <p className="text-xs text-accent">
+                {t('Waiting for you to approve Clips Kitty in your browser…')}{' '}
+                <button className="text-muted hover:underline" onClick={() => setWaiting(false)}>
+                  {t('Cancel')}
+                </button>
+              </p>
+              <p className="text-[11px] text-muted">
+                {t('It connects whichever')} {provider.label}{' '}
+                {t('account that browser is signed in to. For a different account, open the link in a private window or another browser:')}{' '}
+                <button
+                  className="text-accent hover:underline"
+                  onClick={() =>
+                    void navigator.clipboard.writeText(signInUrl).then(
+                      () => setCopied(true),
+                      () => setCopied(false)
+                    )
+                  }
+                >
+                  {copied ? t('Link copied') : t('Copy sign-in link')}
+                </button>
+              </p>
+            </div>
+          ) : (
+            <button className="btn-accent !py-1.5 !px-4 text-sm" disabled={busy} onClick={signIn}>
+              {t('Sign in with')} {provider.label}
+            </button>
+          )}
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted hover:text-ink">
+              {t('Advanced: paste your own API key instead')}
+            </summary>
+            <div className="mt-2 space-y-2">
+              <p className="text-muted">
+                <button
+                  className="text-accent hover:underline"
+                  onClick={() => void window.studio.openExternal(provider.key_url)}
+                >
+                  {t('Create a key on')} {provider.label} ↗
+                </button>{' '}
+                {t('and paste it here. Clips Kitty checks it before keeping it.')}
+              </p>
+              <KeyField provider={provider} busy={busy} run={run} />
+            </div>
+          </details>
+        </div>
+      )}
+
+      {recommended && !provider.oauth && !provider.has_key && (
         <ol className="text-xs text-muted list-decimal pl-4 space-y-0.5">
           <li>
             <button
@@ -447,7 +541,7 @@ function ProviderPanel({
         </p>
       )}
 
-      <KeyField provider={provider} busy={busy} run={run} />
+      {(!provider.oauth || provider.has_key) && <KeyField provider={provider} busy={busy} run={run} />}
 
       {provider.has_key && (
         <div className="space-y-1.5">
@@ -462,7 +556,15 @@ function ProviderPanel({
               </button>
             </p>
           ) : job === 'ai' ? (
-            <ModelPicker models={models} loading={loading} inUse={inUse} busy={busy} onChoose={choose} preferred={preferred} />
+            <ModelPicker
+              models={models}
+              loading={loading}
+              inUse={inUse}
+              busy={busy}
+              onChoose={choose}
+              preferred={preferred}
+              family={provider.preferred?.text_family}
+            />
           ) : (
             <VoicePicker models={models} loading={loading} inUse={inUse} busy={busy} onChoose={choose} preferred={preferred} />
           )}
@@ -988,7 +1090,8 @@ function ModelPicker({
   inUse,
   busy,
   onChoose,
-  preferred
+  preferred,
+  family
 }: {
   models: AIModel[]
   loading: boolean
@@ -996,20 +1099,28 @@ function ModelPicker({
   busy: boolean
   onChoose: (id: string) => void
   preferred?: AIModel
+  /** Models whose id starts with this come next, under the preferred one. */
+  family?: string
 }): JSX.Element {
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'maker' | 'price'>('maker')
   const grouped = sort === 'maker' && models.some((m) => m.vendor)
   const needle = filter.trim().toLowerCase()
   const matches = (m: AIModel): boolean => !needle || `${m.id} ${m.name}`.toLowerCase().includes(needle)
-  // The preferred model heads the list, once.
+  // The preferred model heads the list, once; then its family (Gemma),
+  // cheapest first; then everything else.
   const top = preferred && matches(preferred) ? preferred : undefined
-  const shown = models.filter((m) => matches(m) && m.id !== top?.id)
+  const cheapest = (a: AIModel, b: AIModel): number => (a.price?.input ?? 1e9) - (b.price?.input ?? 1e9)
+  const kin = family
+    ? models.filter((m) => matches(m) && m.id !== top?.id && m.id.startsWith(family)).sort(cheapest)
+    : []
+  const shown = models.filter((m) => matches(m) && m.id !== top?.id && !kin.includes(m))
   // Cheapest first by input price, as the website sorts; "varies" last.
-  const byPrice = [...shown].sort((a, b) => (a.price?.input ?? 1e9) - (b.price?.input ?? 1e9))
+  const byPrice = [...shown].sort(cheapest)
 
   const groups: [string, AIModel[]][] = []
   if (top) groups.push([t('★ Preferred: the cheapest for text'), [top]])
+  if (kin.length) groups.push([t('Gemma, the family local AI uses'), kin])
   if (grouped) {
     const claimed = new Set<string>()
     for (const [label, prefixes] of VENDOR_GROUPS) {
@@ -1061,7 +1172,7 @@ function ModelPicker({
                 ))}
               </optgroup>
             ))
-          : [...(top ? [top] : []), ...(sort === 'price' ? byPrice : shown).slice(0, 400)].map((m) => (
+          : [...(top ? [top] : []), ...kin, ...(sort === 'price' ? byPrice : shown).slice(0, 400)].map((m) => (
               <option key={m.id} value={m.id}>
                 {m.id === top?.id ? `★ ${optionLabel(m)}` : optionLabel(m)}
               </option>

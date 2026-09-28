@@ -456,6 +456,10 @@ export const api = {
     ),
   /** Choose a voice model; one not known to return word timings is checked
    *  with a short test clip first, and only saved if it does. */
+  /** Begin "Sign in with OpenRouter": the page for the user's own browser.
+   *  It comes back to the engine, which keeps the key; poll ai() for it. */
+  connectAI: (provider: string) =>
+    request<{ url: string }>(`/ai/providers/${provider}/connect`, { method: 'POST' }),
   checkVoiceModel: (provider: string, model: string) =>
     request<AIStatus & { ok: boolean; message: string }>(`/ai/providers/${provider}/stt-check`, {
       method: 'POST',

@@ -64,15 +64,18 @@ export default function WoopSocialCard(): JSX.Element {
         if (!mounted.current) return
         setStatus(s as unknown as Status)
         setAffiliateDraft(s.affiliate_url)
+        // Only when it's on and has a key: asked otherwise, the engine
+        // answers "not enabled", an error in the log each time Settings opens.
+        if (s.enabled && s.has_key)
+          api
+            .woopSocialConnections()
+            .then((got) => mounted.current && setConnected(got.connected))
+            .catch(() => {
+              /* the linked accounts show once WoopSocial answers */
+            })
       })
       .catch(() => {
         /* backend not up yet */
-      })
-    api
-      .woopSocialConnections()
-      .then((got) => mounted.current && setConnected(got.connected))
-      .catch(() => {
-        /* off, or no key yet */
       })
   }
 

@@ -11,15 +11,18 @@ checked with the provider before it is kept, and no route ever returns it; the
 UI gets whether one is saved and its last four characters, nothing more.
 """
 
+import html
 import re
+import secrets
 import time
 from pathlib import Path
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from core.scrub import scrub_secrets
-from llm.providers import keys
+from llm.providers import keys, oauth
 from llm.providers.adapters import adapter_for
 from llm.providers.base import LLMError
 from llm.providers.catalog import PROVIDERS, get
@@ -96,6 +99,24 @@ def write_transcription(settings_path: Path, backend: str, model: str) -> None:
     else:
         text = text.rstrip("\n") + "\n\n" + block
     settings_path.write_text(text, encoding="utf-8")
+
+
+# How long a sign-in in the browser may take before its code is refused.
+SIGN_IN_SECONDS = 15 * 60
+
+
+def _sign_in_page(message: str, ok: bool) -> HTMLResponse:
+    """What the browser shows when it comes back from signing in."""
+    colour = "#22C55E" if ok else "#F87171"
+    body = (
+        "<!doctype html><html><head><meta charset='utf-8'><title>Clips Kitty</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'></head>"
+        "<body style='font-family:system-ui,sans-serif;background:#0B1220;color:#E5E7EB;"
+        "display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0'>"
+        f"<p style='max-width:28rem;padding:1rem;font-size:1.1rem;color:{colour}'>{html.escape(message)}</p>"
+        "</body></html>"
+    )
+    return HTMLResponse(body, status_code=200 if ok else 400)
 
 
 def install(app, *, config, db, data_dir, settings_path) -> None:
@@ -222,6 +243,50 @@ def install(app, *, config, db, data_dir, settings_path) -> None:
         keys.save_key(data_path, spec.id, key, region)
         _forget_models(spec.id)  # a new key can see different models
         return {**status(), "message": message}
+
+    # ---- signing in instead of pasting a key (llm/providers/oauth.py) --------
+    # state -> (provider, verifier, started). In memory: a sign-in outlives
+    # nothing but its own browser tab.
+    sign_ins: dict[str, tuple[str, str, float]] = {}
+
+    @app.post("/ai/providers/{provider_id}/connect")
+    def connect(provider_id: str, request: Request):
+        """Begin signing in: the page for the user's own browser. Only ever
+        run because they pressed Sign in."""
+        spec = _spec(provider_id)
+        if not spec.oauth:
+            raise HTTPException(400, f"{spec.label} has no sign-in here; paste your {spec.key_label}.")
+        now = time.time()
+        for stale in [s for s, (_p, _v, at) in sign_ins.items() if now - at > SIGN_IN_SECONDS]:
+            sign_ins.pop(stale, None)
+        verifier, challenge = oauth.pkce_pair()
+        state = secrets.token_urlsafe(18)
+        sign_ins[state] = (spec.id, verifier, now)
+        port = request.url.port or 8765
+        callback = f"http://localhost:{port}/ai/providers/{spec.id}/callback/{state}"
+        return {"url": oauth.auth_url(spec, callback, challenge)}
+
+    @app.get("/ai/providers/{provider_id}/callback/{state}", response_class=HTMLResponse)
+    def sign_in_callback(provider_id: str, state: str, code: str = ""):
+        """Where the browser comes back: the code becomes the user's own key,
+        checked and kept exactly as a pasted one is. Single use."""
+        entry = sign_ins.pop(state, None)
+        spec = get(provider_id)
+        if spec is None or entry is None or entry[0] != spec.id or time.time() - entry[2] > SIGN_IN_SECONDS:
+            return _sign_in_page("This sign-in has expired or was already used. "
+                                 "Start it again from Clips Kitty.", ok=False)
+        if not code:
+            return _sign_in_page(f"{spec.label} didn't finish signing you in. "
+                                 "Start it again from Clips Kitty.", ok=False)
+        try:
+            key = oauth.exchange(spec, code, entry[1])
+            _message, region = _check_key(spec, key)
+        except LLMError as e:
+            return _sign_in_page(scrub_secrets(e.message), ok=False)
+        keys.save_key(data_path, spec.id, key, region)
+        _forget_models(spec.id)
+        return _sign_in_page(f"Connected to {spec.label}. You can close this tab and go back to Clips Kitty.",
+                             ok=True)
 
     @app.delete("/ai/providers/{provider_id}/key")
     def delete_key(provider_id: str):

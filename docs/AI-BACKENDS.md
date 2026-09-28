@@ -51,24 +51,35 @@ to a provider directly; it makes it simpler.
 
 ### Set it up
 
-1. In **Settings → AI**, choose **🚀 OpenRouter**, then **Open OpenRouter**, and
-   sign in or create an account.
-2. Create an API key there. Add credit, or start with OpenRouter's free models.
-3. Paste the key into Clips Kitty and press **Save**. Clips Kitty checks it with
-   OpenRouter before keeping it.
-4. Pick a **text model**. The list comes live from OpenRouter, for your account
+1. In **Settings → AI**, choose **🚀 OpenRouter**, then **Sign in with
+   OpenRouter**. Your browser opens OpenRouter: sign in (or create an account)
+   and approve Clips Kitty. OpenRouter hands Clips Kitty a key of your own,
+   named "Clips Kitty" in your OpenRouter key list, which spends your
+   OpenRouter credits; there is nothing to copy or paste. Add credit on
+   OpenRouter first, or start with its free models. (This is OpenRouter's
+   OAuth sign-in with PKCE: no app secret, a fresh one-time code each time,
+   and the browser comes back to Clips Kitty on this PC. The key is checked
+   and stored exactly as a pasted one is.)
+   - It connects whichever OpenRouter account that browser is signed in to.
+     For another account, **Copy sign-in link** and open it in a private
+     window or another browser.
+   - **Advanced: paste your own API key instead** is still there, for anyone
+     who makes their own keys.
+2. Pick a **text model**. The list comes live from OpenRouter, for your account
    (the same list the website uses), and only shows models that can do this job
    (they can answer in JSON). It can be searched, grouped by who makes each model
    or sorted by lowest price, and each line shows the context size and the input
    and output price per million tokens. Under it, the model in use shows every
    price OpenRouter lists for it (cached input, reasoning, per request and so on),
-   what it can do, and a link to its OpenRouter page. **★ Preferred** heads
+   what it can do, and a link to its OpenRouter page. After **★ Preferred**
+   come all the Gemma models, cheapest first (Gemma is the family local AI
+   uses), then everything else. **★ Preferred** heads
    the list: Gemma 4 26B-A4B (`google/gemma-4-26b-a4b-it`), the smaller
    Gemma 4 (4B of its 26B parameters active at a time, so quick), the cheapest
    that does the job well: about $0.04 / $0.22 per million tokens (September
    2026), about a cent for a two-hour stream, where Gemma 4 31B is about two.
    Under the list, **Use it** switches to it.
-5. Optional: **Test connection** checks the key and the model without spending
+3. Optional: **Test connection** checks the key and the model without spending
    anything.
 
 From then on every clip job uses that model. To try another one, pick it from

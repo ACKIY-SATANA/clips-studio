@@ -228,3 +228,77 @@ def test_choices_survive_a_restart_and_are_the_models_sent(tmp_path, monkeypatch
     backend = create_backend({**reloaded["llm"], "data_dir": str(env.data)})
     backend.generate("p", json_mode=True)
     assert env.calls[-1]["json"]["model"] == "anthropic/claude-sonnet-5"
+
+
+# ---- Sign in with OpenRouter (OAuth PKCE) ----------------------------------------------
+
+SIGNED_IN = "sk-or-v1-" + "0a0a0a0a" * 8
+
+
+def _signing_in(env, monkeypatch, status=200):
+    """OpenRouter's code exchange, faked on top of the Env transport."""
+    exchanges = []
+
+    def transport(method, url, **kw):
+        if url.endswith("/auth/keys"):
+            exchanges.append(kw["json"])
+            answer = Response({"key": SIGNED_IN} if status == 200 else {"error": {"message": "no"}})
+            answer.status_code = status
+            return answer
+        return env.transport(method, url, **kw)
+
+    monkeypatch.setattr(http, "transport", transport)
+    return exchanges
+
+
+def test_sign_in_sends_the_browser_to_openrouter_with_a_challenge_and_a_local_callback(tmp_path, monkeypatch):
+    from urllib.parse import parse_qs, urlparse
+
+    env = Env(tmp_path, monkeypatch)
+    url = env.client.post("/ai/providers/openrouter/connect").json()["url"]
+    page = urlparse(url)
+    query = {k: v[0] for k, v in parse_qs(page.query).items()}
+    assert f"{page.scheme}://{page.netloc}{page.path}" == "https://openrouter.ai/auth"
+    assert query["code_challenge_method"] == "S256" and len(query["code_challenge"]) == 43
+    assert query["key_label"] == "Clips Kitty"
+    assert query["callback_url"].startswith("http://localhost:") and "/ai/providers/openrouter/callback/" in query["callback_url"]
+    assert "verifier" not in url                        # only its hash leaves this PC before the exchange
+    assert env.client.get("/ai").json()["providers"][1]["oauth"] is True
+
+
+def test_the_code_from_the_browser_becomes_the_users_own_key(tmp_path, monkeypatch):
+    import base64
+    import hashlib
+    from urllib.parse import parse_qs, urlparse
+
+    env = Env(tmp_path, monkeypatch)
+    keys.wipe_key(env.data, "openrouter")
+    exchanges = _signing_in(env, monkeypatch)
+    url = env.client.post("/ai/providers/openrouter/connect").json()["url"]
+    query = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
+    callback = urlparse(query["callback_url"]).path
+    page = env.client.get(callback, params={"code": "one-time"})
+    assert page.status_code == 200 and "Connected to OpenRouter" in page.text
+    assert keys.load_key(env.data, "openrouter") == SIGNED_IN
+    sent = exchanges[0]
+    assert sent["code"] == "one-time" and sent["code_challenge_method"] == "S256"
+    digest = hashlib.sha256(sent["code_verifier"].encode()).digest()
+    assert base64.urlsafe_b64encode(digest).rstrip(b"=").decode() == query["code_challenge"]
+    again = env.client.get(callback, params={"code": "one-time"})         # single use
+    assert again.status_code == 400 and "expired or was already used" in again.text
+
+
+def test_a_refused_or_unknown_sign_in_keeps_no_key(tmp_path, monkeypatch):
+    from urllib.parse import parse_qs, urlparse
+
+    env = Env(tmp_path, monkeypatch)
+    keys.wipe_key(env.data, "openrouter")
+    _signing_in(env, monkeypatch, status=403)
+    url = env.client.post("/ai/providers/openrouter/connect").json()["url"]
+    callback = urlparse(parse_qs(urlparse(url).query)["callback_url"][0]).path
+    page = env.client.get(callback, params={"code": "stale"})
+    assert page.status_code == 400 and "Sign in again" in page.text
+    assert not keys.has_key(env.data, "openrouter")
+    stranger = env.client.get("/ai/providers/openrouter/callback/made-up", params={"code": "x"})
+    assert stranger.status_code == 400 and not keys.has_key(env.data, "openrouter")
+    assert "<script" not in env.client.get("/ai/providers/openrouter/callback/<script>").text

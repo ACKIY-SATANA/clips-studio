@@ -569,7 +569,8 @@ or proxy. See [AI-BACKENDS.md](AI-BACKENDS.md) for what each provider does.
     {"id": "ollama", "label": "This PC — Ollama", "local": true, "has_key": false, "key_tail": "", "…": "…"},
     {"id": "openrouter", "label": "OpenRouter", "local": false, "stt": true,
      "stt_models": ["openai/whisper-large-v3-turbo", "…"],
-     "preferred": {"text": "google/gemma-4-26b-a4b-it", "stt": "openai/whisper-large-v3-turbo"},
+     "preferred": {"text": "google/gemma-4-26b-a4b-it", "stt": "openai/whisper-large-v3-turbo",
+                   "text_family": "google/gemma"},
      "key_label": "OpenRouter API key", "key_url": "…", "pricing_url": "…", "privacy": "…",
      "has_key": true, "key_tail": "9f3a"}
   ]

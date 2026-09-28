@@ -382,7 +382,9 @@ export interface AIProvider {
   stt_models?: string[]
   /** The model the card puts first for each job: the cheapest that does it
    *  well (OpenRouter: Gemma for text, Whisper large-v3 turbo for voice). */
-  preferred?: { text?: string; stt?: string }
+  preferred?: { text?: string; stt?: string; text_family?: string }
+  /** Can be connected by signing in (OAuth), not only by pasting a key. */
+  oauth?: boolean
   has_key: boolean
   key_tail: string
   /** The region the saved key belongs to, for providers whose keys only

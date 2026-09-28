@@ -177,6 +177,10 @@ SPEC = ProviderSpec(
     model_filter=model_info,
     stt_filter=stt_model_info,
     key_check_path="/key",
+    # Sign in with OpenRouter (OAuth PKCE): the user approves in their own
+    # browser and gets a key of their own, on their credits. Pasting a key
+    # stays, as the advanced way.
+    oauth={"auth_url": f"{SITE}/auth", "exchange_path": "/auth/keys"},
     # The recommended cloud path: one key reaches many models and providers.
     tier=2,
     tagline="One API key for many AI models and providers.",
@@ -194,5 +198,8 @@ SPEC = ProviderSpec(
     # stream (the 31B is about two), and not its ":free" version, whose limits
     # stop a long video; Whisper large-v3 turbo at about $0.01 an hour of
     # audio, with word timings (Parakeet is about $0.09).
-    preferred={"text": "google/gemma-4-26b-a4b-it", "stt": "openai/whisper-large-v3-turbo"},
+    # "text_family": every model whose id starts with it comes next in the
+    # text list, under the preferred one: the Gemma models, local AI's family.
+    preferred={"text": "google/gemma-4-26b-a4b-it", "stt": "openai/whisper-large-v3-turbo",
+               "text_family": "google/gemma"},
 )

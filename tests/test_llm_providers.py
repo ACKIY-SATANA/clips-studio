@@ -293,7 +293,8 @@ def test_a_busy_upstream_provider_is_named_and_the_key_not_blamed(fake, backend)
 
 def test_openrouter_names_its_preferred_models_for_the_card():
     preferred = PROVIDERS["openrouter"].public()["preferred"]
-    assert preferred == {"text": "google/gemma-4-26b-a4b-it", "stt": "openai/whisper-large-v3-turbo"}
+    assert preferred == {"text": "google/gemma-4-26b-a4b-it", "stt": "openai/whisper-large-v3-turbo",
+                         "text_family": "google/gemma"}
     assert not preferred["text"].endswith(":free")
     assert preferred["stt"] in PROVIDERS["openrouter"].stt["models"]   # known to return word timings
 

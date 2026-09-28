@@ -120,6 +120,9 @@ class ProviderSpec:
     # that says so. See llm/signin/ for the plans that can.
     plan_note: str = ""
     plan_note_url: str = ""
+    # Sign in instead of pasting a key (llm/providers/oauth.py):
+    # {"auth_url": page the browser opens, "exchange_path": code -> key}.
+    oauth: dict = field(default_factory=dict)
     # The model the card puts first for each job, {"text": id, "stt": id}:
     # the cheapest that does the job well, written here and nowhere in the UI.
     preferred: dict = field(default_factory=dict)
@@ -153,4 +156,5 @@ class ProviderSpec:
             "plan_note": self.plan_note,
             "plan_note_url": self.plan_note_url,
             "preferred": dict(self.preferred),
+            "oauth": bool(self.oauth),
         }
