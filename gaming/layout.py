@@ -42,6 +42,10 @@ ORDERS = ("cam_top", "game_top")
 FITS = ("fit", "fill")
 PIP_GAP = 24               # px between two picture-in-picture webcams
 PIP_MARGIN = 0.02          # of the canvas height, below the safe zone's top
+# Of the frame, on every side of a webcam the game keeps clear of: a webcam
+# box sits just inside the overlay's border (gaming/detect.py SNAP_INSET), so
+# a game cut right at its edge showed the border, a line down the game.
+CAM_CLEAR = 0.01
 PLACEABLE = ("cam", "cam2", "ui")     # layers moved and resized on the Short itself
 MIN_PLACE = 0.12           # a placed layer is at least this much of the canvas width
 
@@ -113,6 +117,13 @@ def _clear_of(src_w: int, crop_w: int, cams: list) -> int:
         if best_key is None or key < best_key:
             best, best_key = x, key
     return best
+
+
+def _clear_zone(box_norm, src_w: int, src_h: int) -> tuple:
+    """A webcam box grown by CAM_CLEAR on every side, in source pixels: what
+    the game keeps clear of."""
+    x, y, w, h = box_norm
+    return _clamp_box((x - CAM_CLEAR, y - CAM_CLEAR, w + 2 * CAM_CLEAR, h + 2 * CAM_CLEAR), src_w, src_h)
 
 
 def _cover(box: tuple, aspect: float) -> tuple:
@@ -381,7 +392,7 @@ def plan(src_w: int, src_h: int, settings: dict, heads: dict | None = None) -> P
     # drawn for another layout is just part of the picture here).
     uses = _roles(spec)
     places = s.get("places") if isinstance(s.get("places"), dict) else {}
-    shown_cams = [cam_boxes[r] for r in cam_boxes if r == "cam" or r in uses]
+    shown_cams = [_clear_zone(s[r], src_w, src_h) for r in cam_boxes if r == "cam" or r in uses]
     panels = [_clamp_box(b, src_w, src_h) for b in (s.get("panels") or [])]
 
     elements = []

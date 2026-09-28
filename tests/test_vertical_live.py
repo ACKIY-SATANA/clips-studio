@@ -51,6 +51,17 @@ def test_the_toggle_is_read_from_a_job_config_or_a_clips_own_options():
     assert modes.needs_framing({"clips": {"vertical_live": True}}) is False
 
 
+def test_a_vertical_live_scored_as_gaming_leaves_the_person_on_screen_signal_neutral():
+    """Scored as a gaming or reaction stream, a Vertical Live would read the
+    game's characters (or the people in a watched video) as the streamer,
+    as the split would: the signal is left neutral, as it is there. A
+    Vertical Live that isn't keeps it, as every other stream does."""
+    assert modes.measures_reaction({"clips": {"vertical_live": True}})
+    assert not modes.measures_reaction({"clips": {"vertical_live": True, "gaming_scoring": True}})
+    assert not modes.measures_reaction({"clips": {"gaming": True}})
+    assert modes.measures_reaction({"clips": {}})
+
+
 # ---- the job option -------------------------------------------------------------------
 
 

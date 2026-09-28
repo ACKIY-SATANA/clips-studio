@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type FramePeople, type LayoutSource } from '../lib/api'
 import {
+  clearZone,
   elementOf,
   faceClear,
   OUT_H,
@@ -17,7 +18,7 @@ import {
   type PxBox
 } from '../lib/gamingLayout'
 import { t } from '../lib/i18n'
-import { dragLayer, type Box, type Handle, type Targets } from '../lib/layerDrag'
+import { dragLayer, keepOut, type Box, type Handle, type Targets } from '../lib/layerDrag'
 import { Maximize, Minimize, Restore } from './icons'
 import PlatformOverlay, { PLATFORM_UI } from './PlatformOverlay'
 import type { FrameBox, GamingSettings } from '../lib/types'
@@ -286,6 +287,9 @@ export default function GamingLayoutEditor({
   const frameRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const drag = useRef<Drag | null>(null)
+  // The box being dragged on the frame: the grid shows meanwhile, and for the
+  // game box the webcam's edges too.
+  const [placing, setPlacing] = useState<BoxRole | null>(null)
   // Guide lines on the frame while a box snaps, in fractions of the frame.
   const [frameGuides, setFrameGuides] = useState<Targets>({ xs: [], ys: [] })
   const dividerDrag = useRef(false)
@@ -392,6 +396,16 @@ export default function GamingLayoutEditor({
   const roles = rolesOf(preset)
   const camBox: FrameBox | null = camMode === 'draw' ? boxes.cam : camMode === 'auto' ? found : null
   const camUnknown = camMode === 'auto' && !found
+  // The webcams the layout shows, a little past their border (CAM_CLEAR, the
+  // same line the automatic game area keeps to): the game box snaps to their
+  // edges and stops there instead of going over them, so the webcam doesn't
+  // show in the game too. Fractions of the frame.
+  const camWalls: FrameBox[] = [camBox, roles.has('cam2') ? boxes.cam2 : null]
+    .filter((b): b is FrameBox => !!b)
+    .map(clearZone)
+  const game = boxes.game
+  const gameOverCam =
+    !!game && camWalls.some((w) => game[0] < w[0] + w[2] && w[0] < game[0] + game[2] && game[1] < w[1] + w[3] && w[1] < game[1] + game[3])
 
   const settingsFor = (p: string): LayoutSettings => ({
     preset: p,
@@ -441,6 +455,7 @@ export default function GamingLayoutEditor({
     e.stopPropagation()
     e.preventDefault()
     setActive(role)
+    setPlacing(role)
     const q = pos(e)
     const r = frameRef.current!.getBoundingClientRect()
     drag.current = { role, mode, ox: q.x, oy: q.y, box: [...box] as FrameBox, fw: r.width, fh: r.height }
@@ -456,15 +471,18 @@ export default function GamingLayoutEditor({
     // in the frame's own pixels, so "close" is the same across and down.
     const { fw, fh } = d
     const px = (b: FrameBox): Box => [b[0] * fw, b[1] * fh, b[2] * fw, b[3] * fh]
-    const xs = [0, fw / 2, fw]
-    const ys = [0, fh / 2, fh]
-    if (showGrid) {
-      xs.push(fw / 3, (2 * fw) / 3)
-      ys.push(fh / 3, (2 * fh) / 3)
+    // The grid shows while a box is dragged, so it snaps to it too.
+    const xs = [0, fw / 2, fw, fw / 3, (2 * fw) / 3]
+    const ys = [0, fh / 2, fh, fh / 3, (2 * fh) / 3]
+    const walls = d.role === 'game' ? camWalls.map(px) : []
+    for (const [x, y, w, h] of walls) {
+      xs.push(x, x + w)
+      ys.push(y, y + h)
     }
     const others: FrameBox[] = [...(panels ?? [])]
     for (const role of ['cam', 'cam2', 'game', 'ui'] as BoxRole[]) {
       if (role === d.role) continue
+      if (walls.length > 0 && (role === 'cam' || role === 'cam2')) continue // the game snaps to the walls instead
       const b = role === 'game' ? boxes.game ?? autoGame : role === 'cam' ? camBox : boxes[role]
       if (b && (role !== 'ui' || roles.has('ui')) && (role !== 'cam2' || roles.has('cam2'))) others.push(b)
     }
@@ -481,8 +499,10 @@ export default function GamingLayoutEditor({
       targets: e.altKey ? null : { xs, ys }, // hold Alt to place freely
       tol: 6
     })
-    setFrameGuides({ xs: lines.xs.map((v) => v / fw), ys: lines.ys.map((v) => v / fh) })
-    setBox(d.role, [box[0] / fw, box[1] / fh, box[2] / fw, box[3] / fh])
+    const kept = e.altKey || walls.length === 0 ? { box, guides: lines } : keepOut(px(d.box), d.mode, box, walls, [fw, fh])
+    const shown = kept.box === box ? lines : kept.guides
+    setFrameGuides({ xs: shown.xs.map((v) => v / fw), ys: shown.ys.map((v) => v / fh) })
+    setBox(d.role, [kept.box[0] / fw, kept.box[1] / fh, kept.box[2] / fw, kept.box[3] / fh])
   }
 
   // ---- the divider on the preview ------------------------------------------------------
@@ -800,10 +820,12 @@ export default function GamingLayoutEditor({
               onPointerMove={onMove}
               onPointerUp={() => {
                 drag.current = null
+                setPlacing(null)
                 setFrameGuides({ xs: [], ys: [] })
               }}
               onPointerCancel={() => {
                 drag.current = null
+                setPlacing(null)
                 setFrameGuides({ xs: [], ys: [] })
               }}
             >
@@ -922,7 +944,19 @@ export default function GamingLayoutEditor({
                     </div>
                   )
                 })}
-              {loaded && showGrid && (
+              {loaded && placing === 'game' && (
+                <div className="absolute inset-0 pointer-events-none">
+                  {camWalls.flatMap(([x, y, w, h], i) => [
+                    ...[x, x + w].map((v) => (
+                      <div key={`wx${i}${v}`} className="absolute top-0 bottom-0 border-l-2 border-dashed" style={{ left: `${v * 100}%`, borderColor: COLOUR.cam }} />
+                    )),
+                    ...[y, y + h].map((v) => (
+                      <div key={`wy${i}${v}`} className="absolute left-0 right-0 border-t-2 border-dashed" style={{ top: `${v * 100}%`, borderColor: COLOUR.cam }} />
+                    ))
+                  ])}
+                </div>
+              )}
+              {loaded && (showGrid || placing) && (
                 <div className="absolute inset-0 pointer-events-none">
                   {[1 / 3, 2 / 3].map((f) => (
                     <div key={`gx${f}`} className="absolute top-0 bottom-0 border-l border-dashed border-white/40" style={{ left: `${f * 100}%` }} />
@@ -982,6 +1016,11 @@ export default function GamingLayoutEditor({
               ))}
             </div>
             {note && <p className="text-xs text-accent">{note}</p>}
+            {gameOverCam && (
+              <p className="text-xs text-warn">
+                {t('The game box runs into the webcam, so part of the webcam shows in the game too. Drag the game box off it: it stops at the webcam’s dashed line (hold Alt to place it freely).')}
+              </p>
+            )}
           </div>
 
           {/* ---- the result ---- */}

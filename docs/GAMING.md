@@ -118,8 +118,14 @@ file) and **Choose a layout** opens:
   UI, Webcam 2), already on it when it opens, as in StreamLadder: drag a box
   to move it, any of its eight handles to resize it. Boxes snap to the frame's
   middle and edges, to each other and to the stream's solid panels (a game box
-  lands exactly on the chat bar's edge), with a guide line; **Grid** adds
-  thirds; Alt places a box freely. The Game box starts on the area the
+  lands exactly on the chat bar's edge), with a guide line. While a box is
+  dragged the grid shows (thirds and the middle) and it snaps to that too;
+  **Grid** keeps it on. Alt places a box freely. **The Game box stops at the
+  webcam**: while it's dragged, the webcam's edges show as dashed lines across
+  the frame, 1% of the frame past the webcam box so its border is left out
+  too, and the game box snaps to them and stops there instead of going over
+  the webcam, so the streamer isn't shown in the game as well. With Alt it
+  goes over, and a note says the webcam will show in the game. The Game box starts on the area the
   layout takes the game from; move it and it's yours (**Let Clips Kitty pick
   the game area** gives it back). The dashed line inside is exactly what the
   layout will show. **Snap to the webcam's border** pulls the webcam box out to
@@ -244,6 +250,10 @@ the screen with the most going on, and scrolling chat won every time. So:
 - **Whole game**: the biggest picture beside the webcam and the solid panels
   (below) that leaves them out, so the streamer isn't shown twice. With no
   webcam, the whole stream.
+- **Clear of the webcam's border**: both keep 1% of the frame away from the
+  webcam box on every side. The box stops just inside the overlay's border,
+  so a game cut right at its edge showed the border as a line down the game
+  (seen on a reaction whose webcam moved to the top left).
 - **Zoom to fill**: a crop at the region's shape, as tall as it can be while
   it stays clear of the webcam and the solid panels, on the middle of the game
   picture.
@@ -270,9 +280,12 @@ a HUD, not see-through chat.
 Standard scoring judges talk: hooks, opinions, drama, quotable lines. On a game
 stream the moment is usually something that happened in the game (a kill
 streak, a boss going down, a goal) and the reaction to it, often with little
-said. Gaming / Reaction scores that way, and so does **Gaming stream**, a
-checkbox beside **Vertical Live** for a live that was already vertical (in the
-Generate bar, a queued video's settings and a watched channel's). With neither
+said. Gaming / Reaction scores that way, and so does **Gaming / reaction
+stream**, a checkbox beside **Vertical Live** for a live that was already
+vertical (in the Generate bar, a queued video's settings and a watched
+channel's), whether it's a game or reacting to videos. Everything below
+applies to both; only the framing differs (a Vertical Live keeps its own
+9:16 layout, so the webcam and game area aren't needed). With neither
 on, scoring is exactly the standard one.
 
 What goes into it (research: stream-highlight papers on chat, audio and
@@ -399,9 +412,11 @@ not the whole stream, and only with a local model that takes images: with
 gemma:7b or a cloud AI, a menu chat reacted to is caught only if its words are
 on the list. Nothing here has been run on a whole quiet vertical stream yet.
 
-In gaming mode the "reaction" signal (is a person on screen, being
-emphasised?) is left neutral in the split: on a game stream it counts game
-characters as people, and a top-down game as nobody at all.
+Scored as gaming, the "reaction" signal (is a person on screen, being
+emphasised?) is left neutral, in the split and in a Vertical Live alike: on a
+game stream it counts game characters as people, and a top-down game as
+nobody at all; on a reaction stream, the people in the video being watched.
+A Vertical Live without **Gaming / reaction stream** keeps it.
 
 ## Tested on
 

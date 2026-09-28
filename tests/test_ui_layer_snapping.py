@@ -16,14 +16,14 @@ TARGETS = {"xs": [0, 540, 1080], "ys": [0, 960, 1920]}
 OPTS = {"aspect": None, "canvas": [1080, 1920], "minW": 130, "minH": 38, "targets": TARGETS, "tol": 22}
 
 
-def _drag(tmp_path, calls):
+def _drag(tmp_path, calls, fn="dragLayer"):
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node isn't available")
     (tmp_path / "layerDrag.ts").write_text((LIB / "layerDrag.ts").read_text(encoding="utf-8"), encoding="utf-8")
     script = (f"const m = await import({json.dumps((tmp_path / 'layerDrag.ts').as_uri())});"
               f"const calls = {json.dumps(calls)};"
-              "console.log(JSON.stringify(calls.map(c => m.dragLayer(...c))));")
+              f"console.log(JSON.stringify(calls.map(c => m.{fn}(...c))));")
     r = subprocess.run([node, "--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
                        capture_output=True, text=True, timeout=60)
     if r.returncode != 0 and "strip-types" in r.stderr:
@@ -81,3 +81,33 @@ def test_a_layer_never_leaves_the_short_or_shrinks_past_the_minimum(tmp_path):
                                       {**OPTS, "aspect": 1.0, "targets": None}]])
     assert moved["box"] == [680, 1520, 400, 400]
     assert shrunk["box"][2] == 130
+
+
+# ---- the game box on the video frame keeps clear of the webcam ------------------------
+
+FRAME = [960, 540]
+WALL = [600, 300, 360, 240]          # a webcam bottom right, grown a little past its border
+
+
+def test_a_game_box_moved_into_the_webcam_stops_at_its_edge(tmp_path):
+    start = [0, 0, 500, 540]
+    (got,) = _drag(tmp_path, [[start, "move", [150, 0, 500, 540], [WALL], FRAME]], fn="keepOut")
+    assert got["box"] == [100, 0, 500, 540] and got["guides"]["xs"] == [600]
+
+
+def test_a_game_box_pulled_into_the_webcam_stops_at_its_edge(tmp_path):
+    start = [0, 0, 500, 540]
+    (edge, corner) = _drag(tmp_path, [[start, "e", [0, 0, 700, 540], [WALL], FRAME],
+                                      [[0, 0, 500, 250], "se", [0, 0, 700, 400], [WALL], FRAME]], fn="keepOut")
+    assert edge["box"] == [0, 0, 600, 540] and edge["guides"]["xs"] == [600]
+    assert corner["box"] == [0, 0, 600, 400]            # stopped on the side that keeps the most of it
+
+
+def test_a_game_box_already_over_the_webcam_is_not_held(tmp_path):
+    (got,) = _drag(tmp_path, [[[0, 0, 960, 540], "move", [0, 0, 960, 540], [WALL], FRAME]], fn="keepOut")
+    assert got["box"] == [0, 0, 960, 540] and got["guides"] == {"xs": [], "ys": []}
+
+
+def test_a_game_box_that_misses_the_webcam_goes_where_it_was_put(tmp_path):
+    (got,) = _drag(tmp_path, [[[0, 0, 400, 250], "move", [100, 20, 400, 250], [WALL], FRAME]], fn="keepOut")
+    assert got["box"] == [100, 20, 400, 250]

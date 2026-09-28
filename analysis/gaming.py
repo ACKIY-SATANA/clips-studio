@@ -11,7 +11,7 @@ little said at all. This module is the gaming profile's knowledge:
 - the weights the fused score uses.
 
 It only applies when a job scores as a gaming stream (core.modes.gaming_scoring):
-Gaming / Reaction, or "Gaming stream" with Vertical Live. Pure Python: the
+Gaming / Reaction, or "Gaming / reaction stream" with Vertical Live. Pure Python: the
 per-second signals live in analysis/chat_moments.py and fusion.
 """
 

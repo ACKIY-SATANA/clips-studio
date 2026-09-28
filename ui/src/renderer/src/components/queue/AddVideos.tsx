@@ -325,11 +325,11 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
     return next
   }
 
-  /** Beside Vertical Live: score this vertical live as a gaming stream. */
+  /** Beside Vertical Live: score this vertical live as a gaming or reaction stream. */
   const gamingStream = (slot: Slot): JSX.Element => (
     <label
       className="flex items-center gap-2 text-sm shrink-0 whitespace-nowrap cursor-pointer"
-      title={t('Score this as a gaming stream: in-game moments (a kill streak, a boss going down, a goal) and the reactions to them count, from chat and your voice, even when you say little.')}
+      title={t('Score this as a gaming or reaction stream: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
     >
       <input
         type="checkbox"
@@ -347,7 +347,7 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
           replaceOptions(slot.key, next)
         }}
       />
-      {t('Gaming stream')} <span className="text-muted">{t('(game moments)')}</span>
+      {t('Gaming / reaction stream')}
     </label>
   )
 

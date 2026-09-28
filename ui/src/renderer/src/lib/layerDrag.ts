@@ -119,3 +119,60 @@ export function dragLayer(start: Box, handle: Handle, dx: number, dy: number, o:
   const y = north ? y0 + h0 - h : south ? y0 : y0 + (h0 - h) / 2
   return { box: [clamp(x, 0, W - w), clamp(y, 0, H - h), w, h], guides }
 }
+
+const overlaps = (a: Box, b: Box): boolean =>
+  a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]
+
+/** A box placed on the video frame that keeps clear of `walls` (for the game
+ *  box: the webcams, a little past their border): one that started clear
+ *  stops at a wall's edge instead of going over it, so the webcam doesn't show
+ *  in the game too. Moved, it goes to the nearest side of the wall that fits
+ *  the frame; resized, the edge being pulled stops at the wall. A box already
+ *  over a wall isn't held by it, and when nothing fits the box goes where it
+ *  was put. `next` is where dragLayer put it; the wall edges it stopped at come
+ *  back as guides, to draw. */
+export function keepOut(start: Box, handle: Handle, next: Box, walls: Box[], canvas: [number, number]): DragResult {
+  const [W, H] = canvas
+  const guides: Targets = { xs: [], ys: [] }
+  const holding = walls.filter((w) => !overlaps(start, w))
+  let box = next
+  for (const [wx, wy, ww, wh] of holding) {
+    if (!overlaps(box, [wx, wy, ww, wh])) continue
+    const [x, y, w, h] = box
+    const options: { box: Box; line: number; axis: 'xs' | 'ys' }[] = []
+    if (handle === 'move') {
+      options.push(
+        { box: [wx - w, y, w, h], line: wx, axis: 'xs' },
+        { box: [wx + ww, y, w, h], line: wx + ww, axis: 'xs' },
+        { box: [x, wy - h, w, h], line: wy, axis: 'ys' },
+        { box: [x, wy + wh, w, h], line: wy + wh, axis: 'ys' }
+      )
+    } else {
+      const [sx, sy, sw, sh] = start
+      if (handle.includes('e') && sx + sw <= wx) options.push({ box: [x, y, wx - x, h], line: wx, axis: 'xs' })
+      if (handle.includes('w') && sx >= wx + ww)
+        options.push({ box: [wx + ww, y, x + w - (wx + ww), h], line: wx + ww, axis: 'xs' })
+      if (handle.includes('s') && sy + sh <= wy) options.push({ box: [x, y, w, wy - y], line: wy, axis: 'ys' })
+      if (handle.includes('n') && sy >= wy + wh)
+        options.push({ box: [x, wy + wh, w, y + h - (wy + wh)], line: wy + wh, axis: 'ys' })
+    }
+    const fits = options.filter(
+      (o) =>
+        o.box[2] > 0 &&
+        o.box[3] > 0 &&
+        o.box[0] >= 0 &&
+        o.box[1] >= 0 &&
+        o.box[0] + o.box[2] <= W &&
+        o.box[1] + o.box[3] <= H &&
+        !holding.some((other) => overlaps(o.box, other))
+    )
+    if (fits.length === 0) continue
+    // Moved: the least distance from where it was put. Resized: the most of it kept.
+    const cost = (o: (typeof fits)[number]): number =>
+      handle === 'move' ? Math.abs(o.box[0] - x) + Math.abs(o.box[1] - y) : -(o.box[2] * o.box[3])
+    const best = fits.reduce((a, b) => (cost(b) < cost(a) ? b : a))
+    box = best.box
+    guides[best.axis].push(best.line)
+  }
+  return { box, guides }
+}

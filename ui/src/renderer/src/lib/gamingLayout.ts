@@ -14,6 +14,10 @@ const HEADROOM = LAYOUTS.headroom
 const MAX_SHIFT = 0.3
 const PIP_GAP = 24
 const PIP_MARGIN = 0.02
+/** Of the frame, on every side of a webcam the game keeps clear of: a webcam
+ *  box sits just inside the overlay's border, so a game cut right at its edge
+ *  showed the border. The frame editor's game box stops at the same line. */
+export const CAM_CLEAR = 0.01
 export const MIN_PLACE = 0.12
 /** Layers moved and resized on the Short itself. */
 export type Placeable = 'cam' | 'cam2' | 'ui'
@@ -166,6 +170,12 @@ function clampBox(box: FrameBox, srcW: number, srcH: number): PxBox {
   const x1 = Math.min(Math.max(x + w, 0), 1) * srcW
   const y1 = Math.min(Math.max(y + h, 0), 1) * srcH
   return [pos(x0), pos(y0), even(Math.max(2, x1 - x0)), even(Math.max(2, y1 - y0))]
+}
+
+/** A webcam box grown by CAM_CLEAR on every side: what the game keeps clear of. */
+export function clearZone(box: FrameBox): FrameBox {
+  const [x, y, w, h] = box
+  return [x - CAM_CLEAR, y - CAM_CLEAR, w + 2 * CAM_CLEAR, h + 2 * CAM_CLEAR]
 }
 
 function aligned(srcW: number, cropW: number, align: string): number {
@@ -434,7 +444,7 @@ export function plan(
   const places = s.places ?? {}
   const shownCams = (['cam', 'cam2'] as const)
     .filter((r) => camBoxes[r] && (r === 'cam' || uses.has(r)))
-    .map((r) => camBoxes[r] as PxBox)
+    .map((r) => clampBox(clearZone(s[r] as FrameBox), srcW, srcH))
   const panels = (s.panels ?? []).map((b) => clampBox(b, srcW, srcH))
   const elements: Element[] = []
 

@@ -115,7 +115,7 @@ def test_settings_from_before_layouts_are_half_with_the_game_right_against_the_w
     assert p.preset == "half" and p.order == "game_top" and p.element("game").fit == "contain"
     game, cam = p.element("game").dest, p.element("cam").dest
     top = TIKTOK["top"]                                          # blur above, clear of the top bar
-    assert game == (0, top, 1080, 730) and cam == (0, top + 730, 1080, 960)
+    assert game == (0, top, 1080, 740) and cam == (0, top + 740, 1080, 960)
 
 
 def test_a_zoomed_game_leaves_the_webcam_and_edge_chat_out():
@@ -159,7 +159,8 @@ def test_a_whole_game_leaves_the_black_chat_bar_out():
 
 
 def test_without_panels_the_zoom_is_the_same_centred_crop_as_before():
-    assert _plan("split", game_fit="fill").element("game").src == (480, 0, 978, 1080)   # slid off the webcam
+    # Slid off the webcam, and 1% more: its border stays out of the game (layout.CAM_CLEAR).
+    assert _plan("split", game_fit="fill").element("game").src == (498, 0, 978, 1080)
     assert _plan("fullscreen", cam=None).element("game").src == (656, 0, 606, 1080)
 
 

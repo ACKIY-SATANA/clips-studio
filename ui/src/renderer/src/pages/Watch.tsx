@@ -409,7 +409,7 @@ export default function Watch({
               </label>
             ))}
             {addClip.vertical_live && (
-              <label className="flex items-center gap-2 cursor-pointer" title={t('Score this as a gaming stream: in-game moments (a kill streak, a boss going down, a goal) and the reactions to them count, from chat and your voice, even when you say little.')}>
+              <label className="flex items-center gap-2 cursor-pointer" title={t('Score this as a gaming or reaction stream: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}>
                 <input
                   type="checkbox"
                   className="size-4 accent-[#38BDF8]"
@@ -421,7 +421,7 @@ export default function Watch({
                     setAddClip(next)
                   }}
                 />
-                {t('Gaming stream')}
+                {t('Gaming / reaction stream')}
               </label>
             )}
             <span className="text-xs text-muted">

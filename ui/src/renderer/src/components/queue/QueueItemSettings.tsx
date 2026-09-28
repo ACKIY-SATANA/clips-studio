@@ -182,7 +182,7 @@ export default function QueueItemSettings({
           },
           'A livestream that was already vertical when it was streamed: keeps its own 9:16 layout, no face tracking or reframing. For a watched channel, videos with no vertical version are skipped.'
         )}
-        {verticalLive && toggle('Gaming stream', '(game moments)', gamingScoring, setGamingScoring, 'Score this as a gaming stream: in-game moments (a kill streak, a boss going down, a goal) and the reactions to them count, from chat and your voice, even when you say little.')}
+        {verticalLive && toggle('Gaming / reaction stream', '', gamingScoring, setGamingScoring, 'Score this as a gaming or reaction stream: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
         {toggle(
           'Podcast',
           '(multi-cam)',

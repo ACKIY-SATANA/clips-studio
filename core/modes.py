@@ -68,8 +68,8 @@ def is_gaming(config_or_opts: dict | None) -> bool:
 def gaming_scoring(config_or_opts: dict | None) -> bool:
     """Score this job as a gaming stream (analysis/gaming.py): in-game moments
     and the reactions to them count, even when little is said. Gaming /
-    Reaction always does; "Gaming stream" asks for it with any other layout,
-    such as Vertical Live. Off unless asked for."""
+    Reaction always does; "Gaming / reaction stream" asks for it with any
+    other layout, such as Vertical Live. Off unless asked for."""
     if not config_or_opts:
         return False
     if is_gaming(config_or_opts) or config_or_opts.get("gaming_scoring"):
@@ -144,6 +144,16 @@ def needs_framing(config: dict) -> bool:
     """Whether a job's clips need framing decided (face tracking, TalkNet,
     layout). Only framing: importance analysis runs either way."""
     return not is_vertical_live(config)
+
+
+def measures_reaction(config: dict | None) -> bool:
+    """Whether scoring measures "a person on screen, being emphasised"
+    (analysis/fusion.py). Not for a stream scored as gaming, whatever its
+    layout, Vertical Live included: it reads a game's characters (and the
+    people in a video being reacted to) as the streamer, and a top-down game
+    as nobody; the streamer's reaction is in their voice, which is scored
+    anyway. A Vertical Live that isn't scored as gaming keeps it."""
+    return not gaming_scoring(config)
 
 
 def orientation(width: int, height: int) -> str:
