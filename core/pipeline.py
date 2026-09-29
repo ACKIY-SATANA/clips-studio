@@ -259,8 +259,10 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
                     config = {**config, "clips": {**config["clips"], "gaming_layout": saved}}
     except Exception as e:
         print(f"      (creator tagging failed: {e})")
-    if db.video_status(video.video_id) == "done" and not force:
-        print("      Already processed (status: done). Use --force to redo.")
+    # Shorts made before, not just "done": a Longform run marks a video done
+    # too, and its Shorts are still to be made (#98).
+    if db.shorts_made(video.video_id) and not force:
+        print("      Already processed (Shorts made before). Use --force to redo.")
         return []
     db.set_video_status(video.video_id, "downloaded")
     cancel.check(video.video_id)

@@ -45,6 +45,7 @@ export default function QueueItemSettings({
   const [gaming, setGaming] = useState(Boolean(s.gaming))
   const [longform, setLongform] = useState(Boolean(s.longform))
   const [longformMode, setLongformMode] = useState(s.longform?.mode ?? 'short_clips')
+  const [longformShorts, setLongformShorts] = useState(Boolean(s.longform?.shorts))
   const [watermark, setWatermark] = useState(Boolean(s.watermark_profile_id))
   const [style, setStyle] = useState<Required<CaptionStyle>>({
     ...DEFAULT_CAPTION_STYLE,
@@ -76,7 +77,7 @@ export default function QueueItemSettings({
       else clear.push('gaming_scoring')
       if (gaming) patch.gaming = true
       else clear.push('gaming', 'gaming_layout', 'gaming_remember')
-      if (longform) patch.longform = { mode: longformMode }
+      if (longform) patch.longform = { mode: longformMode, ...(longformShorts ? { shorts: true } : {}) }
       else clear.push('longform')
       if (watermark) {
         // Which branding profile is a single app-wide choice (Generate bar /
@@ -109,6 +110,7 @@ export default function QueueItemSettings({
     gaming,
     longform,
     longformMode,
+    longformShorts,
     watermark,
     style
   ])
@@ -249,6 +251,20 @@ export default function QueueItemSettings({
             <option value="highlights">Highlights (best-of, 8-20 min by quality)</option>
             <option value="edited_stream">Edited Stream (downtime removed)</option>
           </select>
+          <label
+            className="flex items-center gap-2 text-sm cursor-pointer"
+            title={t(
+              'Makes the vertical 9:16 Shorts of this video too, in the same run: the Shorts first, then the 16:9 output. The horizontal clips are marked 16:9.'
+            )}
+          >
+            <input
+              type="checkbox"
+              className="size-4 accent-[#38BDF8]"
+              checked={longformShorts}
+              onChange={(e) => setLongformShorts(e.target.checked)}
+            />
+            {t('Also make 9:16 Shorts')}
+          </label>
         </div>
       )}
 

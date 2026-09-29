@@ -63,7 +63,10 @@ export function describeOptions(o: JobOptions | undefined): string[] {
   if (o.podcast) chips.push('Podcast')
   if (o.vertical_live) chips.push('Vertical Live')
   if (o.gaming) chips.push('Gaming / Reaction')
-  if (o.longform) chips.push(`Longform · ${String(o.longform.mode ?? '').replace(/_/g, ' ')}`)
+  if (o.longform)
+    chips.push(
+      `Longform · ${String(o.longform.mode ?? '').replace(/_/g, ' ')}${o.longform.shorts ? ' + 9:16 Shorts' : ''}`
+    )
   if (o.watermark_profile_id) chips.push('Watermark')
   if (o.filter && o.filter !== 'none') chips.push(`Filter · ${o.filter}`)
   if (typeof o.max_clips === 'number') chips.push(`Max ${o.max_clips} clips`)

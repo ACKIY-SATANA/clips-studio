@@ -116,8 +116,18 @@ const PREF = {
   gaming: 'generate-gaming',
   gaming_scoring: 'generate-gaming-scoring',
   longform: 'generate-longform',
-  longform_mode: 'generate-longform-mode'
+  longform_mode: 'generate-longform-mode',
+  longform_shorts: 'generate-longform-shorts'
 } as const
+
+/** "Also make 9:16 Shorts" under Longform, as last chosen. */
+function rememberedShorts(): boolean {
+  try {
+    return localStorage.getItem(PREF.longform_shorts) === 'true'
+  } catch {
+    return false
+  }
+}
 
 function remember(key: ToggleKey, on: boolean, mode?: string): void {
   try {
@@ -151,7 +161,10 @@ export function seedOptions(): JobOptions {
   if (localStorage.getItem(PREF.long_clips) === 'true') o.long_clips = true
   if (localStorage.getItem(PREF.podcast) === 'true') o.podcast = true
   if (localStorage.getItem(PREF.longform) === 'true') {
-    o.longform = { mode: localStorage.getItem(PREF.longform_mode) ?? 'short_clips' }
+    o.longform = {
+      mode: localStorage.getItem(PREF.longform_mode) ?? 'short_clips',
+      ...(rememberedShorts() ? { shorts: true } : {})
+    }
   }
   // Vertical Live can't be combined with Podcast or Longform; if an older
   // remembered pair says otherwise, those win and it stays off.
@@ -297,7 +310,11 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
         delete next.gaming_remember
       }
     } else if (key === 'longform') {
-      if (on) next.longform = { mode: next.longform?.mode ?? 'short_clips' }
+      if (on)
+        next.longform = {
+          mode: next.longform?.mode ?? 'short_clips',
+          ...(rememberedShorts() ? { shorts: true } : {})
+        }
       else delete next.longform
     } else if (key === 'watermark') {
       const { profileId } = watermarkSelection()
@@ -323,6 +340,18 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
     }
     remember(key, on, next.longform?.mode)
     return next
+  }
+
+  /** Longform's "Also make 9:16 Shorts": both formats from one run (#98). */
+  const setLongformShorts = (slot: Slot, on: boolean): void => {
+    if (!slot.options.longform) return
+    const { shorts: _drop, ...rest } = slot.options.longform
+    patchOptions(slot.key, { longform: on ? { ...rest, shorts: true } : rest })
+    try {
+      localStorage.setItem(PREF.longform_shorts, String(on))
+    } catch {
+      // Not remembered for next time; this video still gets it.
+    }
   }
 
   /** Under Vertical Live, like Longform's output: what the live is. Gaming /
@@ -414,7 +443,7 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
       // pipeline's layout on the way in, which is real work per file.
       for (const slot of list.filter((s) => s.path)) {
         try {
-          await api.addLocalVideo({
+          const res = await api.addLocalVideo({
             path: slot.path as string,
             title: slot.title,
             channel: channel.trim(),
@@ -422,6 +451,12 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
             ...slot.options,
             ...(force ? { force: true } : {})
           })
+          // The same file clipped before: offered "Make clips again", as a link is.
+          if (res.already_processed) {
+            done.push(slot)
+            failures.set(slot.path as string, REASONS.already_processed)
+            continue
+          }
           ok += 1
         } catch (e) {
           failures.set(slot.path as string, e instanceof Error ? e.message : String(e))
@@ -586,7 +621,9 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
                 <select
                   className="input !w-64"
                   value={slot.options.longform.mode}
-                  onChange={(e) => patchOptions(slot.key, { longform: { mode: e.target.value } })}
+                  onChange={(e) =>
+                    patchOptions(slot.key, { longform: { ...slot.options.longform, mode: e.target.value } })
+                  }
                   aria-label={`Longform output type for video ${n + 1}`}
                 >
                   <option value="short_clips">Short Clips (up to 60s, horizontal)</option>
@@ -594,6 +631,20 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
                   <option value="highlights">Highlights (best-of, 8-20 min by quality)</option>
                   <option value="edited_stream">Edited Stream (downtime removed)</option>
                 </select>
+                <label
+                  className="flex items-center gap-2 text-sm cursor-pointer"
+                  title={t(
+                    'Makes the vertical 9:16 Shorts of this video too, in the same run: the Shorts first, then the 16:9 output. The horizontal clips are marked 16:9.'
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[#38BDF8]"
+                    checked={Boolean(slot.options.longform.shorts)}
+                    onChange={(e) => setLongformShorts(slot, e.target.checked)}
+                  />
+                  {t('Also make 9:16 Shorts')}
+                </label>
               </div>
             )}
 

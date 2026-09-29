@@ -48,7 +48,9 @@ export function applyEvent(p: JobProgress, e: StudioEvent): JobProgress {
       return { ...emptyProgress }
   }
   if (e.type !== 'progress') return p
-  if (e.stage === 'done') return { ...emptyProgress }
+  // The Shorts pass of a both-formats job ending isn't the job ending: the
+  // 16:9 pass carries on from the middle of the bar.
+  if (e.stage === 'done') return e.span && e.span[1] < 1 ? p : { ...emptyProgress }
   // A YouTube upload is not the video pipeline. Without this the unknown-stage
   // branch below would set active:true and light up the global processing bar
   // with a stale label for the duration of every publish.
@@ -65,7 +67,8 @@ export function applyEvent(p: JobProgress, e: StudioEvent): JobProgress {
   else if (typeof e.clip === 'number' && e.total) within = (e.clip - 1) / e.total
   else if (typeof e.current === 'number' && e.total) within = Math.max(0, e.current - 1) / e.total
 
-  const fraction = Math.min(0.99, stage.base + stage.weight * Math.min(1, Math.max(0, within)))
+  const [lo, hi] = e.span ?? [0, 1]
+  const fraction = Math.min(0.99, lo + (hi - lo) * (stage.base + stage.weight * Math.min(1, Math.max(0, within))))
   // Remote rendering adds where the clip is; a later local event keeps it
   // until the stage moves on.
   const remote = e.stage === 'render' ? (e.remote ?? p.remote) : undefined

@@ -770,7 +770,9 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         # tell the UI instead, so it can offer "process again with current
         # settings" (e.g. the same video in both 60s+ and regular modes).
         # Longform jobs skip the guard: making longform outputs of an
-        # already-processed video is the normal case, not a re-run.
+        # already-processed video is the normal case, not a re-run. And a
+        # video with only Longform output has no Shorts yet, so asking for
+        # them isn't a re-run either (#98).
         from sources.dispatch import identify
 
         vid = ""
@@ -779,10 +781,10 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             if vid:
                 d0 = db()
                 try:
-                    status = d0.video_status(vid)
+                    made = d0.shorts_made(vid)
                 finally:
                     d0.close()
-                if status == "done":
+                if made:
                     return {"job_id": None, "already_processed": True, "video_id": vid}
         elif not body.longform:
             _, vid = identify(body.url)
@@ -925,6 +927,11 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         platform = body.platform if body.platform in ("youtube", "twitch", "kick") else "youtube"
         d = db()
         try:
+            # The same file added again: say so, as for a pasted link, so the
+            # app can offer "Make clips again". Queued anyway, it finished in
+            # two seconds with nothing made and no word why (#98).
+            if not body.force and not body.longform and d.shorts_made(vid):
+                return {"job_id": None, "already_processed": True, "video_id": vid}
             if queue.capacity(d) <= 0:
                 raise HTTPException(
                     409,
@@ -1128,7 +1135,9 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
                     skipped.append({"url": url, "reason": "unrecognized", "detail": str(e)[:200]})
                     continue
                 if vid and not item.force:
-                    if d.video_status(vid) == "done":
+                    # As POST /jobs: Longform output of a processed video is
+                    # the normal case, and Shorts of a Longform-only one too.
+                    if not item.longform and d.shorts_made(vid):
                         skipped.append({"url": url, "reason": "already_processed", "video_id": vid})
                         continue
                     if queue.duplicate_of(d, vid) is not None:

@@ -112,6 +112,11 @@ class Worker(threading.Thread):
             # now — never attribute them to it.
             job_id = None if event.get("prefetch") else current_job_id[0]
             if job_id is not None:
+                span = self._span(job_id)
+                if span is not None:
+                    # A job making both formats: the app draws this pass on
+                    # its part of the bar, as the worker's own figure does.
+                    event = {**event, "span": list(span)}
                 self._record_progress(job_id, event)
             broadcaster.publish({"type": "progress", "job_id": job_id, **event})
 
@@ -233,7 +238,10 @@ class Worker(threading.Thread):
                         row = db.get_branding(int(payload["watermark_profile_id"]))
                         if row:
                             cfg["clips"]["watermark"] = json.loads(row["config"])
-                    if payload.get("longform"):
+                    if (payload.get("longform") or {}).get("shorts"):
+                        # "Also make 9:16 Shorts": both formats in one job.
+                        self._both_formats(db, job["id"], vid, payload, cfg)
+                    elif payload.get("longform"):
                         # Separate longform system (1920x1080 horizontal),
                         # built on the same stages — Shorts path untouched.
                         from longform.process import process_longform
@@ -288,13 +296,17 @@ class Worker(threading.Thread):
             within = (event["clip"] - 1) / event["total"]
         elif isinstance(event.get("current"), int) and event.get("total"):
             within = max(0, event["current"] - 1) / event["total"]
-        fraction = min(0.99, base + weight * min(1.0, max(0.0, within)))
+        fraction = base + weight * min(1.0, max(0.0, within))
         if event.get("stage") == "render" and event.get("clip") and event.get("total"):
             label = f"Rendering clip {event['clip']}/{event['total']}"
         with self._progress_lock:
             entry = self._progress.get(job_id)
             if entry is None:
                 return
+            # The part of the bar this pass owns: all of it, except in a job
+            # that makes both formats (_both_formats).
+            lo, hi = entry.get("span", (0.0, 1.0))
+            fraction = min(0.99, lo + (hi - lo) * fraction)
             entry["fraction"] = max(entry["fraction"], fraction)  # never moves backwards
             entry["stage"] = event.get("stage") or ""
             entry["label"] = label
@@ -609,6 +621,40 @@ class Worker(threading.Thread):
             return
         cfg["llm"]["plan_automation"] = db.get_flag(signin.AUTOMATION_FLAG + plan.id) == "1"
         plan.check_job(cfg["llm"])
+
+    def _span(self, job_id: int) -> tuple[float, float] | None:
+        with self._progress_lock:
+            entry = self._progress.get(job_id)
+            return entry.get("span") if entry is not None else None
+
+    def _progress_span(self, job_id: int, lo: float, hi: float) -> None:
+        with self._progress_lock:
+            entry = self._progress.get(job_id)
+            if entry is not None:
+                entry["span"] = (lo, hi)
+
+    def _both_formats(self, db: StateDB, job_id: int, vid: str, payload: dict, cfg: dict) -> None:
+        """9:16 Shorts, then the 16:9 output, of one video in one job (#98).
+
+        The Shorts come first, made exactly as a Shorts-only job makes them;
+        ones already made skip themselves in seconds. Each pass gets half the
+        progress bar, which never moves back and would otherwise sit at 99%
+        through the whole second pass. If the 16:9 pass fails, the Shorts are
+        kept, the video stays processed, and the job says which part failed."""
+        from core.pipeline import process_video
+        from longform.process import process_longform
+
+        self._progress_span(job_id, 0.0, 0.5)
+        process_video(payload["url"], copy.deepcopy(cfg), db, force=payload.get("force", False))
+        self._progress_span(job_id, 0.5, 1.0)
+        try:
+            process_longform(payload["url"], cfg, db, payload["longform"])
+        except CancelledError:
+            raise
+        except Exception as e:
+            if vid:
+                db.set_video_status(vid, "done")  # the Shorts pass finished
+            raise RuntimeError(f"The 9:16 Shorts were made; the 16:9 pass failed: {e}") from e
 
     def _rerender_clip(self, db: StateDB, payload: dict) -> None:
         """Re-render one clip from the original source video, with optionally

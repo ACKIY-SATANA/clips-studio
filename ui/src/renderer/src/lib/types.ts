@@ -289,7 +289,8 @@ export interface JobOptions {
   gaming_layout?: GamingSettings
   /** ...and kept for this creator's next videos. */
   gaming_remember?: boolean
-  longform?: { mode: string } | null
+  /** `shorts`: also make the 9:16 Shorts, in the same job (#98). */
+  longform?: { mode: string; shorts?: boolean } | null
   watermark_profile_id?: number | null
   filter?: FilterName
   min_score?: number
@@ -544,6 +545,9 @@ export interface StudioEvent {
   title?: string
   clip?: number
   total?: number
+  /** Progress events of a job making both formats (#98): the part of the
+   *  bar this pass fills, [0, 0.5] for the Shorts and [0.5, 1] for the 16:9. */
+  span?: [number, number]
   /** Remote rendering only: "on Gaming PC · uploading 62%", "waiting for Gaming PC". */
   remote?: string
   clips?: number

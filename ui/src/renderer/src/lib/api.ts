@@ -103,7 +103,7 @@ export const api = {
       captions?: boolean
       longClips?: boolean
       filter?: FilterName
-      longform?: { mode: string } | null
+      longform?: { mode: string; shorts?: boolean } | null
       watermarkProfileId?: number | null
       podcast?: boolean
       verticalLive?: boolean
@@ -131,7 +131,7 @@ export const api = {
   addLocalVideo: (
     opts: { path: string; title?: string; channel?: string; platform?: string; source_url?: string } & JobOptions
   ) =>
-    request<{ job_id: number; video_id: string }>('/videos/local', {
+    request<{ job_id: number | null; video_id: string; already_processed?: boolean }>('/videos/local', {
       method: 'POST',
       body: JSON.stringify({
         path: opts.path,

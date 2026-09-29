@@ -279,6 +279,11 @@ were often broken in a way that only showed up on somebody else's machine.
   edge, and the size is remembered. It never grows past the space there is, so
   the box you type into stays on screen.
 
+- **16:9 and 9:16 clips of the same video in one go.** With Longform on, tick
+  **Also make 9:16 Shorts** beside *Longform output*: the video's vertical Shorts
+  are made first, then the 16:9 output, in one run. Each clip is its own card, and
+  the horizontal ones are marked 16:9.
+
 ### Fixed
 
 - **Videos no longer fail at "Transcribing" on NVIDIA PCs** with "Library
@@ -296,6 +301,12 @@ were often broken in a way that only showed up on somebody else's machine.
   watching when the window is closed" ticked, Clips Kitty went to the system tray
   even with watching switched off or no channels on. It now stays in the tray only
   while it's actually watching a channel.
+
+- **Adding a video again for the other format makes its clips.** After 16:9
+  (Longform) clips of a video, adding it again for 9:16 Shorts finished in two
+  seconds with nothing made. It now makes the Shorts, and Longform after Shorts no
+  longer asks "already processed". A file you've really made Shorts of before
+  now offers **Process again**, as a pasted link does, instead of a silent run.
 
 - **Esc in the Gaming / Reaction layout editor no longer closes the clip editor
   behind it.** Opened from the clip editor, Esc closed both; it now leaves

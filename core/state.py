@@ -826,6 +826,26 @@ class StateDB:
         ).fetchone()
         return row["status"] if row else None
 
+    def shorts_made(self, video_id: str) -> bool:
+        """Whether a 9:16 Shorts run has finished on this video.
+
+        What "already processed" means for a Shorts request. The status alone
+        can't say: a Longform run marks the video done too, and made no Shorts
+        (#98). A Shorts run records its outcome; videos from before that are
+        known by a clip without a Longform profile."""
+        row = self.conn.execute(
+            "SELECT status, outcome FROM videos WHERE video_id = ?", (video_id,)
+        ).fetchone()
+        if row is None or row["status"] != "done":
+            return False
+        if row["outcome"]:
+            return True
+        return self.conn.execute(
+            """SELECT 1 FROM clips WHERE video_id = ?
+               AND COALESCE(render_opts, '') NOT LIKE '%"profile"%' LIMIT 1""",
+            (video_id,),
+        ).fetchone() is not None
+
     def upsert_video(
         self,
         video_id: str,
