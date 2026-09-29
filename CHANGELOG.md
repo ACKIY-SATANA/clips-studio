@@ -284,6 +284,24 @@ were often broken in a way that only showed up on somebody else's machine.
   are made first, then the 16:9 output, in one run. Each clip is its own card, and
   the horizontal ones are marked 16:9.
 
+- **Tell it what the clips should be about.** Say it in the box at the bottom when
+  you ask for a video: "clip this stream, make sure you include when I died to the
+  boss, prioritize funny moments, and more from the WoW part around 1:35". The clips
+  are still picked the usual way; the direction only adds to it:
+  - points for clips about the topic or moment you named (the AI adds the words it
+    comes up with, so "WoW" also finds "Azeroth"), inside a time you gave ("1:35-1:55",
+    "around 45 minutes", "near the end"), or with the funny, laughing, hype or
+    reaction moments you asked for;
+  - a look at moments there the first pass skipped, across the whole stream;
+  - a must-have ("make sure", "at least two clips of") that was actually said is kept,
+    even under the quality bar or a clip cap.
+
+  It never lowers a score or removes a clip, so "avoid the intro" is noted rather than
+  applied. A must-have that was never said is reported ("Couldn't find: ...") and no
+  clip is made up for it. The video's clip page shows what was understood, and each
+  clip says what it got extra points for. A video asked for without a direction is
+  processed exactly as before. Works with every AI setup; on the API and MCP it's `focus`.
+
 ### Fixed
 
 - **Videos no longer fail at "Transcribing" on NVIDIA PCs** with "Library
@@ -307,6 +325,11 @@ were often broken in a way that only showed up on somebody else's machine.
   seconds with nothing made. It now makes the Shorts, and Longform after Shorts no
   longer asks "already processed". A file you've really made Shorts of before
   now offers **Process again**, as a pasted link does, instead of a silent run.
+
+- **The box at the bottom answers every time on Gemma 4.** About one request in
+  three came back blank, with nothing done: the app's instructions and tool list
+  filled Ollama's default 4K context, and Gemma 4 ran out of room while thinking. It
+  now gets 16K, and a model that still says nothing is reported instead of an empty box.
 
 - **Esc in the Gaming / Reaction layout editor no longer closes the clip editor
   behind it.** Opened from the clip editor, Esc closed both; it now leaves

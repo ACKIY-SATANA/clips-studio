@@ -10,6 +10,19 @@ export interface RunOutcome {
   nothing_detected: number
   /** Only set when no clips came out, and only when the evidence earns it. */
   cause: 'no_people' | 'duplicates' | 'below_threshold' | 'no_candidates' | null
+  /** The clip direction given with the job, and what came of it. */
+  intent?: ClipDirection
+}
+
+export interface ClipDirection {
+  direction: string
+  understood: string[]
+  not_found: string[]
+  not_applied: string[]
+  notes: string[]
+  boosted: number
+  added_windows: number
+  required: number
 }
 
 export interface Video {
@@ -38,6 +51,11 @@ export interface SubScores {
   game?: number
   game_why?: string
   game_bonus?: number
+  /** The person's clip direction (analysis/intent.py): points it added, why,
+   *  and the must-have this clip was kept for. */
+  intent?: number
+  intent_why?: string
+  required?: string
   source?: string
   rerank_position?: number
 }
@@ -294,6 +312,8 @@ export interface JobOptions {
   watermark_profile_id?: number | null
   filter?: FilterName
   min_score?: number
+  /** What the clips should be about, in the person's words: only adds points. */
+  focus?: string
   max_clips?: number
 }
 

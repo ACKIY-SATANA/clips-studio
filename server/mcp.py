@@ -190,10 +190,25 @@ def _branding_id(name: str) -> int:
     )
 
 
+# What the person wants the clips to be about (analysis/intent.py). It only
+# adds points, so it is described as a direction, never as a filter.
+FOCUS_PARAM = {
+    "type": "string",
+    "description": (
+        "What the person wants the clips to be about or to include, in their own words: "
+        "a topic they talk about, a moment that happened, a time range (\"1:35-1:55\", "
+        "\"near the end\"), or a style (funny moments, laughing, hype, reactions). Pass "
+        "their sentence as written, keeping words like \"make sure\" and \"at least two\": "
+        "those make it a must-have. It adds weight to those moments and never removes "
+        "others, so \"avoid X\" is not something it can do."
+    ),
+}
+
+
 def _queue_video(args: dict) -> str:
     body: dict = {"url": args["url"]}
     for key in ("force", "min_score", "max_clips", "podcast", "vertical_live", "gaming", "long_clips",
-                "captions"):
+                "captions", "focus"):
         if args.get(key) is not None:
             body[key] = args[key]
     if args.get("watermark"):
@@ -244,6 +259,8 @@ def _queue_local_file(args: dict) -> str:
         body["vertical_live"] = True
     if args.get("gaming"):
         body["gaming"] = True
+    if args.get("focus"):
+        body["focus"] = args["focus"]
     # Where the file came from (a downloaded live's page), only when known.
     if args.get("source_url"):
         body["source_url"] = args["source_url"]
@@ -865,6 +882,7 @@ TOOLS: list[dict] = [
                 },
                 "min_score": {"type": "integer", "description": "Quality bar, 0-100"},
                 "max_clips": {"type": "integer", "description": "Cap clips from this video"},
+                "focus": FOCUS_PARAM,
                 "podcast": {
                     "type": "boolean",
                     "description": "Multi-camera podcast footage: framing cuts per shot",
@@ -1009,6 +1027,7 @@ TOOLS: list[dict] = [
                     "type": "string",
                     "description": "Where the video was originally streamed, if known (never guess)",
                 },
+                "focus": FOCUS_PARAM,
             },
             "required": ["path"],
         },

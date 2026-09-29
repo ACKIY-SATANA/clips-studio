@@ -45,6 +45,7 @@ class JobIn(BaseModel):
     long_clips: bool | None = None  # 61-180s clips (TikTok monetization needs >60s)
     filter: str | None = None  # color preset name (video/filters.py) for the whole job
     min_score: int | None = None  # per-job quality bar override (0-100)
+    focus: str | None = None  # the person's clip direction, in their words (analysis/intent.py)
     longform: dict | None = None  # {"mode": short_clips|clips_140|highlights|edited_stream}
     watermark_profile_id: int | None = None  # branding profile applied to all clips
     podcast: bool | None = None   # multi-cam podcast: letterbox, no subject tracking
@@ -76,6 +77,7 @@ class JobPatch(BaseModel):
     long_clips: bool | None = None
     filter: str | None = None
     min_score: int | None = None
+    focus: str | None = None
     longform: dict | None = None
     watermark_profile_id: int | None = None
     podcast: bool | None = None
@@ -107,6 +109,7 @@ class BatchItemIn(BaseModel):
     long_clips: bool | None = None
     filter: str | None = None
     min_score: int | None = None
+    focus: str | None = None
     longform: dict | None = None
     watermark_profile_id: int | None = None
     podcast: bool | None = None
@@ -214,6 +217,7 @@ class LocalVideoIn(BaseModel):
     watermark_profile_id: int | None = None
     filter: str | None = None
     min_score: int | None = None
+    focus: str | None = None
     max_clips: int | None = None
     force: bool = False
     webhook_url: str | None = None
@@ -462,6 +466,13 @@ def _process_options(body, into: dict | None = None) -> dict:
         payload["gaming_remember"] = True
     if getattr(body, "longform", None):
         payload["longform"] = body.longform
+    focus = " ".join(str(getattr(body, "focus", None) or "").split())
+    if focus:
+        # What the clips should be about, in the person's words: it only adds
+        # points (analysis/intent.py), and a job without one is untouched.
+        from analysis.intent import MAX_CHARS
+
+        payload["focus"] = focus[:MAX_CHARS]
     if getattr(body, "watermark_profile_id", None):
         payload["watermark_profile_id"] = body.watermark_profile_id
     if getattr(body, "filter", None):
@@ -2742,7 +2753,9 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
                 return run_cloud(body.message, body.history, TOOLS, call_tool,
                                  create_backend(config["llm"]))
             return run(
-                body.message, body.history, TOOLS, call_tool, ollama_host, model
+                body.message, body.history, TOOLS, call_tool, ollama_host, model,
+                # Never below 16K: the tool list alone fills most of Ollama's 4K default.
+                num_ctx=max(16384, int(config["llm"].get("num_ctx") or 0)),
             )
         except Exception as e:
             from llm.providers.base import LLMError

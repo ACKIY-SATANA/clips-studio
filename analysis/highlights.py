@@ -216,12 +216,13 @@ def _select_unique(
     max_overlap: float,
     max_text_similarity: float,
     max_segment_reuse: float,
+    priority=None,  # order to choose in, best first; the score when not given
 ) -> tuple[list[ClipCandidate], list[Rejection]]:
     kept: list[ClipCandidate] = []
     rejections: list[Rejection] = []
     claimed_segments: set[int] = set()
 
-    for c in sorted(candidates, key=lambda c: c.score, reverse=True):
+    for c in sorted(candidates, key=priority or (lambda c: c.score), reverse=True):
         if c.score < min_score:
             rejections.append(Rejection(c, "below_min_score"))
             continue

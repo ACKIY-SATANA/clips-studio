@@ -66,6 +66,10 @@ SYSTEM = (
     "the app publishes them the moment processing finishes.\n"
     "If they want particular hashtags on every clip, pass hashtags to "
     "queue_video. Adding them afterwards clip by clip is not the way.\n"
+    "When they say what the clips should be about or include (a topic, a "
+    "moment, a time range, funny moments), pass their words as focus to "
+    "queue_video or queue_local_file. It adds weight to those moments and "
+    "never removes others.\n"
     "Never drop part of a request in silence. If you cannot do something they "
     "asked for, say which part and why, in the same reply.\n"
     "Keep answers short and concrete."
@@ -138,6 +142,7 @@ def run(
     call_tool,
     host: str,
     model: str,
+    num_ctx: int = 16384,
 ) -> dict:
     """One exchange: the model calls tools until it can answer.
 
@@ -171,7 +176,14 @@ def run(
     for _ in range(MAX_TURNS):
         r = requests.post(
             f"{host}/api/chat",
-            json={"model": model, "messages": messages, "tools": specs, "stream": False},
+            json={
+                "model": model, "messages": messages, "tools": specs, "stream": False,
+                # The system prompt and the tool list alone are ~3,700 tokens.
+                # In Ollama's default 4,096 a thinking model (Gemma 4) ran out
+                # of room mid-thought about one time in three, and answered
+                # nothing at all: no tool call, no reply.
+                "options": {"num_ctx": num_ctx},
+            },
             timeout=600,
         )
         r.raise_for_status()
@@ -180,8 +192,11 @@ def run(
 
         calls = reply.get("tool_calls") or []
         if not calls:
+            text = (reply.get("content") or "").strip()
             return {
-                "reply": (reply.get("content") or "").strip(),
+                # An empty box reads as the app ignoring you. Say so instead.
+                "reply": text or ("The model didn't answer that time. Try again, "
+                                  "or ask for one thing at a time."),
                 "steps": steps,
                 "plan": plan,
                 "model": model,

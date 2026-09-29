@@ -241,7 +241,8 @@ values in `config/settings.yaml`:
 | `caption_style` | object | font, size, colour, position, `words_per_caption` |
 | `long_clips` | bool | 61–180s clips, for TikTok monetisation |
 | `podcast` | bool | multi-camera: letterbox, no subject tracking |
-| `longform` | object | `{"mode": ...}`: `short_clips`, `clips_140`, `highlights` or `edited_stream` |
+| `longform` | object | `{"mode": ...}`: `short_clips`, `clips_140`, `highlights` or `edited_stream`; add `"shorts": true` to make the 9:16 Shorts in the same job |
+| `focus` | string | what the clips should be about, in plain words (up to 600 characters): a topic, a moment, a time range ("1:35-1:55", "near the end") or a style (funny, laughing, hype, reactions). It only adds points to what matches and never removes a clip; a must-have that was never said is reported in the video's `outcome.intent`, never invented |
 | `filter` | string | colour preset from `video/filters.py` |
 | `watermark_profile_id` | int | branding profile applied to every clip |
 | `webhook_url` | string | http(s) URL to POST once when this job finishes |

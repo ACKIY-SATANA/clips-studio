@@ -117,6 +117,12 @@ export default function ClipEditor({
         )}
       </div>
       {clip.scores.game_why && <p className="text-xs text-muted -mt-2">{clip.scores.game_why}</p>}
+      {clip.scores.intent_why && (
+        <p className="text-xs text-muted -mt-2" title="Points from the clip direction given with this video">
+          Direction +{clip.scores.intent}: {clip.scores.intent_why}
+          {clip.scores.required ? ` · kept as asked (${clip.scores.required})` : ''}
+        </p>
+      )}
 
       <div className="space-y-3">
         <div>

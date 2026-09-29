@@ -71,6 +71,7 @@ export function describeOptions(o: JobOptions | undefined): string[] {
   if (o.filter && o.filter !== 'none') chips.push(`Filter · ${o.filter}`)
   if (typeof o.max_clips === 'number') chips.push(`Max ${o.max_clips} clips`)
   if (typeof o.min_score === 'number') chips.push(`Score ≥ ${o.min_score}`)
+  if (o.focus) chips.push(`Direction · ${o.focus.length > 40 ? `${o.focus.slice(0, 40)}…` : o.focus}`)
   if (o.force) chips.push('Reprocess')
   return chips
 }

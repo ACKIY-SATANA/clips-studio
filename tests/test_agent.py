@@ -164,3 +164,15 @@ def test_scheduling_a_batch_is_allowed(monkeypatch):
     names = [spec["function"]["name"] for spec in agent.tool_specs(tools)]
     assert "schedule_clips_execute" in names
     assert "schedule_clips_plan" in names
+
+
+def test_the_model_gets_room_for_the_tool_list(monkeypatch):
+    # The system prompt and tools alone are ~3,700 tokens: in Ollama's 4,096
+    # default, Gemma 4 ran out of room mid-thought and answered nothing.
+    _, _, fake = _run(monkeypatch, [{"role": "assistant", "content": "ok"}])
+    assert fake.seen[0]["options"]["num_ctx"] >= 16384
+
+
+def test_an_empty_answer_says_so(monkeypatch):
+    out, calls, _ = _run(monkeypatch, [{"role": "assistant", "content": ""}])
+    assert calls == [] and "didn't answer" in out["reply"]

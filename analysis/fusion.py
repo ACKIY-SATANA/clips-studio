@@ -24,6 +24,7 @@ from pathlib import Path
 import numpy as np
 
 from analysis import highlights
+from analysis import intent as clip_intent
 from analysis.audio_features import extract_audio_features
 from analysis.visual_features import extract_visual_features, reaction_for_window
 from core import cancel, progress
@@ -54,6 +55,7 @@ def find_clips(
     gaming=None,  # analysis.gaming.GamingProfile: score as a gaming stream
     chat=None,  # analysis.chat_moments.ChatSignal: what chat's reactions mark
     sounds=None,  # analysis.game_audio.GameSounds: what the game's own sound marks
+    intent=None,  # analysis.intent.ClipIntent: the person's direction; only ever adds
 ) -> tuple[list[ClipCandidate], list[Rejection]]:
     clips_cfg = config["clips"]
     analysis_cfg = config["analysis"]
@@ -227,6 +229,26 @@ def find_clips(
             ]
         candidates += signal_cands
 
+    # ---- 2b. what the person asked for (analysis/intent.py) ---------------
+    # Windows where an asked-for topic is said, or inside an asked-for range,
+    # that no candidate covers yet: however many points a moment is offered,
+    # it can only be picked if it is a candidate. Scored like signal peaks.
+    if intent is not None:
+        clip_intent.locate(intent, segments)
+        end_of_video = max(segments[-1].end if segments else 0.0, float(audio_excitement.size))
+        wanted = clip_intent.windows(intent, candidates, end_of_video)
+        if wanted:
+            print(f"  Clip direction: {len(wanted)} window(s) where what was asked for comes up")
+            asked = highlights.score_windows(segments, llm, wanted, events=events)
+            for c in asked:
+                c.source = "direction"
+            candidates += [
+                highlights._fit_to_segments(c, segments, clips_cfg["min_duration"],
+                                            clips_cfg["max_duration"], target_duration=30.0)
+                for c in asked
+            ]
+            intent.added = len(asked)
+
     if not candidates:
         return [], []
 
@@ -319,6 +341,7 @@ def find_clips(
     n_hype = 0
     n_game = 0
     n_menu = 0
+    n_intent = 0
     for c in candidates:
         fused = round(100 * _fuse(c, weights, c.subscores["reaction"] / 100.0, speech[id(c)],
                                   game=gaming is not None))
@@ -426,6 +449,15 @@ def find_clips(
                 c.subscores["context"] = b
                 c.subscores["context_why"] = "; ".join(reasons)
                 n_context += 1
+        # The person's direction (analysis/intent.py): additive only and
+        # capped, for the topic, range or style they asked for.
+        if intent is not None:
+            b, reasons = clip_intent.bonus(intent, c, _clip_text(c, segments))
+            if b:
+                fused = min(100, fused + b)
+                c.subscores["intent"] = b
+                c.subscores["intent_why"] = "; ".join(reasons)
+                n_intent += 1
         c.score = fused
     if n_context:
         print(f"  Creator context boosted {n_context} candidate(s) (max +{ctx_cap})")
@@ -437,6 +469,14 @@ def find_clips(
         print(f"  Game moments added to {n_game} candidate(s) (up to +{game_moment_max + game_bonus})")
     if n_menu:
         print(f"  Menus and queues marked down: {n_menu} candidate(s) (up to -{menu_penalty})")
+    if intent is not None:
+        intent.boosted = n_intent
+        print(f"  Clip direction boosted {n_intent} candidate(s) (max +{clip_intent.CAP})")
+        # A must-have that was said is kept; one that wasn't is reported.
+        clip_intent.require(intent, candidates, lambda c: _clip_text(c, segments),
+                            clips_cfg["min_score"], analysis_cfg["max_overlap"])
+        for label in intent.not_found:
+            print(f"  Clip direction: couldn't find {label} in this video")
 
     # ---- 4. dedup + threshold (reusing the proven logic) ------------------
     # max_clips_per_video == 0 means automatic: keep EVERY unique clip that
@@ -444,6 +484,9 @@ def find_clips(
     # A 2-hour stream SHOULD yield far more clips than a 20-minute video.
     max_clips = clips_cfg.get("max_clips_per_video", 0)
     selection_cap = max_clips if max_clips > 0 else len(candidates)
+    # A must-have the person asked for is chosen first, so a clip cap can't
+    # squeeze it out. Without a direction the order is the score, as always.
+    first = (lambda c: (clip_intent.is_required(c), c.score)) if intent is not None else None
     finalists, rejections = highlights._select_unique(
         candidates, segments,
         min_score=clips_cfg["min_score"],
@@ -451,6 +494,7 @@ def find_clips(
         max_overlap=analysis_cfg["max_overlap"],
         max_text_similarity=analysis_cfg["max_text_similarity"],
         max_segment_reuse=analysis_cfg["max_segment_reuse"],
+        **({"priority": first} if first is not None else {}),
     )
 
     # ---- 4b. a gaming stream's best candidates, looked at -----------------
@@ -484,10 +528,16 @@ def find_clips(
             batch = finalists[i : i + batch_size]
             reranked += (_rerank(batch, segments, llm, gaming) if len(batch) > 1 else batch)
         finalists = sorted(reranked, key=lambda c: c.score, reverse=True)
+    if first is not None:
+        finalists.sort(key=first, reverse=True)  # a must-have survives the cap below too
 
     kept = finalists[:max_clips] if max_clips > 0 else finalists
     rejections += [Rejection(c, "over_limit") for c in finalists[len(kept):]]
     return kept, rejections
+
+
+def _clip_text(c: ClipCandidate, segments: list[Segment]) -> str:
+    return " ".join(s.text for s in segments if s.end > c.start and s.start < c.end)
 
 
 def _fuse(c: ClipCandidate, weights: dict, reaction: float, speech_ratio: float = 1.0,

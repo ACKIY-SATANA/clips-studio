@@ -118,6 +118,26 @@ def online_transcription(config: dict) -> dict | None:
     return {**settings, "data_dir": config["paths"]["data_dir"]}
 
 
+def clip_direction(config: dict, llm, duration: float):
+    """The person's direction for this job (analysis/intent.py), or None.
+
+    None whenever no direction was given: nothing here runs and the video is
+    scored exactly as it always has been."""
+    focus = str((config.get("clips") or {}).get("focus") or "").strip()
+    if not focus:
+        return None
+    from analysis import intent as clip_intent
+
+    intent = clip_intent.parse(focus, llm, duration)
+    if intent is not None:
+        print(f"      Clip direction: {focus}")
+        for line in intent.understood():
+            print(f"        {line}")
+        for text in intent.not_applied:
+            print(f"        Not applied (a direction only adds weight): {text}")
+    return intent
+
+
 def _with_usable_model(llm_config: dict) -> dict:
     """Point the backend at a model that is actually installed.
 
@@ -376,6 +396,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     gaming_profile, chat, sounds = _gaming_scoring_inputs(
         config, video, db, known_games, hype_out, sounds_out.get("heard")) \
         if gaming_scoring else (None, None, None)
+    intent = clip_direction(config, llm, video.duration)
     candidates, rejections = find_clips(
         video.path, segments, llm, config,
         signals=signals_out.get("signals"),
@@ -385,6 +406,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         **({"measure_reaction": False} if not modes.measures_reaction(config) else {}),
         **({"gaming": gaming_profile, "chat": chat, "sounds": sounds}
            if gaming_profile is not None else {}),
+        **({"intent": intent} if intent is not None else {}),
     )
     for r in rejections:
         db.log_rejection(
@@ -400,6 +422,10 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     db.set_video_status(video.video_id, "analyzed")
 
     outcome = summarise_run(candidates, rejections, config)
+    if intent is not None:
+        # What the direction was understood as, and what it couldn't find,
+        # where the clip page shows it.
+        outcome["intent"] = intent.report()
     db.set_outcome(video.video_id, outcome)
 
     if not candidates:
@@ -416,6 +442,8 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
             f"text {s.get('text', '?')} | audio {s.get('audio', '?')} | "
             f"visual {s.get('visual', '?')} | reaction {s.get('reaction', '?')} | "
             f"engage {s.get('engagement', '?')} | {c.source}"
+            + (f" | direction +{s['intent']}: {s.get('intent_why', '')}" if s.get("intent") else "")
+            + (f" | kept as asked: {s['required']}" if s.get("required") else "")
         )
         print(f"      [{c.score:3d}] {c.start:7.1f}s - {c.end:7.1f}s  {c.hook}")
         print(f"            ({breakdown})")

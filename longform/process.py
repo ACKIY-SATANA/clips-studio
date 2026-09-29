@@ -88,7 +88,11 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     cfg["clips"]["min_duration"] = profile["min_duration"]
     cfg["clips"]["max_duration"] = profile["max_duration"]
     llm = create_backend(config["llm"])
-    candidates, rejections = find_clips(video.path, segments, llm, cfg)
+    from core.pipeline import clip_direction
+
+    intent = clip_direction(config, llm, video.duration)
+    candidates, rejections = find_clips(video.path, segments, llm, cfg,
+                                        **({"intent": intent} if intent is not None else {}))
     for r in rejections:
         db.log_rejection(
             video.video_id,

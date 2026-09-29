@@ -212,6 +212,10 @@ class Worker(threading.Thread):
                         cfg["clips"]["captions"] = bool(payload["captions"])
                     if payload.get("min_score") is not None:
                         cfg["clips"]["min_score"] = int(payload["min_score"])
+                    if payload.get("focus"):
+                        # The person's direction (analysis/intent.py): adds
+                        # points to what they asked for, and nothing else.
+                        cfg["clips"]["focus"] = str(payload["focus"])
                     if payload.get("long_clips"):
                         # TikTok monetization requires >60s: target 61-180s clips.
                         cfg["clips"]["min_duration"] = 61
