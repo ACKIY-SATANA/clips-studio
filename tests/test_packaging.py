@@ -61,3 +61,11 @@ def test_the_voice_model_check_clip_ships():
     text = SPEC.read_text(encoding="utf-8")
     assert '"transcription" / "assets"' in text
     assert (SPEC.parent / "transcription" / "assets" / "probe.mp3").stat().st_size > 1000
+
+
+def test_the_spec_bundles_the_sports():
+    """The registry imports each sport's package by name, which the analyser
+    can't see, and every sport reads config/sports.yaml at runtime."""
+    text = SPEC.read_text(encoding="utf-8")
+    assert 'collect_submodules("sports")' in text, "the spec no longer bundles the sports packages"
+    assert '"sports.yaml"' in text, "the spec no longer bundles config/sports.yaml"

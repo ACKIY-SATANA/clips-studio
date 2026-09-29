@@ -1,0 +1,143 @@
+# Sports (sports/, docs/SPORTS.md): what a sport's moments are, how much each
+# is worth, how much of the play around it a clip keeps, and the words that
+# mark it. Used only when a job has the Sports toggle on; a video clipped
+# without it never reads this file.
+#
+# One entry per sport. Adding a sport is an entry here, a sports/<name>/
+# package for anything it needs in code, and a line in sports/__init__.py.
+#
+# Sources for the numbers: HypeCut's televised-sport profile (crowd roar is
+# the strongest cue and must last ~2.5 s; 6 s of pre-roll because "the
+# build-up is the story"), MatchVision's 30 s event windows (15 s either
+# side), SoccerReplay-1988's 24 event types, and what Veo, WSC Sports and
+# Spiideo document about their own event lists. See docs/SPORTS.md.
+
+soccer:
+  label: Soccer
+
+  # How the prompts describe a highlight in this sport (their {mode_guidance}).
+  highlights: >-
+    goals (with the attack that led to them and the celebration), saves, penalties
+    scored and missed, red cards, big chances and misses off the post or the bar,
+    VAR decisions, last-minute drama and comebacks
+
+  # Crowd noise arrives after the moment: the ball goes in, then the stadium
+  # roars. A moment found by its roar is dated this many seconds earlier.
+  crowd_lag_seconds: 1.5
+
+  # A replay shown within this many seconds after a moment is the same moment.
+  replay_within_seconds: 90
+
+  # Each kind of moment: its label, how much it is worth (0-100) and how many
+  # seconds of play a clip keeps before and after it. The clip also stays
+  # within the job's clip length.
+  events:
+    goal:         {label: Goal,            importance: 100, pre: 14, post: 10}
+    penalty_goal: {label: Penalty goal,    importance: 100, pre: 10, post: 10}
+    own_goal:     {label: Own goal,        importance: 95,  pre: 12, post: 10}
+    red_card:     {label: Red card,        importance: 85,  pre: 8,  post: 10}
+    penalty_miss: {label: Missed penalty,  importance: 85,  pre: 10, post: 8}
+    save:         {label: Save,            importance: 80,  pre: 8,  post: 6}
+    chance:       {label: Big chance,      importance: 75,  pre: 10, post: 6}
+    var:          {label: VAR check,       importance: 70,  pre: 6,  post: 12}
+    penalty:      {label: Penalty awarded, importance: 70,  pre: 10, post: 8}
+    big_moment:   {label: Big moment,      importance: 60,  pre: 10, post: 8}
+    shot:         {label: Shot,            importance: 50,  pre: 8,  post: 5}
+    yellow_card:  {label: Yellow card,     importance: 45,  pre: 6,  post: 8}
+    free_kick:    {label: Free kick,       importance: 40,  pre: 4,  post: 8}
+    corner:       {label: Corner,          importance: 35,  pre: 3,  post: 8}
+    offside:      {label: Offside,         importance: 30,  pre: 8,  post: 4}
+    injury:       {label: Injury,          importance: 20,  pre: 6,  post: 6}
+    substitution: {label: Substitution,    importance: 15,  pre: 3,  post: 6}
+    kickoff:      {label: Kick-off,        importance: 10,  pre: 2,  post: 8}
+    halftime:     {label: Half-time,       importance: 10,  pre: 6,  post: 4}
+    fulltime:     {label: Full-time,       importance: 10,  pre: 8,  post: 6}
+
+  # What the commentary says when each happens, in the main football
+  # languages. A whole word or phrase, ignoring case; `patterns` are regular
+  # expressions for the shouted forms ("GOOOAL"). A moment the commentary
+  # names and a second signal agrees on is typed as that moment; one only the
+  # crowd and the voice mark is a "big moment", never a guessed type.
+  # Left out on purpose: plain "goal" ("goal kick", "a shot on goal"), the
+  # French "but" (every English "but") and the German "Tor" ("aufs Tor"):
+  # the shouted forms under `patterns` catch the real thing.
+  callouts:
+    goal: [scores, scored, "he scores", "she scores", "what a goal", "back of the net", "into the net",
+           "in the net", equaliser, equalizer, "hat-trick", "hat trick", gol, golazo, "gol de",
+           "il marque", "a marqué", "ha segnato", "tor für", doelpunt]
+    own_goal: ["own goal", "own-goal", autogol, autogoal, "gol en propia", "gol contra",
+               "contre son camp", "csc", eigentor, autorete]
+    penalty: [penalty, "spot kick", "from the spot", penalti, "pênalti", "pénalty", elfmeter, rigore,
+              "tiro de penal"]
+    penalty_miss: ["misses the penalty", "penalty saved", "saves the penalty", "penalty missed",
+                   "falló el penalti", "falla el penal", "pênalti perdido", "elfmeter verschossen",
+                   "rigore sbagliato", "tir au but manqué"]
+    save: [save, saves, saved, "what a save", "great save", "brilliant save",
+           "denied", "tipped over", "tipped wide", parada, paradón, atajada, "que parada", defesa,
+           defendeu, "arrêt", parade, gehalten, "pariert", parata, "che parata"]
+    chance: [chance, "big chance", "so close", "off the post", "hits the post", "the post", "the bar",
+             crossbar, woodwork, "just wide", "over the bar", "inches wide", "how has he missed",
+             "misses", ocasión, "al palo", travesaño, trave, "na trave", poteau, "barre transversale",
+             pfosten, latte, palo]
+    shot: [shoots, "shot from", "strikes it", "fires it", "lets fly", disparo, remate, frappe,
+           schuss, tiro]
+    red_card: ["red card", "sent off", "straight red", "second yellow", "marching orders",
+               "tarjeta roja", expulsado, "cartão vermelho", expulso, "carton rouge", expulsé,
+               "rote karte", "gelb-rot", "platzverweis", "cartellino rosso", espulso]
+    yellow_card: ["yellow card", booked, booking, "into the book", "tarjeta amarilla",
+                  amonestado, "cartão amarelo", "carton jaune", "averti", "gelbe karte",
+                  verwarnt, "cartellino giallo", ammonito]
+    var: [VAR, "video review", "video assistant", "on-field review", "check complete",
+          "to the monitor", revisión, "revisão", "videobeweis", "vidéo assistance"]
+    free_kick: ["free kick", "free-kick", "tiro libre", "falta directa", "cobrança de falta",
+                "coup franc", "freistoß", "freistoss", punizione]
+    corner: [corner, córner, "saque de esquina", escanteio, "coup de pied de coin", ecke,
+             eckball, "calcio d'angolo", angolo]
+    offside: [offside, "off side", "fuera de juego", impedimento, "hors-jeu", "hors jeu",
+              abseits, fuorigioco]
+    injury: [injury, injured, stretcher, "needs treatment", lesión, lesionado, "lesão",
+             "blessure", "blessé", verletzung, verletzt, infortunio]
+    substitution: [substitution, "comes on", "coming on", "comes off", "replaced by", "makes way",
+                   sustitución, "substituição", remplacement, wechsel,
+                   "eingewechselt", sostituzione]
+    kickoff: ["kick off", "kick-off", "kicks off", underway, "we're underway", "pitido inicial",
+              "coup d'envoi", anstoß, anstoss, "calcio d'inizio"]
+    halftime: ["half time", "half-time", halftime, descanso, "medio tiempo", intervalo,
+               "mi-temps", halbzeit, "halbzeitpfiff", intervallo]
+    fulltime: ["full time", "full-time", fulltime, "final whistle", "it's all over", "final del partido",
+               "fim de jogo", "coup de sifflet final", abpfiff, "fischio finale"]
+  patterns:
+    goal: ['\bgo+o+a+l+\b', '\bgo+o+l+\b', '\bto+o+r+\b']
+
+  # Words the broadcast writes on screen for a moment (analysis/game_text.py
+  # reads them; the score bug itself is read by sports/soccer/scoreboard.py).
+  screen_text: [GOAL, GOL, TOR, BUT, "OWN GOAL", PENALTY, PENALTI, ELFMETER, RIGORE, VAR,
+                "VAR CHECK", "NO GOAL", "GOAL CONFIRMED", "RED CARD", "YELLOW CARD", OFFSIDE,
+                SUBSTITUTION, "HALF TIME", "HALF-TIME", "FULL TIME", "FULL-TIME", "TARJETA ROJA",
+                "CARTON ROUGE", "ROTE KARTE"]
+
+  # How much each sound group (config/gaming.yaml's sound_groups) means here,
+  # 0-1. The crowd is the strongest cue in stadium sport; the whistle stops
+  # play for fouls, cards and the end of each half.
+  sounds: {gunfire: 0.0, explosion: 0.2, crash: 0.1, crowd: 1.0, whistle: 0.8, scream: 0.6,
+           laughter: 0.2}
+
+  # What the Highlights choice keeps: the event types it selects, and (for
+  # "Goals + celebrations") extra seconds kept after the moment. `all` keeps
+  # every type, best first.
+  highlights_choices:
+    best:               {label: Best moments,         events: all}
+    goals:              {label: All goals,            events: [goal, penalty_goal, own_goal]}
+    goals_celebrations: {label: Goals + celebrations, events: [goal, penalty_goal, own_goal], post_extra: 12}
+    saves:              {label: Best saves,           events: [save, penalty_miss]}
+    chances:            {label: Best chances,         events: [chance, shot, penalty_miss]}
+    attacking:          {label: Attacking plays,      events: [goal, penalty_goal, own_goal, chance, shot, penalty, free_kick, corner, big_moment]}
+    cards:              {label: Cards,                events: [red_card, yellow_card, var]}
+    penalties:          {label: Penalties,            events: [penalty, penalty_goal, penalty_miss]}
+    custom:             {label: Custom,               events: all}
+
+  periods:
+    full:        Full match
+    first_half:  1st half
+    second_half: 2nd half
+    extra_time:  Extra time

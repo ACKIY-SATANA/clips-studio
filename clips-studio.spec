@@ -48,6 +48,9 @@ for package in ("yt_dlp", "ultralytics", "faster_whisper", "ctranslate2",
 # uvicorn picks its event loop, HTTP parser and websocket implementation at
 # startup by importing strings, so every backend has to be pulled in.
 hiddenimports += collect_submodules("uvicorn")
+# Sports (sports/): each sport's package is imported by name from the registry
+# (sports/__init__.py SPORTS), which the analyser can't follow.
+hiddenimports += collect_submodules("sports")
 hiddenimports += [
     "uvicorn.logging",
     "uvicorn.loops.auto",
@@ -106,6 +109,9 @@ datas += [
     # What a gaming highlight looks like per kind of game, and chat's emote
     # classes (analysis/gaming.py), for scoring a gaming stream.
     (str(ROOT / "config" / "gaming.yaml"), "config"),
+    # Each sport's moments, their worth and windows, and the commentary words
+    # that mark them (sports/, the Sports toggle).
+    (str(ROOT / "config" / "sports.yaml"), "config"),
     # The sound tagger's 527 class names, in its output order (analysis/panns.py).
     (str(ROOT / "config" / "audioset_labels.txt"), "config"),
     # The three-second clip a voice model is checked with before it is used
