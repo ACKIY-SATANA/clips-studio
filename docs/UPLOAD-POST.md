@@ -5,7 +5,7 @@ X, Threads, LinkedIn, Pinterest and Bluesky **in one upload**, through a
 service called [Upload-Post](https://www.upload-post.com/).
 
 It is off until you turn it on, and it needs an account with one of two
-services — **[WoopSocial](https://woopsocial.com/?via=colin279)** (the one to
+services — **[WoopSocial](https://woopsocial.com/?via=clipskitty)** (the one to
 start with) or **Upload-Post**. Both are bring-your-own-key:
 Clips Kitty does not resell, proxy or subsidise anything, and holds no shared
 key for either. Your account, your connected socials, your allowance.
@@ -91,7 +91,7 @@ makes no network calls at all while it is switched off.
 **Settings → Publish through WoopSocial → On.** (Or **Upload-Post** further down, if you are using that one.)
 
 1. **Create your account** and connect your social accounts there, at
-   [WoopSocial](https://woopsocial.com/?via=colin279) or
+   [WoopSocial](https://woopsocial.com/?via=clipskitty) or
    [Upload-Post](https://www.upload-post.com/). The button in Settings opens
    the right site in your browser.
 2. **Copy your API key** from their dashboard.

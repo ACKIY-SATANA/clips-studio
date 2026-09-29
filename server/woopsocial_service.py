@@ -29,7 +29,7 @@ DEFAULT_PROJECT_NAME = "Clips Kitty"
 # link users actually see has to live here, in the code that ships. Setting
 # it turns on the affiliate CTA and, with it, the disclosure that has to sit
 # beside it — the two are never shown apart.
-AFFILIATE_URL = "https://woopsocial.com/?via=colin279"
+AFFILIATE_URL = "https://woopsocial.com/?via=clipskitty"
 
 DEFAULTS = {
     "enabled": False,
