@@ -266,7 +266,8 @@ class ClipIntent:
 
 
 def _at_least(n: int) -> str:
-    return f" (at least {n} clip{'' if n == 1 else 's'})" if n > 1 else ""
+    # One is what a must-have already means, so only a real count is shown.
+    return f" (at least {n} clips)" if n > 1 else ""
 
 
 def clock(seconds: float) -> str:
