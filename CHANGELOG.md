@@ -326,6 +326,14 @@ were often broken in a way that only showed up on somebody else's machine.
   longer asks "already processed". A file you've really made Shorts of before
   now offers **Process again**, as a pasted link does, instead of a silent run.
 
+- **Gemma 4 on your own PC reads the stream again.** With gemma4:e2b or gemma4:e4b
+  (what setup installs for graphics cards of 6 GB and under) as the AI, the part that
+  reads what was said came back empty for most of a video, so clips were picked
+  almost only from sound and movement, with titles like "High-energy moment", and it
+  took ten minutes to find one. Gemma 4 now answers without its thinking step and
+  without Ollama's JSON mode, which made it repeat itself until Ollama gave up: on a
+  13 minute stream, 16-17 moments found in under a minute instead of one.
+
 - **The box at the bottom answers every time on Gemma 4.** About one request in
   three came back blank, with nothing done: the app's instructions and tool list
   filled Ollama's default 4K context, and Gemma 4 ran out of room while thinking. It

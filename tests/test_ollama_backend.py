@@ -66,14 +66,28 @@ def test_a_model_that_cannot_think_gets_todays_request(monkeypatch, json_mode):
     assert _sent(calls) == _todays_request("llama3.1:8b", json_mode)
 
 
-@pytest.mark.parametrize("tag", [tag for _hardware, tag, _note in RECOMMENDATIONS])
+@pytest.mark.parametrize("tag", [tag for _hardware, tag, _note in RECOMMENDATIONS
+                                 if not tag.startswith("gemma4")])
 def test_the_models_setup_installs_are_left_alone(monkeypatch, tag):
-    """gemma4:e2b and e4b can think, and they still get today's request, without
-    even an extra lookup."""
+    """The setup models that cannot think get today's request, without even an
+    extra lookup."""
     calls = _fake_ollama(monkeypatch, capabilities=["completion", "thinking"])
     OllamaBackend(tag).generate("p", json_mode=True)
     assert _sent(calls) == _todays_request(tag, True)
     assert not any(url.endswith("/api/show") for url, _ in calls)
+
+
+@pytest.mark.parametrize("tag", ["gemma4:e2b", "gemma4:e4b"])
+def test_setups_gemma_4_answers_without_thinking(monkeypatch, tag):
+    """Left thinking, gemma4:e2b and e4b ran into JSON mode and gave empty or
+    cut-off answers: three of four chunks of a real stream scored nothing."""
+    calls = _fake_ollama(monkeypatch, capabilities=["completion", "vision", "tools", "thinking"])
+    OllamaBackend(tag).generate("p", json_mode=True)
+    sent = _sent(calls)
+    assert sent["think"] is False
+    # Held to JSON mode it repeated itself until Ollama aborted it (a 500).
+    assert "format" not in sent
+    assert sent["options"]["num_predict"] == 1024
 
 
 def test_a_reasoning_model_answers_without_thinking(monkeypatch):

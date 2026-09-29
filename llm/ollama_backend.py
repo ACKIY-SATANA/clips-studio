@@ -7,17 +7,31 @@ import requests
 from llm.base import LLMBackend
 from llm.manager import RECOMMENDATIONS
 
-# The models setup installs, which have been run against real streams with the
+# The models setup installs that cannot think, run against real streams with the
 # request below exactly as it is. Handling reasoning models must not change what
-# these are sent, so they are excluded by name rather than by what Ollama
-# reports: gemma4:e2b and e4b can think, and they work as they are.
-_SETUP_MODELS = frozenset(tag for _hardware, tag, _note in RECOMMENDATIONS)
+# these are sent, so they are excluded by name rather than by what Ollama reports.
+#
+# Gemma 4 (e2b, e4b) used to be excluded too, as working as it was. It did not:
+# on Ollama 0.34 its thinking ran into JSON mode and the answer came back empty
+# or cut off mid-object. On a real 13 minute stream, three of four chunks gave
+# nothing and scoring took ten minutes for one candidate; with thinking off, as
+# every other Gemma 4 size already was, the same chunks gave 8 in about a minute.
+_SETUP_MODELS = frozenset(tag for _hardware, tag, _note in RECOMMENDATIONS
+                          if not tag.startswith("gemma4"))
 
 # Reasoning models that have to keep thinking to do the job, and at what level.
 # Both were run on a real stream transcript: with reasoning off (or gpt-oss at
 # "low") they answered an empty clip list in a handful of tokens, on a stretch
 # where gemma:7b found ten clips.
 _THINK_TO_ANSWER = {"gpt-oss": "medium", "nemotron": True}
+
+# Reasoning models that answer without thinking, but not in JSON mode. Gemma 4
+# held to `format` repeats itself until Ollama aborts the request ("prediction
+# aborted, token repeat limit reached", a 500 that fails the job): three runs of
+# three on a real stream. Without it, the same chunks gave 16-17 candidates in
+# about 50 s every time. The prompts already ask for the JSON, and every caller
+# finds it in plain text.
+_ANSWER_WITHOUT_FORMAT = ("gemma4",)
 
 
 class OllamaBackend(LLMBackend):
@@ -107,6 +121,8 @@ class OllamaBackend(LLMBackend):
         )
         if level is None:
             payload["think"] = False
+            if self.model.startswith(_ANSWER_WITHOUT_FORMAT):
+                payload.pop("format", None)
             return
         payload["think"] = level
         payload["options"]["num_predict"] = 6144  # gpt-oss used ~3,300 on one chunk
