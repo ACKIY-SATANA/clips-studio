@@ -134,11 +134,8 @@ def test_shorts_made_before_still_ask_first(api):
 
 @pytest.fixture
 def both(tmp_path, monkeypatch):
-    try:
-        from server.jobs import Worker
-    except ImportError as e:  # CI installs only the light dependencies
-        pytest.skip(f"worker imports unavailable: {e}")
-    w = Worker({"paths": {"data_dir": str(tmp_path)}})
+    jobs = pytest.importorskip("server.jobs")  # CI installs only the light dependencies
+    w = jobs.Worker({"paths": {"data_dir": str(tmp_path)}})
     w._progress[7] = {"started": time.time(), "fraction": 0.0, "stage": "", "label": "Starting"}
     calls: list = []
     seen: list = []
