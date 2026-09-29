@@ -350,3 +350,29 @@ def test_batch_and_patch_carry_it(tmp_path):
     assert json.loads(client.get(f"/jobs/{job_id}").json()["payload"])["focus"] == "the WoW part"
     assert client.patch(f"/jobs/{job_id}", json={"focus": "funny moments"}).status_code == 200
     assert json.loads(client.get(f"/jobs/{job_id}").json()["payload"])["focus"] == "funny moments"
+
+
+def test_the_schema_is_one_strict_structured_output_accepts():
+    # OpenAI's strict mode (and OpenRouter models that take it) refuses a schema
+    # unless every object lists all its properties as required and closes
+    # itself. A refusal is remembered per model and would drop the clip
+    # scoring's own schema too.
+    def check(node):
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                assert node.get("additionalProperties") is False
+                assert set(node.get("required", [])) == set(node.get("properties", {}))
+            for value in node.values():
+                check(value)
+        elif isinstance(node, list):
+            for value in node:
+                check(value)
+
+    check(intent.SCHEMA)
+
+
+def test_a_generic_word_is_not_a_search_word():
+    # OpenRouter's Gemma 4 gave "discussion" for "the WoW discussion".
+    wow = {**WOW, "what": "WoW discussion", "terms": ["WoW", "discussion", "World of Warcraft"]}
+    got = intent.parse("more clips from the WoW discussion", Says(_answer([wow])), HOURS)
+    assert got.targets[0].terms == ["WoW", "World of Warcraft"]

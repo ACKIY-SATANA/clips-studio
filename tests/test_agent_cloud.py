@@ -66,3 +66,16 @@ def test_earlier_turns_are_passed_as_plain_text():
                            {"role": "tool", "content": "ignored"}], TOOLS, lambda n, a: ("", None), backend)
     messages = backend.seen[0][0]
     assert [m["role"] for m in messages] == ["system", "user", "assistant", "user"]
+
+
+def test_an_empty_cloud_answer_says_so():
+    from llm.base import ChatTurn
+
+    class Silent:
+        name = "openrouter/test"
+
+        def chat(self, messages, tools):
+            return ChatTurn(text="", tool_calls=[], raw=None)
+
+    out = run_cloud("clip this", [], [], lambda *_a: ("", None), Silent())
+    assert "didn't answer" in out["reply"]

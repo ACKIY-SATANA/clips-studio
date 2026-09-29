@@ -156,6 +156,7 @@ SCHEMA = {
                     "terms": {"type": "array", "items": {"type": "string"}},
                 },
                 "required": ["what", "kind", "strength", "terms"],
+                "additionalProperties": False,
             },
         },
         "styles": {
@@ -167,11 +168,17 @@ SCHEMA = {
                     "strength": {"type": "string", "enum": ["strong", "prefer"]},
                 },
                 "required": ["style", "strength"],
+                "additionalProperties": False,
             },
         },
         "avoid": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["targets", "styles", "avoid"],
+    # Strict structured output (OpenAI, and OpenRouter models that take it)
+    # refuses a schema without this on every object. A refusal falls back to
+    # plain JSON and is remembered for the model, so the clip scoring's own
+    # schema would be dropped with it for the rest of the session.
+    "additionalProperties": False,
 }
 
 PROMPT = """Someone is using a video clipping app. They wrote what they want clipped from ONE video (a stream or recording of them). Turn it into JSON. Only use what they wrote: never add topics or moments of your own.
@@ -385,8 +392,11 @@ def _target(raw) -> Target | None:
     terms = []
     for term in raw.get("terms") or []:
         term = " ".join(str(term).split())[:40]
-        # A time copied into the terms would match every clock on screen.
-        if term and not re.search(r"\d:\d", term) and term not in terms:
+        # A time copied into the terms would match every clock on screen, and
+        # a word like "discussion" or "stream" (given for "the WoW discussion")
+        # would match clips about anything.
+        generic = " " not in term and term.lower() in _STOP and term == term.lower()
+        if term and not re.search(r"\d:\d", term) and not generic and term not in terms:
             terms.append(term)
     if not terms:
         terms = _content_words(what, [])

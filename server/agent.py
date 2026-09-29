@@ -29,6 +29,8 @@ import json
 # itself stops rather than running until the user gives up.
 MAX_TURNS = 8
 TOOL_OUTPUT_LIMIT = 4000
+# What the box says when a model answers with nothing at all.
+NO_ANSWER = "The model didn't answer that time. Try again, or ask for one thing at a time."
 
 # Never offered to the model.
 #
@@ -195,8 +197,7 @@ def run(
             text = (reply.get("content") or "").strip()
             return {
                 # An empty box reads as the app ignoring you. Say so instead.
-                "reply": text or ("The model didn't answer that time. Try again, "
-                                  "or ask for one thing at a time."),
+                "reply": text or NO_ANSWER,
                 "steps": steps,
                 "plan": plan,
                 "model": model,
@@ -265,7 +266,9 @@ def run_cloud(message: str, history: list[dict], tools: list[dict], call_tool, b
             "raw": turn.raw,
         })
         if not turn.tool_calls:
-            return {"reply": turn.text.strip(), "steps": steps, "plan": plan, "model": backend.name}
+            # As run(): an empty box reads as the app ignoring you.
+            return {"reply": turn.text.strip() or NO_ANSWER, "steps": steps, "plan": plan,
+                    "model": backend.name}
 
         for call in turn.tool_calls:
             args = dict(call.arguments or {})
