@@ -138,6 +138,8 @@ def both(tmp_path, monkeypatch):
         from server.jobs import Worker
     except ImportError as e:  # CI installs only the light dependencies
         pytest.skip(f"worker imports unavailable: {e}")
+    w = Worker({"paths": {"data_dir": str(tmp_path)}})
+    w._progress[7] = {"started": time.time(), "fraction": 0.0, "stage": "", "label": "Starting"}
     calls: list = []
     seen: list = []
 
@@ -160,8 +162,6 @@ def both(tmp_path, monkeypatch):
 
     monkeypatch.setitem(sys.modules, "core.pipeline", types.SimpleNamespace(process_video=process_video))
     monkeypatch.setitem(sys.modules, "longform.process", types.SimpleNamespace(process_longform=process_longform))
-    w = Worker({"paths": {"data_dir": str(tmp_path)}})
-    w._progress[7] = {"started": time.time(), "fraction": 0.0, "stage": "", "label": "Starting"}
     db = StateDB(tmp_path / "state.db")
     db.upsert_video(VID, title="A video")
     return w, db, calls, seen
