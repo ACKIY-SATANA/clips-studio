@@ -216,7 +216,7 @@ def _score_lines(lines: list[tuple[tuple, str]], aspect: float) -> list[tuple[tu
         for i, run in enumerate(runs):
             if parse([" ".join(t for _, t in run)]).score is not None:
                 # The match clock often stands a little apart in the box
-                # ("CRO     15:07"): the nearest run on the row that is a clock
+                # ("AWO     15:07"): the nearest run on the row that is a clock
                 # belongs to it.
                 clocks = [other for other in runs[:i] + runs[i + 1:]
                           if CLOCK.search(" ".join(t for _, t in other))
@@ -332,7 +332,7 @@ def with_known_teams(r: Reading, teams: tuple) -> None:
     """A reading put right once the teams are known: their codes as the box
     writes them, and a score read from between the two codes when the parse
     missed it. Soft text loses the separator and reads 0 as a letter: in
-    "FRAOOCR0" the score is the "OO"."""
+    "HOMOOAW0" the score is the "OO"."""
     if r.teams:
         r.teams = teams
     if r.score is not None or not r.text:

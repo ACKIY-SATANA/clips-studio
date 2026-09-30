@@ -76,7 +76,7 @@ The box is the score's own line of text, with the clock beside it, not
 everything written near it: a stadium's ad boards and banners are left out,
 which matters most in a 9:16 frame, where the same strip of the picture holds
 far more stadium. Soft text (an upscaled video, a phone filming a screen)
-loses the separator and reads a 0 as the letter O ("FRAOOCRO"); once the teams
+loses the separator and reads a 0 as the letter O ("HOMOOAWO" for HOM 0-0 AWO); once the teams
 are known, the score is read from between their codes. On the final that took
 the readings with a score from 1,016 to 1,269, and on a 9:16 version of it from
 59 of 301 to 213, with all its goals found.
