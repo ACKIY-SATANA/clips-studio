@@ -93,6 +93,18 @@ def choose(profile, candidates, attached: dict, *, min_score: int, max_len: floa
     types = select.event_types(spec, highlights)
     board = getattr(profile, "board", None)
     kept, dropped, notes = [], [], []
+    # Club or phone footage where nothing confirmed the chosen kind of moment
+    # (no score box, no commentary): the best moments, and a note saying so,
+    # rather than no clips at all. On two club matches, neither a sound nor
+    # the camera's movement marked their goals reliably (docs/SPORTS.md).
+    if (types is not None and getattr(profile, "footage", "broadcast") == "sideline"
+            and not any(e.type in types and e.confidence >= TYPED and not e.is_replay
+                        for e in attached.values())):
+        choice = (spec.get("highlights_choices") or {}).get(highlights) or {}
+        notes.append(f"Club or phone footage: nothing here could confirm "
+                     f"{str(choice.get('label') or highlights).lower()} (no score box or commentary), "
+                     "so these are the match's best moments instead")
+        types = None
 
     # One clip per moment: the original over a replay, then the best scored.
     best_of: dict[int, object] = {}
@@ -182,6 +194,7 @@ def report(profile, moments: list[SportEvent], kept, attached: dict, notes: list
         "score": (f"{teams[0]} {final[0]}-{final[1]} {teams[1]}" if final and teams
                   else f"{final[0]}-{final[1]}" if final else ""),
         "scoreboard": bool(board is not None and board.box),
+        "footage": getattr(profile, "footage", "broadcast"),
         "clips": sum(1 for c in kept if id(c) in attached),
         "notes": list(notes),
     }

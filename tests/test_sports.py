@@ -48,12 +48,14 @@ def test_the_option_is_cleaned_and_unknown_values_refused():
     got = sports.clean({"name": "Soccer", "highlights": "goals", "period": "second_half",
                         "teams": "  Team   A  "})
     assert got == {"name": "soccer", "highlights": "goals", "period": "second_half", "teams": "Team A"}
+    assert sports.clean({"name": "soccer", "footage": "sideline"})["footage"] == "sideline"
+    assert "footage" not in sports.clean({"name": "soccer", "footage": "auto"})
     # Custom's own words go with Custom only.
     custom = sports.clean({"name": "soccer", "highlights": "custom", "request": " the  saves "})
     assert custom["request"] == "the saves"
     assert "request" not in sports.clean({"name": "soccer", "highlights": "goals", "request": "the saves"})
     for bad in ({"name": "curling"}, {"name": "soccer", "highlights": "dunks"},
-                {"name": "soccer", "period": "third_half"}, 42):
+                {"name": "soccer", "period": "third_half"}, {"name": "soccer", "footage": "drone"}, 42):
         with pytest.raises(ValueError):
             sports.clean(bad)
 

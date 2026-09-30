@@ -314,6 +314,35 @@ def test_best_moments_keeps_a_goal_the_scoreboard_confirmed(soccer):
     assert other.score == 40                      # a clip with no confirmed goal is left to its score
 
 
+def test_the_footage_is_a_broadcast_when_a_score_box_is_on_screen(soccer):
+    board = sb.from_readings(_readings([(0, (0, 0)), (10, (0, 0))]), box=(0.1, 0.05, 0.3, 0.1))
+    assert soccer.resolve_footage(board) == "broadcast"
+    assert soccer.resolve_footage(None) == "sideline"
+    assert soccer.resolve_footage(sb.Scoreboard()) == "sideline"
+    chosen = _profile("best")
+    chosen.option["footage"] = "broadcast"
+    assert chosen.resolve_footage(None) == "broadcast"
+
+
+def test_club_footage_that_confirms_no_goal_gets_its_best_moments():
+    # All goals, on footage with no score box and no commentary: rather than
+    # nothing, the best moments, and a note that says why.
+    profile = _profile("goals")
+    profile.resolve_footage(None)
+    found = _moments(profile, [], _curve(3000, [(1000, 1004, 0.9)]))
+    moment, other = _cand(990, 1015, 70), _cand(2000, 2030, 60)
+    attached = clips.attach(found, [moment, other])
+    kept, dropped, notes = clips.choose(profile, [moment, other], attached, min_score=55, max_len=60)
+    assert kept == [moment, other] and dropped == []
+    assert notes and "best moments instead" in notes[0]
+    assert clips.report(profile, found, kept, attached, notes)["footage"] == "sideline"
+    # On a broadcast, a choice nothing matched still keeps nothing else.
+    broadcast = _profile("goals")
+    broadcast.resolve_footage(sb.from_readings([], box=(0.1, 0.05, 0.3, 0.1)))
+    kept, _dropped, _notes = clips.choose(broadcast, [moment, other], attached, min_score=55, max_len=60)
+    assert kept == []
+
+
 def test_a_half_filter_keeps_what_it_cannot_place():
     profile = _profile("best", "second_half")
     profile.board = sb.from_readings([sb.Reading(t=t, minute=m, visible=True)

@@ -182,11 +182,31 @@ processed in 5 minutes.
 With **Longform**, the clips stay 16:9, and they and the Highlights reel are
 the match's moments too.
 
+## Club and phone footage
+
+A club's own camera (an auto-camera like Veo, a parent's phone at the
+touchline) is the footage clubs actually own, and it is nothing like a
+broadcast: no score box, no commentary, a handful of people watching. The
+**Footage** choice in the Sport row says which it is: **Automatic** (the
+default) takes a match with no score box on screen as club or phone footage;
+**TV broadcast** and **Club or phone** set it.
+
+On club or phone footage:
+- **The framing still follows the ball.** A wide club camera is cropped to
+  9:16 on the ball and the play, exactly as a broadcast is; a phone video
+  filmed 9:16 is kept as filmed.
+- **Nothing is named a goal it can't confirm.** On two club matches, nothing
+  audible marked the goals. On an auto-camera match with 11 goals, the sound
+  model heard no crowd and no whistle, Whisper heard no words (the players'
+  shouts are too far off), and a sudden loud burst found 7 of the goals only
+  by firing 69 more times elsewhere; the camera's movement found none. A
+  phone filming from the stand picked up a few cheers but no words.
+- **A choice like All goals keeps the best moments instead**, when nothing
+  confirmed a goal, and the clip page says so, rather than giving no clips.
+
 ## What it doesn't do yet
 
-- Sideline and phone footage without a score box: goals come from the crowd
-  and the commentary alone, which works for a loud crowd and a commentator,
-  and not for a silent training match.
+- Goals in club and phone footage with no score box or commentary: see above.
 - Tackles, dribbles, assists and key passes aren't named.
 - Other sports. Soccer is the first.
 
@@ -202,6 +222,8 @@ channel's options take `sport`:
 - `highlights`: `best`, `goals`, `goals_celebrations`, `saves`, `chances`,
   `attacking`, `cards`, `penalties`, `custom`.
 - `period`: `full`, `first_half`, `second_half`, `extra_time`.
+- `footage` (optional): `auto` (the default), `broadcast` or `sideline` (club
+  or phone footage).
 - `teams` (optional): up to 200 characters.
 - `request` (optional, with `custom` only): the moments wanted, in words.
 

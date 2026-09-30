@@ -130,7 +130,9 @@ def moments(profile, segments, *, curves: dict, voice=None, screen=(), board=Non
         if roar is not None:
             signals.append(f"crowd roar {roar[1] - roar[0] + 1}s")
         if _max(voice, lo - 3, hi + 5) >= VOICE_AT:
-            signals.append("commentator's voice jumps")
+            # No commentator at a club match: whoever is near the camera.
+            signals.append("someone shouts" if getattr(profile, "footage", "broadcast") == "sideline"
+                           else "commentator's voice jumps")
         if _max(whistle, lo - NEAR_WHISTLE, hi + NEAR_WHISTLE) >= WHISTLE_AT:
             signals.append("whistle")
         shown = [text for s, text in screen if lo - 5 <= s <= hi + 5]

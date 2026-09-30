@@ -158,3 +158,12 @@ soccer:
     first_half:  1st half
     second_half: 2nd half
     extra_time:  Extra time
+
+  # What kind of footage: a TV broadcast (a score box, commentary, a
+  # stadium's crowd) or a club camera or a phone at the touchline (none of
+  # those). Automatic takes a match with no score box on screen as the
+  # second.
+  footage_choices:
+    auto:      Automatic
+    broadcast: TV broadcast
+    sideline:  Club or phone

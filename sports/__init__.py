@@ -52,6 +52,7 @@ def available() -> list[dict]:
             "highlights": [{"id": k, "label": v.get("label") or k}
                            for k, v in (s.get("highlights_choices") or {}).items()],
             "periods": [{"id": k, "label": v} for k, v in (s.get("periods") or {}).items()],
+            "footage": [{"id": k, "label": v} for k, v in (s.get("footage_choices") or {}).items()],
         })
     return out
 
@@ -76,7 +77,13 @@ def clean(raw) -> dict:
     period = str(raw.get("period") or "full")
     if period not in periods:
         raise ValueError(f"period must be one of: {', '.join(periods)}")
+    footage_choices = s.get("footage_choices") or {"auto": "Automatic"}
+    footage = str(raw.get("footage") or "auto")
+    if footage not in footage_choices:
+        raise ValueError(f"footage must be one of: {', '.join(footage_choices)}")
     out = {"name": name, "highlights": highlights, "period": period}
+    if footage != "auto":
+        out["footage"] = footage
     teams = " ".join(str(raw.get("teams") or "").split())[:TEAMS_MAX]
     if teams:
         out["teams"] = teams

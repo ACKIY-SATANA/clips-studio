@@ -16,6 +16,7 @@ export default function SportsNote({ report }: { report: SportReport }): JSX.Ele
     <div className="border border-raised/60 rounded-lg p-3 space-y-1.5 text-sm">
       <p>
         <span className="font-medium text-ink">{report.sport}</span>
+        {report.footage === 'sideline' && <span className="text-muted"> · {t('club or phone footage')}</span>}
         {report.score && (
           <span className="text-muted">
             {' '}
@@ -34,7 +35,7 @@ export default function SportsNote({ report }: { report: SportReport }): JSX.Ele
         )}
         {extra.length > 0 ? ` · ${extra.join(' · ')}` : ''}
       </p>
-      {!report.scoreboard && (
+      {!report.scoreboard && report.footage !== 'sideline' && (
         <p className="text-xs text-amber-300">
           {t('No scoreboard was found on screen, so goals were found from the crowd and the commentary alone.')}
         </p>

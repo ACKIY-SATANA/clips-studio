@@ -32,6 +32,19 @@ class SportProfile:
     weights: dict = field(default_factory=lambda: dict(STANDARD_WEIGHTS))
     games: list = field(default_factory=list)        # the gaming interface: none for a match
     split_layout: bool = False
+    # What the footage is, once known (resolve_footage): "broadcast" (a score
+    # box, commentary, a stadium) or "sideline" (a club camera, a phone).
+    footage: str = "broadcast"
+
+    def resolve_footage(self, board) -> str:
+        """The footage this match is scored as: the job's choice, or with
+        Automatic, club or phone footage when no score box was found."""
+        chosen = str((self.option or {}).get("footage") or "auto")
+        if chosen in ("broadcast", "sideline"):
+            self.footage = chosen
+        else:
+            self.footage = "broadcast" if board is not None and getattr(board, "box", None) else "sideline"
+        return self.footage
 
     # ---- the interface fusion's gaming path uses ----------------------------
 

@@ -27,6 +27,8 @@ export interface SportReport {
   replays_grouped: number
   score: string
   scoreboard: boolean
+  /** "broadcast" or "sideline" (a club camera, a phone); absent before it was reported. */
+  footage?: string
   clips: number
   notes: string[]
 }
@@ -358,6 +360,8 @@ export interface SportOption {
   teams?: string
   /** With Custom highlights: the moments wanted, in the person's words. */
   request?: string
+  /** What the footage is: absent means Automatic (club footage when no score box shows). */
+  footage?: string
 }
 
 /** One sport the engine offers (GET /sports), with its menus. */
@@ -366,6 +370,8 @@ export interface SportChoice {
   label: string
   highlights: { id: string; label: string }[]
   periods: { id: string; label: string }[]
+  /** Automatic, TV broadcast, Club or phone; absent from an engine that predates it. */
+  footage?: { id: string; label: string }[]
 }
 
 /** A queue row: the job, plus the video it is about. `display_title` comes

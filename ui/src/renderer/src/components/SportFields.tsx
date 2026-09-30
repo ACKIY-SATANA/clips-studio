@@ -71,6 +71,24 @@ export default function SportFields({
           </option>
         ))}
       </select>
+      {(sport?.footage ?? []).length > 0 && (
+        <>
+          <span className="label shrink-0">{t('Footage')}</span>
+          <select
+            className="input !w-40"
+            value={value.footage ?? 'auto'}
+            onChange={(e) => set({ footage: e.target.value })}
+            aria-label={`${t('Footage')}${suffix}`}
+            title={t('A TV broadcast has a score box and commentary to confirm the goals. A club camera or a phone at the touchline usually has neither: its clips follow the ball, and it gets the best moments found. Automatic tells them apart by the score box.')}
+          >
+            {(sport?.footage ?? []).map((f) => (
+              <option key={f.id} value={f.id}>
+                {t(f.label)}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
       {value.highlights === 'custom' && (
         <input
           className="input !w-72 max-w-full"

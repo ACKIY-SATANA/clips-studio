@@ -55,10 +55,16 @@ export function fitSport(o: SportOption, list: SportChoice[]): SportOption | nul
     ? o.highlights
     : sport.highlights[0]?.id
   const period = sport.periods.some((p) => p.id === o.period) ? o.period : sport.periods[0]?.id
+  // Automatic is the default and isn't sent; a choice the engine doesn't offer is dropped.
+  const footage =
+    o.footage && o.footage !== 'auto' && (sport.footage ?? []).some((f) => f.id === o.footage)
+      ? o.footage
+      : undefined
   return {
     name: sport.id,
     ...(highlights ? { highlights } : {}),
     ...(period ? { period } : {}),
+    ...(footage ? { footage } : {}),
     ...(o.teams ? { teams: o.teams } : {}),
     ...(o.request && highlights === 'custom' ? { request: o.request } : {})
   }
@@ -71,7 +77,14 @@ const LAST = 'generate-sport-choice'
 export function lastSport(): SportOption | null {
   try {
     const raw = JSON.parse(localStorage.getItem(LAST) ?? 'null')
-    return raw && typeof raw.name === 'string' ? { name: raw.name, highlights: raw.highlights, period: raw.period } : null
+    return raw && typeof raw.name === 'string'
+      ? {
+          name: raw.name,
+          highlights: raw.highlights,
+          period: raw.period,
+          ...(raw.footage ? { footage: raw.footage } : {})
+        }
+      : null
   } catch {
     return null
   }
@@ -79,7 +92,10 @@ export function lastSport(): SportOption | null {
 
 export function rememberSport(o: SportOption): void {
   try {
-    localStorage.setItem(LAST, JSON.stringify({ name: o.name, highlights: o.highlights, period: o.period }))
+    localStorage.setItem(
+      LAST,
+      JSON.stringify({ name: o.name, highlights: o.highlights, period: o.period, footage: o.footage })
+    )
   } catch {
     // Not remembered for next time; this video still gets it.
   }

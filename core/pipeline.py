@@ -817,6 +817,10 @@ def _sport_inputs(config: dict, video, hype_out: dict, heard: dict | None, prepa
         print(f"      Scoreboard: {len(board.changes)} goal(s) read"
               + (f", {teams[0]} v {teams[1]}" if teams else "")
               + (f", {final[0]}-{final[1]} at the end" if final else ""))
+    resolve = getattr(profile, "resolve_footage", None)
+    if resolve is not None and resolve(board) == "sideline":
+        chosen = (profile.option or {}).get("footage") == "sideline"
+        print("      Footage: club or phone" + ("" if chosen else " (no score box on screen)"))
     return profile, chat, sounds
 
 
