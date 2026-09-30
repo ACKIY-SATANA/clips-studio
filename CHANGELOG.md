@@ -20,6 +20,22 @@ were often broken in a way that only showed up on somebody else's machine.
   PCs in different places). See docs/REMOTE-RENDERING.md.
 ### Added
 
+- **Sports, starting with Soccer.** Tick **Sports** for a match, and choose which moments
+  to keep (Best moments, All goals, Goals + celebrations, Best saves, Best chances,
+  Attacking plays, Cards, Penalties, or Custom in your own words), which part of the match,
+  and optionally the teams or players to favour. Each moment becomes one clip with its
+  build-up and its reaction, and the 9:16 crop follows the ball instead of the biggest face.
+  Also in a queued video's settings, a watched channel's settings, the API and MCP. It uses
+  the models you already have: no new download.
+  - The score box is read through the whole match, so a goal is certain, with the side
+    that scored and the minute. The crowd's roar dates it, since the score changes after
+    the ball goes in. On a World Cup final all six goals were found at the right minutes.
+  - Other moments are named only when the commentary names them and the crowd, the
+    whistle or the screen agrees; otherwise they're big moments. Replays and celebrations
+    are grouped with their goal, never clipped twice.
+  - The clip card names the moment ("Goal · 65'", and the side that scored), and the clip page says what the
+    match gave and the score read. See docs/SPORTS.md, which also shows how to add a sport.
+
 - **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam and
   the game (or the video they're reacting to) laid out together, in one of eleven layouts
   like StreamLadder's: Split, Basecam (game on top), Half, Fullscreen, Blurred, Small or

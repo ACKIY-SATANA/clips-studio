@@ -243,6 +243,7 @@ values in `config/settings.yaml`:
 | `podcast` | bool | multi-camera: letterbox, no subject tracking |
 | `longform` | object | `{"mode": ...}`: `short_clips`, `clips_140`, `highlights` or `edited_stream`; add `"shorts": true` to make the 9:16 Shorts in the same job |
 | `focus` | string | what the clips should be about, in plain words (up to 600 characters): a topic, a moment, a time range ("1:35-1:55", "near the end") or a style (funny, laughing, hype, reactions). It only adds points to what matches and never removes a clip; a must-have that was never said is reported in the video's `outcome.intent`, never invented |
+| `sport` | object | a match: `{"name": "soccer", "highlights": "goals", "period": "full", "teams": "Team A"}`. `highlights` is `best`, `goals`, `goals_celebrations`, `saves`, `chances`, `attacking`, `cards`, `penalties` or `custom` (with `request`, the moments in words); `period` is `full`, `first_half`, `second_half` or `extra_time`; `teams` is optional. `GET /sports` lists them. Not with `gaming` or `podcast`. See [SPORTS.md](SPORTS.md) |
 | `filter` | string | colour preset from `video/filters.py` |
 | `watermark_profile_id` | int | branding profile applied to every clip |
 | `webhook_url` | string | http(s) URL to POST once when this job finishes |
@@ -342,6 +343,23 @@ A path that is not a readable video gives `400`:
 ```json
 {"detail": "not a video file this app can open: C:/does/not/exist.mp4"}
 ```
+
+### `GET /sports`
+
+The sports a job's `sport` option can name, with the choices each takes:
+
+```json
+[
+  {
+    "id": "soccer", "label": "Soccer",
+    "highlights": [{"id": "best", "label": "Best moments"}, {"id": "goals", "label": "All goals"}],
+    "periods": [{"id": "full", "label": "Full match"}, {"id": "first_half", "label": "1st half"}]
+  }
+]
+```
+
+(Shortened: soccer has nine highlight choices and four periods.) A `sport`
+naming anything else is refused with a `400` that lists what is allowed.
 
 ## Watching progress
 
@@ -494,6 +512,12 @@ Every processed video, newest first. A bare array:
 
 `score` is the final 0–100 ranking; `scores` is the breakdown that produced it,
 which is the interesting part if you are building your own selection on top.
+A clip from a `sport` job also carries the moment it is: `sport_event`
+(`goal`, `save`...), `sport_label`, `sport_minute` (from the match clock),
+`sport_t` (seconds into the video), `sport_team`, `sport_period`, `sport_why`
+(the signals that marked it) and `sport_bonus`. The video's `outcome.sport`
+says what the match gave: the moments found by type, the replays grouped and
+the score read.
 
 > **An unknown video ID returns `200 []`, not 404.** A typo in a video ID is
 > indistinguishable from a video with no clips. Check `GET /videos` first.
