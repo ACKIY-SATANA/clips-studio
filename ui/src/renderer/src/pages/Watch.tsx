@@ -12,6 +12,8 @@ import { platformLabel, WOOPSOCIAL_PLATFORMS } from '../lib/uploadpost'
 import { t } from '../lib/i18n'
 import { useAIStatus } from '../lib/useAIStatus'
 import OpenRouterPrompt from '../components/OpenRouterPrompt'
+import SportFields from '../components/SportFields'
+import { fitSport, startingSport, useSports } from '../lib/sports'
 
 type AddMode = 'auto' | 'ask' | 'off'
 
@@ -66,6 +68,23 @@ export default function Watch({
   // How its clips are made: the Generate bar's own settings to start with,
   // which is what "my settings" means everywhere else in the app.
   const [addClip, setAddClip] = useState<JobOptions>(() => seedOptions())
+  // The sports the engine offers; the Sports switch shows only when it has one.
+  const sports = useSports()
+  const offeredSports = sports ?? []
+  // A remembered sport the engine no longer offers is fixed or dropped here,
+  // not sent and refused.
+  useEffect(() => {
+    if (!sports) return
+    setAddClip((prev) => {
+      if (!prev.sport) return prev
+      const fit = fitSport(prev.sport, sports)
+      if (JSON.stringify(fit) === JSON.stringify(prev.sport)) return prev
+      const next = { ...prev }
+      if (fit) next.sport = fit
+      else delete next.sport
+      return next
+    })
+  }, [sports])
   const [addHashtags, setAddHashtags] = useState('')
   const [addOnlyMine, setAddOnlyMine] = useState(false)
   const inFlight = useRef(false)
@@ -367,7 +386,10 @@ export default function Watch({
                 ['longform', 'Longform', Boolean(addClip.longform)],
                 ['vertical_live', 'Vertical Live', Boolean(addClip.vertical_live)],
                 ['podcast', 'Podcast', Boolean(addClip.podcast)],
-                ['gaming', 'Gaming / Reaction', Boolean(addClip.gaming)]
+                ['gaming', 'Gaming / Reaction', Boolean(addClip.gaming)],
+                ...(offeredSports.length > 0 || addClip.sport
+                  ? ([['sport', 'Sports', Boolean(addClip.sport)]] as const)
+                  : [])
               ] as const
             ).map(([key, label, on]) => (
               <label
@@ -378,7 +400,9 @@ export default function Watch({
                     ? t('This channel streams vertically: keep each live’s own 9:16 layout, no face tracking. Videos with no vertical version are skipped.')
                     : key === 'gaming'
                       ? t('Game streams or reactions: the streamer’s webcam in the top half, the game or the video they’re reacting to in the bottom half.')
-                      : undefined
+                      : key === 'sport'
+                        ? t('Matches: goals, saves, cards and big chances from the crowd, the commentary and the scoreboard, and a 9:16 crop that follows the ball.')
+                        : undefined
                 }
               >
                 <input
@@ -390,7 +414,18 @@ export default function Watch({
                     if (key === 'captions') next.captions = e.target.checked
                     else if (key === 'longform')
                       next.longform = e.target.checked ? { mode: 'short_clips' } : null
-                    else next[key] = e.target.checked
+                    else if (key === 'sport') {
+                      const start = e.target.checked ? (next.sport ?? startingSport(offeredSports)) : null
+                      if (start) {
+                        next.sport = start
+                        // Scored as a match, not as a podcast or a game stream.
+                        delete next.podcast
+                        delete next.gaming
+                        delete next.gaming_scoring
+                      } else delete next.sport
+                      setAddClip(next)
+                      return
+                    } else next[key] = e.target.checked
                     // Vertical Live keeps the live's own layout and Gaming splits
                     // webcam from game, so neither goes with the other, Podcast
                     // (reframes) or Longform (16:9).
@@ -402,6 +437,7 @@ export default function Watch({
                       delete next.vertical_live
                       delete next.gaming
                     }
+                    if (e.target.checked && (key === 'podcast' || key === 'gaming')) delete next.sport
                     setAddClip(next)
                   }}
                 />
@@ -412,7 +448,16 @@ export default function Watch({
               {t('Starts from your Generate settings. Caption style and more are in Clip settings after you add it.')}
             </span>
           </div>
-          {addClip.vertical_live && (
+          {addClip.sport && offeredSports.length > 0 && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <SportFields
+                value={addClip.sport}
+                sports={offeredSports}
+                onChange={(sport) => setAddClip({ ...addClip, sport })}
+              />
+            </div>
+          )}
+          {addClip.vertical_live && !addClip.sport && (
             <div className="flex items-center gap-3 flex-wrap">
               <span className="label shrink-0">{t('Vertical Live content')}</span>
               <select

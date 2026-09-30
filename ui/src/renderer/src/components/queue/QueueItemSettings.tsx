@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/api'
-import type { CaptionStyle, JobOptions } from '../../lib/types'
+import type { CaptionStyle, JobOptions, SportOption } from '../../lib/types'
 import CaptionStyleControls, { DEFAULT_CAPTION_STYLE } from '../CaptionStyleControls'
+import SportFields from '../SportFields'
+import { startingSport, useSports } from '../../lib/sports'
 import { watermarkSelection } from '../WatermarkCard'
 import { t } from '../../lib/i18n'
 
@@ -43,6 +45,8 @@ export default function QueueItemSettings({
   const [verticalLive, setVerticalLive] = useState(Boolean(s.vertical_live))
   const [gamingScoring, setGamingScoring] = useState(Boolean(s.gaming_scoring))
   const [gaming, setGaming] = useState(Boolean(s.gaming))
+  const [sport, setSport] = useState<SportOption | null>(s.sport ?? null)
+  const sports = useSports() ?? []
   const [longform, setLongform] = useState(Boolean(s.longform))
   const [longformMode, setLongformMode] = useState(s.longform?.mode ?? 'short_clips')
   const [longformShorts, setLongformShorts] = useState(Boolean(s.longform?.shorts))
@@ -73,10 +77,12 @@ export default function QueueItemSettings({
       else clear.push('podcast')
       if (verticalLive) patch.vertical_live = true
       else clear.push('vertical_live')
-      if (verticalLive && gamingScoring) patch.gaming_scoring = true
+      if (verticalLive && gamingScoring && !sport) patch.gaming_scoring = true
       else clear.push('gaming_scoring')
       if (gaming) patch.gaming = true
       else clear.push('gaming', 'gaming_layout', 'gaming_remember')
+      if (sport) patch.sport = sport
+      else clear.push('sport')
       if (longform) patch.longform = { mode: longformMode, ...(longformShorts ? { shorts: true } : {}) }
       else clear.push('longform')
       if (watermark) {
@@ -108,6 +114,7 @@ export default function QueueItemSettings({
     verticalLive,
     gamingScoring,
     gaming,
+    sport,
     longform,
     longformMode,
     longformShorts,
@@ -193,6 +200,7 @@ export default function QueueItemSettings({
             if (on) {
               setVerticalLive(false)
               setGaming(false)
+              setSport(null)
             }
           },
           'For multi-camera podcasts: each shot gets one steady crop on whoever is talking.'
@@ -208,10 +216,27 @@ export default function QueueItemSettings({
               setPodcast(false)
               setLongform(false)
               setVerticalLive(false)
+              setSport(null)
             }
           },
           'Game streams and reaction videos: the streamer’s webcam in the top half, the game or the video they’re reacting to in the bottom half. With no webcam, the game fills the screen.'
         )}
+        {(sports.length > 0 || sport) &&
+          toggle(
+            'Sports',
+            '(match)',
+            Boolean(sport),
+            (on) => {
+              // A match is scored as a match: not as a podcast or a game stream.
+              setSport(on ? (sport ?? startingSport(sports)) : null)
+              if (on) {
+                setPodcast(false)
+                setGaming(false)
+                setGamingScoring(false)
+              }
+            },
+            'A match (Soccer for now): goals, saves, cards and big chances from the crowd, the commentary and the scoreboard, one clip per moment, and a 9:16 crop that follows the ball.'
+          )}
         {toggle(
           'Watermark',
           '(branding)',
@@ -221,7 +246,13 @@ export default function QueueItemSettings({
         )}
       </div>
 
-      {verticalLive && (
+      {sport && sports.length > 0 && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <SportFields value={sport} sports={sports} onChange={setSport} />
+        </div>
+      )}
+
+      {verticalLive && !sport && (
         <div className="flex items-center gap-3 flex-wrap">
           <p className="label shrink-0">{t('Vertical Live content')}</p>
           <select

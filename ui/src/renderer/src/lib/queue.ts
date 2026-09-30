@@ -1,6 +1,7 @@
 import type { JobOptions, QueueJob, QueueSnapshot } from './types'
 import type { JobProgress } from './jobProgress'
 import { etaSeconds } from './jobProgress'
+import { describeSport } from './sports'
 
 /** Pure queue helpers — no React, no fetch.
  *
@@ -63,6 +64,7 @@ export function describeOptions(o: JobOptions | undefined): string[] {
   if (o.podcast) chips.push('Podcast')
   if (o.vertical_live) chips.push('Vertical Live')
   if (o.gaming) chips.push('Gaming / Reaction')
+  if (o.sport) chips.push(describeSport(o.sport))
   if (o.longform)
     chips.push(
       `Longform · ${String(o.longform.mode ?? '').replace(/_/g, ' ')}${o.longform.shorts ? ' + 9:16 Shorts' : ''}`

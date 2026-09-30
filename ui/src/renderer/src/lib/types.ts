@@ -12,6 +12,23 @@ export interface RunOutcome {
   cause: 'no_people' | 'duplicates' | 'below_threshold' | 'no_candidates' | null
   /** The clip direction given with the job, and what came of it. */
   intent?: ClipDirection
+  /** A Sports job: what the match gave (sports/core/clips.py report). */
+  sport?: SportReport
+}
+
+/** What a match gave: the moments found by type, the score read off the
+ *  scoreboard, and what couldn't be confirmed. */
+export interface SportReport {
+  sport: string
+  highlights: string
+  period: string
+  found: Record<string, number>
+  big_moments: number
+  replays_grouped: number
+  score: string
+  scoreboard: boolean
+  clips: number
+  notes: string[]
 }
 
 export interface ClipDirection {
@@ -56,6 +73,17 @@ export interface SubScores {
   intent?: number
   intent_why?: string
   required?: string
+  /** A Sports job: the moment this clip is (a goal, a save...), when it
+   *  happened, what marked it, and the points it added. */
+  sport_event?: string
+  sport_label?: string
+  sport_t?: number
+  sport_minute?: number
+  sport_why?: string
+  sport_team?: string
+  sport_period?: string
+  sport_replay?: boolean
+  sport_bonus?: number
   source?: string
   rerank_position?: number
 }
@@ -208,6 +236,8 @@ export interface RenderOpts {
   /** Gaming / Reaction split (gaming/run.py). null turns it off for the clip. */
   gaming?: GamingSettings | null
   watermark?: WatermarkConfig | null
+  /** A Sports job's clip: its sport, so a re-render frames the ball again. */
+  sport?: string
 }
 
 /** Normalized [x, y, width, height] of a region of the SOURCE frame. */
@@ -315,6 +345,27 @@ export interface JobOptions {
   /** What the clips should be about, in the person's words: only adds points. */
   focus?: string
   max_clips?: number
+  /** The Sports toggle: the match is scored and framed as that sport. */
+  sport?: SportOption
+}
+
+/** A Sports job's choices (sports.clean on the engine). */
+export interface SportOption {
+  name: string
+  highlights?: string
+  period?: string
+  /** Teams or players to favour: only adds points, like a clip direction. */
+  teams?: string
+  /** With Custom highlights: the moments wanted, in the person's words. */
+  request?: string
+}
+
+/** One sport the engine offers (GET /sports), with its menus. */
+export interface SportChoice {
+  id: string
+  label: string
+  highlights: { id: string; label: string }[]
+  periods: { id: string; label: string }[]
 }
 
 /** A queue row: the job, plus the video it is about. `display_title` comes

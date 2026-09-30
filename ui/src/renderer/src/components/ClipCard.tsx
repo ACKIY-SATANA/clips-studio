@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import type { Clip } from '../lib/types'
+import { sportMoment } from '../lib/sports'
 import ScoreBadge from './ScoreBadge'
 import { Star, Trash } from './icons'
 
@@ -34,6 +35,8 @@ export default function ClipCard({
   const profile = clip.render_opts?.profile
   const badge = profile ? (PROFILE_BADGE[profile] ?? '▭ 16:9') : null
   const exported = !!clip.exported_at
+  // A Sports job's clip: the moment it is ("Goal · 18' · HOM").
+  const moment = sportMoment(clip.scores)
 
   // Lazy-load the thumbnail. Chromium allows only ~6 connections per host, so
   // a grid of 100+ <video> elements pointed at the local server starves its
@@ -64,7 +67,7 @@ export default function ClipCard({
     <div className="relative group">
       <button
         onClick={onClick}
-        aria-label={`${name}, ${duration} seconds, score ${clip.score}${
+        aria-label={`${name}${moment ? `, ${moment}` : ''}, ${duration} seconds, score ${clip.score}${
           badge ? ', horizontal longform' : ', vertical Short'
         }${exported ? ', exported' : ''}${selected ? ', selected' : ''}`}
         aria-pressed={selected}
@@ -104,6 +107,11 @@ export default function ClipCard({
           <p className="text-sm font-medium line-clamp-2">
             {clip.title || clip.hook || 'Untitled clip'}
           </p>
+          {moment && (
+            <p className="text-xs text-accent mt-1 truncate" title={clip.scores.sport_why}>
+              {moment}
+            </p>
+          )}
         </div>
       </button>
       {onToggleExported && (

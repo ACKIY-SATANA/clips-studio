@@ -4,7 +4,9 @@ import type { CaptionStyle, JobOptions } from '../../lib/types'
 import CaptionStyleControls, { DEFAULT_CAPTION_STYLE } from '../CaptionStyleControls'
 import BrandingEditor, { setWatermarkEnabled, watermarkSelection } from '../WatermarkCard'
 import GamingLayoutEditor from '../GamingLayoutEditor'
+import SportFields from '../SportFields'
 import { PRESETS } from '../../lib/gamingLayout'
+import { fitSport, lastSport, rememberSport, startingSport, useSports } from '../../lib/sports'
 import { Folder, Trash } from '../icons'
 import { t } from '../../lib/i18n'
 
@@ -38,7 +40,15 @@ interface Slot {
   sourceUrl?: string
 }
 
-type ToggleKey = 'captions' | 'long_clips' | 'podcast' | 'vertical_live' | 'gaming' | 'longform' | 'watermark'
+type ToggleKey =
+  | 'captions'
+  | 'long_clips'
+  | 'podcast'
+  | 'vertical_live'
+  | 'gaming'
+  | 'sport'
+  | 'longform'
+  | 'watermark'
 
 /** Each of these decides what the frame is, so only one can be on. */
 const LAYOUT_MODES = ['podcast', 'vertical_live', 'gaming', 'longform'] as const
@@ -83,6 +93,13 @@ const TOGGLES: { key: ToggleKey; label: string; hint: string; title: string }[] 
       'For game streams and reaction videos: the streamer’s webcam in the top half, the game (or the video they’re reacting to) in the bottom half. With no webcam, the game fills the screen. The streamer is whoever is talking, never the biggest face. Fix a clip in the editor by drawing the webcam and game area.'
   },
   {
+    key: 'sport',
+    label: 'Sports',
+    hint: '(match)',
+    title:
+      'For a match (Soccer for now): goals, saves, cards and big chances are found from the crowd, the commentary and the scoreboard, one clip per moment with its build-up, and the 9:16 crop follows the ball. Choose the sport and which moments to keep below.'
+  },
+  {
     key: 'watermark',
     label: 'Watermark',
     hint: '(branding)',
@@ -115,6 +132,7 @@ const PREF = {
   vertical_live: 'generate-vertical-live',
   gaming: 'generate-gaming',
   gaming_scoring: 'generate-gaming-scoring',
+  sport: 'generate-sport',
   longform: 'generate-longform',
   longform_mode: 'generate-longform-mode',
   longform_shorts: 'generate-longform-shorts'
@@ -136,6 +154,7 @@ function remember(key: ToggleKey, on: boolean, mode?: string): void {
     else if (key === 'podcast') localStorage.setItem(PREF.podcast, String(on))
     else if (key === 'vertical_live') localStorage.setItem(PREF.vertical_live, String(on))
     else if (key === 'gaming') localStorage.setItem(PREF.gaming, String(on))
+    else if (key === 'sport') localStorage.setItem(PREF.sport, String(on))
     else if (key === 'longform') {
       localStorage.setItem(PREF.longform, String(on))
       if (mode) localStorage.setItem(PREF.longform_mode, mode)
@@ -175,6 +194,13 @@ export function seedOptions(): JobOptions {
   // Gaming / Reaction likewise, and the older modes win over it.
   if (localStorage.getItem(PREF.gaming) === 'true' && !o.podcast && !o.longform && !o.vertical_live) {
     o.gaming = true
+  }
+  // Sports too: Podcast and Gaming each score the video their own way, and
+  // win over it.
+  const match = localStorage.getItem(PREF.sport) === 'true' && !o.podcast && !o.gaming ? lastSport() : null
+  if (match) {
+    o.sport = match
+    delete o.gaming_scoring
   }
   if (wm.enabled && wm.profileId) o.watermark_profile_id = wm.profileId
   return o
@@ -241,6 +267,27 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
   // is visible while building rather than a refusal after pressing Generate.
   const [capacity, setCapacity] = useState<number | null>(null)
   const [maxActive, setMaxActive] = useState(5)
+  // The sports the engine offers; the Sports toggle shows only when it has one.
+  const sports = useSports()
+  const offered = sports ?? []
+
+  // Once the engine has said which sports it has, a remembered or copied
+  // choice it no longer offers is fixed or dropped, rather than sent and
+  // refused at Generate.
+  useEffect(() => {
+    if (!sports) return
+    setSlots((prev) =>
+      prev.map((s) => {
+        if (!s.options.sport) return s
+        const fit = fitSport(s.options.sport, sports)
+        if (JSON.stringify(fit) === JSON.stringify(s.options.sport)) return s
+        const options = { ...s.options }
+        if (fit) options.sport = fit
+        else delete options.sport
+        return { ...s, options }
+      })
+    )
+  }, [sports])
 
   useEffect(() => {
     void api
@@ -309,6 +356,12 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
         delete next.gaming_layout
         delete next.gaming_remember
       }
+    } else if (key === 'sport') {
+      const start = on ? (next.sport ?? startingSport(offered)) : null
+      if (start) {
+        next.sport = start
+        rememberSport(start)
+      } else delete next.sport
     } else if (key === 'longform') {
       if (on)
         next.longform = {
@@ -338,7 +391,24 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
         }
       }
     }
-    remember(key, on, next.longform?.mode)
+    // Sports scores a match as a match; Podcast and Gaming each score and
+    // frame the video their own way. It goes with Longform (16:9) and
+    // Vertical Live (a match filmed 9:16), which only decide the shape.
+    if (on && key === 'sport') {
+      for (const other of ['podcast', 'gaming'] as const) {
+        if (next[other]) {
+          delete next[other]
+          remember(other, false)
+        }
+      }
+      delete next.gaming_layout
+      delete next.gaming_remember
+      delete next.gaming_scoring
+    } else if (on && (key === 'podcast' || key === 'gaming') && next.sport) {
+      delete next.sport
+      remember('sport', false)
+    }
+    remember(key, on && (key !== 'sport' || Boolean(next.sport)), next.longform?.mode)
     return next
   }
 
@@ -374,6 +444,7 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
     if (key === 'podcast') return Boolean(o.podcast)
     if (key === 'vertical_live') return Boolean(o.vertical_live)
     if (key === 'gaming') return Boolean(o.gaming)
+    if (key === 'sport') return Boolean(o.sport)
     if (key === 'longform') return Boolean(o.longform)
     return Boolean(o.watermark_profile_id)
   }
@@ -543,6 +614,9 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
               </button>
 
               {TOGGLES.map((tg) => {
+                // Sports shows once the engine says it has a sport (and stays
+                // while it's on, so it can always be turned off).
+                if (tg.key === 'sport' && offered.length === 0 && !slot.options.sport) return null
                 // Watermark needs a saved branding profile to point at. Without
                 // one there is nothing to burn in, so the box could be ticked
                 // and would simply un-tick itself — which reads as a broken
@@ -599,7 +673,20 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
               )}
             </div>
 
-            {slot.options.vertical_live && (
+            {slot.options.sport && offered.length > 0 && (
+              <div className="flex items-center gap-3 flex-wrap mt-2">
+                <SportFields
+                  value={slot.options.sport}
+                  sports={offered}
+                  remember
+                  name={`${n + 1}`}
+                  onChange={(sport) => patchOptions(slot.key, { sport })}
+                />
+              </div>
+            )}
+
+            {/* A match is scored as a match, so Sports answers this instead. */}
+            {slot.options.vertical_live && !slot.options.sport && (
               <div className="flex items-center gap-3 flex-wrap mt-2">
                 <span className="label shrink-0">{t('Vertical Live content')}</span>
                 <select

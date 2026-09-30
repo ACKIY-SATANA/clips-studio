@@ -1,0 +1,127 @@
+import { useEffect, useState } from 'react'
+import { api } from './api'
+import type { SportChoice, SportOption, SubScores } from './types'
+
+/** The sports the engine offers (GET /sports), asked once and shared by every
+ *  Sports control and the queue's chips. Empty when the engine has no sports
+ *  package, which hides the toggle: nothing else depends on it. */
+let offered: SportChoice[] | null = null
+let asking: Promise<SportChoice[] | null> | null = null
+
+function ask(): Promise<SportChoice[] | null> {
+  if (offered) return Promise.resolve(offered)
+  asking ??= api
+    .sports()
+    .then((list) => (offered = Array.isArray(list) ? list : []))
+    .catch(() => null) // the engine isn't up yet: asked again shortly
+    .finally(() => {
+      asking = null
+    })
+  return asking
+}
+
+/** The sports on offer; null until the engine has answered. Keeps asking
+ *  while the engine is still starting, so the toggle appears once it's up
+ *  rather than staying hidden until the page is reopened. */
+export function useSports(): SportChoice[] | null {
+  const [list, setList] = useState<SportChoice[] | null>(offered)
+  useEffect(() => {
+    let live = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const load = (): void => {
+      void ask().then((got) => {
+        if (!live) return
+        if (got) setList(got)
+        else timer = setTimeout(load, 3000)
+      })
+    }
+    load()
+    return () => {
+      live = false
+      if (timer) clearTimeout(timer)
+    }
+  }, [])
+  return list
+}
+
+/** An option made valid against what the engine offers: a highlights or
+ *  period choice it doesn't have falls back to its first. Null when the
+ *  sport itself isn't offered. Text is kept as typed (trimmed on the engine),
+ *  so a space between two words survives the keystroke. */
+export function fitSport(o: SportOption, list: SportChoice[]): SportOption | null {
+  const sport = list.find((s) => s.id === o.name)
+  if (!sport) return null
+  const highlights = sport.highlights.some((h) => h.id === o.highlights)
+    ? o.highlights
+    : sport.highlights[0]?.id
+  const period = sport.periods.some((p) => p.id === o.period) ? o.period : sport.periods[0]?.id
+  return {
+    name: sport.id,
+    ...(highlights ? { highlights } : {}),
+    ...(period ? { period } : {}),
+    ...(o.teams ? { teams: o.teams } : {}),
+    ...(o.request && highlights === 'custom' ? { request: o.request } : {})
+  }
+}
+
+const LAST = 'generate-sport-choice'
+
+/** The sport, highlights and period last chosen on the Generate list. Teams
+ *  and a Custom description belong to one match, so they aren't kept. */
+export function lastSport(): SportOption | null {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAST) ?? 'null')
+    return raw && typeof raw.name === 'string' ? { name: raw.name, highlights: raw.highlights, period: raw.period } : null
+  } catch {
+    return null
+  }
+}
+
+export function rememberSport(o: SportOption): void {
+  try {
+    localStorage.setItem(LAST, JSON.stringify({ name: o.name, highlights: o.highlights, period: o.period }))
+  } catch {
+    // Not remembered for next time; this video still gets it.
+  }
+}
+
+/** What the Sports toggle starts with: the last choice while it's still
+ *  offered, else the first sport's first highlights and the whole match. */
+export function startingSport(list: SportChoice[]): SportOption | null {
+  const last = lastSport()
+  const sport = list.find((s) => s.id === last?.name) ?? list[0]
+  if (!sport) return null
+  return fitSport(last?.name === sport.id ? last : { name: sport.id }, list)
+}
+
+const titled = (id: string): string => id.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
+
+/** "Sports · Soccer · All goals · 2nd half · Team A", for the queue's chip. */
+export function describeSport(o: SportOption): string {
+  const sport = offered?.find((s) => s.id === o.name)
+  const named = (id: string, from: { id: string; label: string }[] | undefined): string =>
+    from?.find((x) => x.id === id)?.label ?? titled(id)
+  const parts = ['Sports', sport?.label ?? titled(o.name)]
+  if (o.highlights) parts.push(named(o.highlights, sport?.highlights))
+  if (o.period && o.period !== 'full') parts.push(named(o.period, sport?.periods))
+  if (o.teams) parts.push(o.teams.length > 30 ? `${o.teams.slice(0, 30)}…` : o.teams)
+  return parts.join(' · ')
+}
+
+/** "Goal · 18' · HOM" for a clip: the moment it is, when, and whose. The
+ *  match minute when the scoreboard's clock was read, else the time into
+ *  the video. Null for a clip that isn't a match moment. */
+export function sportMoment(s: SubScores | undefined): string | null {
+  if (!s?.sport_label) return null
+  let when = ''
+  if (s.sport_minute != null) when = `${s.sport_minute}'`
+  else if (s.sport_t != null) {
+    const t = Math.round(s.sport_t)
+    const h = Math.floor(t / 3600)
+    const m = Math.floor((t % 3600) / 60)
+    const sec = String(t % 60).padStart(2, '0')
+    when = h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
+  }
+  const parts = [s.sport_label, when, s.sport_team ?? ''].filter(Boolean)
+  return `${parts.join(' · ')}${s.sport_replay ? ' (replay)' : ''}`
+}

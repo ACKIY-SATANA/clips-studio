@@ -22,6 +22,7 @@ import type {
   QueueSnapshot,
   RenderOpts,
   Settings,
+  SportChoice,
   SystemStats,
   Translation,
   Video,
@@ -162,6 +163,9 @@ export const api = {
       `/videos/local/shape?path=${encodeURIComponent(path)}`
     ),
   jobs: () => request<Job[]>('/jobs'),
+  /** The sports the Sports toggle offers, with their menus (sports/ on the
+   *  engine). Empty when it has none. */
+  sports: () => request<SportChoice[]>('/sports'),
 
   // ---- processing queue ----
   queue: () => request<QueueSnapshot>('/queue'),

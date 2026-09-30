@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { getExportFolder, pickExportFolder, setExportFolder } from '../lib/exportFolder'
 import { Folder, Scissors } from './icons'
 import type { Clip } from '../lib/types'
+import { sportMoment } from '../lib/sports'
 
 const CHANNELS = ['text', 'audio', 'visual', 'reaction', 'engagement'] as const
 
@@ -110,13 +111,29 @@ export default function ClipEditor({
           </span>
         ))}
         {clip.scores.game != null && (
-          <span className="bg-raised px-2 py-1 rounded-md text-muted" title="Scored as a gaming stream">
-            game <span className="text-ink font-semibold">{clip.scores.game}</span>
+          // A match is scored with the same evidence a gaming stream gets.
+          <span
+            className="bg-raised px-2 py-1 rounded-md text-muted"
+            title={clip.render_opts?.sport ? 'What the crowd and the whistle marked' : 'Scored as a gaming stream'}
+          >
+            {clip.render_opts?.sport ? 'match' : 'game'}{' '}
+            <span className="text-ink font-semibold">{clip.scores.game}</span>
             {clip.scores.game_bonus ? <span className="text-accent"> +{clip.scores.game_bonus}</span> : null}
+          </span>
+        )}
+        {clip.scores.sport_label && (
+          <span className="bg-raised px-2 py-1 rounded-md text-ink" title="The match moment this clip is">
+            {sportMoment(clip.scores)}
+            {clip.scores.sport_bonus ? <span className="text-accent"> +{clip.scores.sport_bonus}</span> : null}
           </span>
         )}
       </div>
       {clip.scores.game_why && <p className="text-xs text-muted -mt-2">{clip.scores.game_why}</p>}
+      {clip.scores.sport_why && (
+        <p className="text-xs text-muted -mt-2" title="What marked this moment">
+          {clip.scores.sport_why}
+        </p>
+      )}
       {clip.scores.intent_why && (
         <p className="text-xs text-muted -mt-2" title="Points from the clip direction given with this video">
           Direction +{clip.scores.intent}: {clip.scores.intent_why}

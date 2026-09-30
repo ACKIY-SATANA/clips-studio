@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import NoClipsExplanation from '../components/NoClipsExplanation'
 import ClipDirectionNote from '../components/ClipDirectionNote'
+import SportsNote from '../components/SportsNote'
 import ClipCard from '../components/ClipCard'
 import ClipEditor from '../components/ClipEditor'
 import EditorView from '../components/EditorModal'
@@ -151,6 +152,8 @@ export default function ClipStudio({
   const current = useMemo(() => clips.find((c) => c.id === selectedClip) ?? null, [clips, selectedClip])
   // The direction given with this video's job, and what came of it.
   const activeDirection = videos.find((v) => v.video_id === activeVideo)?.outcome?.intent ?? null
+  // A Sports job: what the match gave.
+  const activeMatch = videos.find((v) => v.video_id === activeVideo)?.outcome?.sport ?? null
   const editingClip = useMemo(
     () => clips.find((c) => c.id === editingClipId) ?? null,
     [clips, editingClipId]
@@ -321,6 +324,7 @@ export default function ClipStudio({
               )}
             </div>
             {exportNotice && <p className="text-sm text-accent">{exportNotice}</p>}
+            {activeMatch && <SportsNote report={activeMatch} />}
             {activeDirection && <ClipDirectionNote direction={activeDirection} />}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {shownClips.map((clip) => (
