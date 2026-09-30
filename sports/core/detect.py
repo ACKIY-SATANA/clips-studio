@@ -193,6 +193,14 @@ def moments(profile, segments, *, curves: dict, voice=None, screen=(), board=Non
         best.start, best.end = _window(profile, best, 0.0, video_end, min_len, max_len, extra_after,
                                        extra_types)
 
+    # The match's events as the person listed them (sports/core/events_import.py):
+    # certain, placed on the video by the clock or the list's kick-offs.
+    starts: dict = {}
+    if (profile.option or {}).get("events"):
+        events, starts = _with_listed(profile, events, str(profile.option["events"]), board,
+                                      heard if heard is not None else crowd,
+                                      video_end, min_len, max_len, extra_after, extra_types)
+
     # A second goal-like moment soon after a goal, with no new score of its
     # own, is that goal again: the replay, or the celebration's second roar.
     confirmed = {id(e) for e in events if e.confidence >= 1.0 and e.type in GOALS}
@@ -222,7 +230,88 @@ def moments(profile, segments, *, curves: dict, voice=None, screen=(), board=Non
         if board is not None:
             e.period = board.period_at(e.t)
             e.minute = board.minute_at(e.t)
+        if starts and not e.period and e.minute is None:
+            e.period, e.minute = _from_kickoffs(e.t, starts)
     return group_moments(events, profile.replay_within)
+
+
+LISTED_NEAR = 60.0      # a found moment this close to a listed one is that moment
+LIST_BEFORE = 5.0       # a bare listed time's clip: from just before the tag...
+LIST_AFTER = 40.0       # ...to the celebration, whether the tag is the goal or the attack
+NOT_MOMENTS = ("kickoff", "kickoff_second", "halftime", "fulltime")
+
+
+def _with_listed(profile, events: list, text: str, board, level, video_end: float, min_len: float,
+                 max_len: float, extra_after: float, extra_types) -> tuple[list, dict]:
+    """The events plus the ones the person listed, each placed, typed and
+    certain; and where each half starts, when the list says. A found moment
+    near a listed one is that moment: the list names it, and a goal the
+    score box dated to the second keeps its time. What couldn't be read or
+    placed is reported on the profile (listed_report), never guessed."""
+    from sports.core import events_import
+
+    listed, unread = events_import.parse(text, profile.spec)
+    starts = events_import.kickoffs(listed)
+    kinds = profile.events_spec()
+    read = board if board is not None and board.readings else None
+    teams = read.teams() if read is not None else None
+    placed, unplaced = 0, []
+    for item in listed:
+        if item.kind in NOT_MOMENTS or item.kind not in kinds:
+            continue
+        span = events_import.place(item, read, starts)
+        if span is None:
+            unplaced.append(item.line)
+            continue
+        lo, hi = span
+        # When in the span: the crowd, as for a new score. A listed time is a
+        # tag, often at the start of the attack: a club app's goal tags sat
+        # 21-27 s before the ball went in on an auto-camera match.
+        roar = goal_roar(level, max(0.0, lo - 5), hi + 10 if hi > lo else lo + LIST_AFTER)
+        dated = roar is not None
+        if dated:
+            t = max(0.0, roar - profile.crowd_lag)
+        else:
+            t = (lo + hi) / 2 if hi > lo else lo
+        near = [e for e in events if not e.is_replay and abs(e.t - t) <= LISTED_NEAR
+                and (e.type == item.kind or e.type == "big_moment"
+                     or (item.kind in GOALS and e.type in GOALS))]
+        e = min(near, key=lambda e: abs(e.t - t), default=None)
+        if e is None:
+            e = SportEvent(item.kind, t, 1.0, profile.importance(item.kind), signals=[])
+            events.append(e)
+        elif not (e.confirmed and hi > lo):
+            e.t = t                              # the person's time, unless the score box's is finer
+        e.type = item.kind
+        e.importance = profile.importance(item.kind)
+        e.confidence = 1.0
+        e.confirmed = True
+        e.is_replay = False
+        if item.who:
+            if teams and item.who.upper() in teams:
+                e.team = item.who.upper()
+            else:
+                e.player = item.who
+        e.signals = ["from your match events"] + [s for s in e.signals if s != "from your match events"]
+        if dated or hi > lo:
+            e.start, e.end = _window(profile, e, 0.0, video_end, min_len, max_len, extra_after, extra_types)
+        else:
+            # Nothing but the tag: from just before it to well after, so the
+            # goal is in whether the tag marks it or the attack before it.
+            e.start, e.end = window(LIST_BEFORE, LIST_AFTER, lo, min_len=min_len, max_len=max_len,
+                                    video_end=video_end)
+        placed += 1
+    profile.listed_report = {"placed": placed, "unplaced": unplaced, "unread": unread}
+    return events, starts
+
+
+def _from_kickoffs(t: float, starts: dict) -> tuple[str, int | None]:
+    """The half and the match minute at t from where the halves start."""
+    if 2 in starts and t >= starts[2]:
+        return "second_half", 45 + int((t - starts[2]) // 60) + 1
+    if 1 in starts and t >= starts[1]:
+        return "first_half", int((t - starts[1]) // 60) + 1
+    return "", None
 
 
 def _score_read(board, t: float) -> bool:

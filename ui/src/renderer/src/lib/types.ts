@@ -83,6 +83,8 @@ export interface SubScores {
   sport_minute?: number
   sport_why?: string
   sport_team?: string
+  /** A player (or a team) as a match events list named them. */
+  sport_player?: string
   sport_period?: string
   sport_replay?: boolean
   sport_bonus?: number
@@ -362,6 +364,8 @@ export interface SportOption {
   request?: string
   /** What the footage is: absent means Automatic (club footage when no score box shows). */
   footage?: string
+  /** The match's events as the person has them, one per line ("18:16 Goal"). */
+  events?: string
 }
 
 /** One sport the engine offers (GET /sports), with its menus. */

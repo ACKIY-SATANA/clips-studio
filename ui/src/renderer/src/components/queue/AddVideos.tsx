@@ -213,6 +213,11 @@ const newKey = (): string => `s${Date.now()}-${counter++}`
  *  was set up on this video's own frames. */
 function copyable(o: JobOptions): JobOptions {
   const { gaming_layout: _layout, gaming_remember: _remember, ...rest } = o
+  // A match's events belong to that match, not the next video's.
+  if (rest.sport?.events) {
+    const { events: _events, ...sport } = rest.sport
+    return { ...rest, sport }
+  }
   return rest
 }
 

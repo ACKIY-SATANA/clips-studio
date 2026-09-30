@@ -66,7 +66,8 @@ export function fitSport(o: SportOption, list: SportChoice[]): SportOption | nul
     ...(period ? { period } : {}),
     ...(footage ? { footage } : {}),
     ...(o.teams ? { teams: o.teams } : {}),
-    ...(o.request && highlights === 'custom' ? { request: o.request } : {})
+    ...(o.request && highlights === 'custom' ? { request: o.request } : {}),
+    ...(o.events && o.events.trim() ? { events: o.events } : {})
   }
 }
 
@@ -121,6 +122,7 @@ export function describeSport(o: SportOption): string {
   if (o.highlights) parts.push(named(o.highlights, sport?.highlights))
   if (o.period && o.period !== 'full') parts.push(named(o.period, sport?.periods))
   if (o.teams) parts.push(o.teams.length > 30 ? `${o.teams.slice(0, 30)}…` : o.teams)
+  if (o.events) parts.push('match events')
   return parts.join(' · ')
 }
 
@@ -138,6 +140,6 @@ export function sportMoment(s: SubScores | undefined): string | null {
     const sec = String(t % 60).padStart(2, '0')
     when = h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
   }
-  const parts = [s.sport_label, when, s.sport_team ?? ''].filter(Boolean)
+  const parts = [s.sport_label, when, s.sport_team ?? s.sport_player ?? ''].filter(Boolean)
   return `${parts.join(' · ')}${s.sport_replay ? ' (replay)' : ''}`
 }

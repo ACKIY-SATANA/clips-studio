@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { t } from '../lib/i18n'
 import { fitSport, rememberSport } from '../lib/sports'
 import type { SportChoice, SportOption } from '../lib/types'
@@ -22,6 +23,8 @@ export default function SportFields({
 }): JSX.Element {
   const sport = sports.find((s) => s.id === value.name)
   const suffix = name ? ` ${name}` : ''
+  const [eventsOpen, setEventsOpen] = useState(Boolean(value.events))
+  const listed = (value.events ?? '').split('\n').filter((line) => line.trim()).length
   const set = (change: Partial<SportOption>): void => {
     const next = fitSport({ ...value, ...change }, sports)
     if (!next) return
@@ -79,7 +82,7 @@ export default function SportFields({
             value={value.footage ?? 'auto'}
             onChange={(e) => set({ footage: e.target.value })}
             aria-label={`${t('Footage')}${suffix}`}
-            title={t('A TV broadcast has a score box and commentary to confirm the goals. A club camera or a phone at the touchline usually has neither: its clips follow the ball, and it gets the best moments found. Automatic tells them apart by the score box.')}
+            title={t('A TV broadcast has a score box and commentary to confirm the goals. A club camera or a phone at the touchline usually has neither: its clips follow the ball, and its goals come from the match events you add. Automatic tells them apart by the score box.')}
           >
             {(sport?.footage ?? []).map((f) => (
               <option key={f.id} value={f.id}>
@@ -109,6 +112,29 @@ export default function SportFields({
         onChange={(e) => set({ teams: e.target.value })}
         title={t('Clips where the commentary names them get extra points. Nothing is left out for it, and nobody is guessed.')}
       />
+      <button
+        type="button"
+        className="btn-ghost !py-1 shrink-0"
+        aria-expanded={eventsOpen}
+        onClick={() => setEventsOpen(!eventsOpen)}
+        title={t('The match’s goals and other moments as you have them: from your club app, the match report or the video’s description. Each one becomes a clip, placed by the clock on screen, or by the kick-off times you list.')}
+      >
+        {t('Match events')}
+        {listed > 0 ? ` (${listed})` : ''} {eventsOpen ? '▾' : '▸'}
+      </button>
+      {eventsOpen && (
+        <textarea
+          className="input basis-full min-h-28 font-mono text-xs"
+          placeholder={
+            'One per line, as your club app, the match report or the video’s description has them:\n' +
+            '09:22 Kick off\n18:16 Goal Player A\n45+2\' Yellow card Team B\n1:00:40 Second half'
+          }
+          aria-label={`${t('Match events')}${suffix}`}
+          maxLength={4000}
+          value={value.events ?? ''}
+          onChange={(e) => set({ events: e.target.value })}
+        />
+      )}
     </>
   )
 }

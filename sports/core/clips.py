@@ -75,6 +75,8 @@ def mark(c, e: SportEvent, label: str, points: int) -> None:
     s["sport_why"] = e.why()
     if e.team:
         s["sport_team"] = e.team
+    if e.player:
+        s["sport_player"] = e.player
     if e.period:
         s["sport_period"] = e.period
     if e.minute is not None:
@@ -103,7 +105,8 @@ def choose(profile, candidates, attached: dict, *, min_score: int, max_len: floa
         choice = (spec.get("highlights_choices") or {}).get(highlights) or {}
         notes.append(f"Club or phone footage: nothing here could confirm "
                      f"{str(choice.get('label') or highlights).lower()} (no score box or commentary), "
-                     "so these are the match's best moments instead")
+                     "so these are the match's best moments instead. Add the goal times under Match "
+                     "events to clip every goal")
         types = None
 
     # One clip per moment: the original over a replay, then the best scored.
@@ -184,6 +187,15 @@ def report(profile, moments: list[SportEvent], kept, attached: dict, notes: list
     board = getattr(profile, "board", None)
     final = board.final() if board is not None else None
     teams = board.teams() if board is not None else None
+    notes = list(notes)
+    listed = getattr(profile, "listed_report", None)
+    if listed:
+        if listed.get("placed"):
+            notes.append(f"{listed['placed']} moment(s) from your match events")
+        for line in listed.get("unplaced") or []:
+            notes.append(f"Couldn't place \"{line}\": no match clock was read, and no kick-off time was listed")
+        for line in listed.get("unread") or []:
+            notes.append(f"Couldn't read \"{line}\": a line needs a time and a kind of moment")
     return {
         "sport": profile.label,
         "highlights": profile.option.get("highlights", "best"),

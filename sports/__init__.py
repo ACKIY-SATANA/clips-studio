@@ -87,6 +87,20 @@ def clean(raw) -> dict:
     teams = " ".join(str(raw.get("teams") or "").split())[:TEAMS_MAX]
     if teams:
         out["teams"] = teams
+    # The match's events as the person has them (sports/core/events_import.py).
+    # Refused only when not one line can be read: the rest are listed back
+    # with the match's report.
+    events = str(raw.get("events") or "").strip()
+    if events:
+        from sports.core import events_import
+
+        if len(events) > events_import.MAX_TEXT:
+            raise ValueError(f"events can be at most {events_import.MAX_TEXT} characters")
+        read, _unread = events_import.parse(events, s)
+        if not read:
+            raise ValueError("events: no line had both a time and a kind of moment, "
+                             "like \"18:16 Goal\" or \"45+2' yellow card\"")
+        out["events"] = events
     # Custom highlights: the moments described in the person's own words,
     # which become a clip direction (analysis/intent.py). Only with Custom.
     request = " ".join(str(raw.get("request") or "").split())[:TEAMS_MAX]

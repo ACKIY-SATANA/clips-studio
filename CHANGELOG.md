@@ -41,6 +41,10 @@ were often broken in a way that only showed up on somebody else's machine.
   - Club and phone footage: a **Footage** choice (Automatic, TV broadcast, Club or phone). Club footage is
     framed on the ball like a broadcast, but with no score box or commentary nothing marks its goals, so none
     are claimed: a choice like All goals keeps the best moments instead, and the clip page says so.
+  - **Match events**: paste the match's goals as you have them (from your club app, the match report or the
+    video's description: "18:16 Goal Player A", "45+2' yellow card") and each becomes a clip, with the player
+    or team on it. Match minutes are placed by the clock on screen or the list's kick-off times; a club app's
+    tag gets a clip long enough to hold the attack, the goal and the celebration.
 
 - **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam and
   the game (or the video they're reacting to) laid out together, in one of eleven layouts

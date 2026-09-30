@@ -204,9 +204,47 @@ On club or phone footage:
 - **A choice like All goals keeps the best moments instead**, when nothing
   confirmed a goal, and the clip page says so, rather than giving no clips.
 
+## Match events: the goals as you have them
+
+**Match events** in the Sport row takes the match's goals and other moments as
+you already have them, one per line: from your club app (Veo tags its goals),
+the match report, or the video's own description. Each one becomes a clip, and
+it's certain: "from your match events".
+
+```
+09:22 Kick off
+18:16 Goal Player A
+45+2' Yellow card Team B
+1:00:40 Second half
+```
+
+- **Times** can be a time in the video (`18:16`, `1:06:51`, even `1:14.29` as
+  typed) or a match minute from a report (`18'`, `45+2'`, or a bare `67` at
+  the start of a line).
+- **A match minute is placed** by the score box's clock when one was read, and
+  otherwise by the list's own kick-off lines (`Kick off`, `Second half`); the
+  crowd then says when in that minute it happened. With neither, the line is
+  listed back on the clip page as one that couldn't be placed.
+- **A time in the video** is taken as a tag. With a crowd to date it (a
+  broadcast), the goal is placed where the roar starts. With nothing else to
+  go on, the clip runs from 5 seconds before the tag to 40 after: a club app's
+  goal tags on the test match sat 21 to 27 seconds before the ball went in, at
+  the start of the attack, and the clip then holds the attack, the goal and the
+  celebration.
+- **What the list names wins**: a moment found near a listed one is that
+  moment, and gets its kind, player or team from the list. A goal the score
+  box already dated to the second keeps its time.
+- **The rest of a line** after the time and the kind is who it was (a player or
+  a team) and shows on the clip.
+- **A line with no time or no kind of moment** is listed back, never guessed.
+  A list with nothing readable at all is refused when it's queued.
+
+It belongs to one video: the next video in the Generate list starts without it.
+
 ## What it doesn't do yet
 
-- Goals in club and phone footage with no score box or commentary: see above.
+- Goals in club and phone footage with no score box or commentary, unless
+  their times are added as match events.
 - Tackles, dribbles, assists and key passes aren't named.
 - Other sports. Soccer is the first.
 
@@ -224,6 +262,9 @@ channel's options take `sport`:
 - `period`: `full`, `first_half`, `second_half`, `extra_time`.
 - `footage` (optional): `auto` (the default), `broadcast` or `sideline` (club
   or phone footage).
+- `events` (optional): the match's events as text, one per line, up to 4000
+  characters (see [Match events](#match-events-the-goals-as-you-have-them)).
+  Refused only when no line has both a time and a kind of moment.
 - `teams` (optional): up to 200 characters.
 - `request` (optional, with `custom` only): the moments wanted, in words.
 

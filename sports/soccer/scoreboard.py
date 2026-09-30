@@ -126,6 +126,20 @@ class Scoreboard:
             return None
         return int(max(0.0, t + ahead[len(ahead) // 2]) // 60) + 1
 
+    def video_time_at(self, clock: float, second_half: bool | None = None) -> float | None:
+        """Where in the video the match clock read `clock` seconds: the
+        median of how far ahead of the video the clock ran in the readings
+        near that time (in the right half when the half is known, since
+        the first half's added time and the second half share clock
+        times). None when the clock wasn't read near there."""
+        near = [r for r in self.readings if r.clock is not None and abs(r.clock - clock) <= 180]
+        if self.halftime is not None and second_half is not None:
+            near = [r for r in near if (r.t >= self.halftime) == second_half]
+        if not near:
+            return None
+        ahead = sorted(r.clock - r.t for r in near)
+        return max(0.0, clock - ahead[len(ahead) // 2])
+
     def hidden(self, lo: float, hi: float) -> bool:
         """Whether the bug was off screen for most readings in [lo, hi]: the
         broadcast hides it for replays and celebrations."""
