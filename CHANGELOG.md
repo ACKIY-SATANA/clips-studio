@@ -35,6 +35,9 @@ were often broken in a way that only showed up on somebody else's machine.
     are grouped with their goal, never clipped twice.
   - The clip card names the moment ("Goal · 65'", and the side that scored), and the clip page says what the
     match gave and the score read. See docs/SPORTS.md, which also shows how to add a sport.
+  - Vertical videos too: a match filmed or streamed 9:16 is kept as filmed, with nothing to switch on, and its
+    goals are found the same way. With Longform, the 16:9 clips and the Highlights reel are the match's
+    moments as well.
 
 - **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam and
   the game (or the video they're reacting to) laid out together, in one of eleven layouts

@@ -354,7 +354,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     # VOD. Optional: without the model the stream is scored without it.
     sounds_out: dict = {}
     sounds_thread = None
-    if gaming_scoring or sport_name:
+    if gaming_scoring and not sport_name:
         def _listen() -> None:
             try:
                 from analysis import game_audio, gaming, panns
@@ -370,21 +370,9 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         sounds_thread = threading.Thread(target=_listen, daemon=True, name="game-sounds-prepass")
         sounds_thread.start()
 
-    # A sport's own reading of the video (soccer: the scoreboard), done while
-    # Whisper runs. Optional: whatever it can't read, the match is scored without.
-    sport_out: dict = {}
-    sport_thread = None
-    if sport_name:
-        def _sport_prepass() -> None:
-            try:
-                import sports
-
-                sport_out.update(sports.prepass(config, video.path, video.duration))
-            except Exception as e:
-                print(f"      ({sport_name}: reading the video failed: {e})")
-
-        sport_thread = threading.Thread(target=_sport_prepass, daemon=True, name="sport-prepass")
-        sport_thread.start()
+    # A match's own reading (its sound, and soccer's score box), done while
+    # Whisper runs.
+    match = MatchReading(config, video) if sport_name else None
 
     print("[2/4] Transcribing...")
     progress.emit(stage="transcribe", video_id=video.video_id, title=video.title)
@@ -418,13 +406,10 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     hype_thread.join(timeout=60)  # network fetch; hard cap so it never stalls
     if sounds_thread is not None:
         sounds_thread.join(timeout=900)  # done long before Whisper, bar a stuck decode
-    if sport_thread is not None:
-        sport_thread.join(timeout=900)
     llm = create_backend(_with_usable_model(config["llm"]))
     gaming_profile, sport_profile, chat, sounds = None, None, None, None
-    if sport_name:
-        sport_profile, chat, sounds = _sport_inputs(config, video, hype_out, sounds_out.get("heard"),
-                                                    sport_out)
+    if match is not None:
+        sport_profile, chat, sounds = match.finish(hype_out)
     elif gaming_scoring:
         gaming_profile, chat, sounds = _gaming_scoring_inputs(
             config, video, db, known_games, hype_out, sounds_out.get("heard"))
@@ -726,6 +711,59 @@ def _gaming_scoring_inputs(config: dict, video, db: StateDB, games: list, hype_o
         except Exception as e:
             print(f"      (game sounds unavailable: {e})")
     return profile, chat, sounds
+
+
+class MatchReading:
+    """A Sports job's reading of the video beside transcription (sports/): the
+    match's sound (the crowd and the whistle, from the sound model) and the
+    sport's own pass (soccer: the score box), both started before Whisper and
+    finished into what find_clips takes.
+
+    The Shorts and the Longform paths share it, so a match is read the same
+    way whichever output it is for. Each part is optional: whatever can't be
+    read, the match is scored without."""
+
+    def __init__(self, config: dict, video):
+        from core import modes
+
+        self.config, self.video = config, video
+        self.name = modes.sport(config)
+        self._heard: dict = {}
+        self._read: dict = {}
+        self._threads = [
+            threading.Thread(target=self._listen, daemon=True, name="game-sounds-prepass"),
+            threading.Thread(target=self._prepass, daemon=True, name="sport-prepass"),
+        ]
+        for thread in self._threads:
+            thread.start()
+
+    def _listen(self) -> None:
+        try:
+            from analysis import game_audio, gaming, panns
+
+            if not panns.available():
+                print("      (match sounds: the sound model isn't installed, scoring without it)")
+                return
+            groups = gaming.knowledge().get("sound_groups") or {}
+            self._heard["heard"] = game_audio.listen(self.video.path, groups)
+        except Exception as e:
+            print(f"      (match sounds unavailable: {e})")
+
+    def _prepass(self) -> None:
+        try:
+            import sports
+
+            self._read.update(sports.prepass(self.config, self.video.path, self.video.duration))
+        except Exception as e:
+            print(f"      ({self.name}: reading the video failed: {e})")
+
+    def finish(self, hype_out: dict | None = None):
+        """(the sport's profile, what chat's reactions mark, what the match's
+        sound marks), once both passes are done: long before Whisper, bar a
+        stuck decode."""
+        for thread in self._threads:
+            thread.join(timeout=900)
+        return _sport_inputs(self.config, self.video, hype_out or {}, self._heard.get("heard"), self._read)
 
 
 def _sport_inputs(config: dict, video, hype_out: dict, heard: dict | None, prepass: dict):

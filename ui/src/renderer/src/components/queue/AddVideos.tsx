@@ -934,6 +934,15 @@ function VerticalHint({ slot, onUse }: { slot: Slot; onUse: () => void }): JSX.E
       </p>
     )
   }
+  // A match filmed 9:16 needs no switch: Sports keeps it as filmed on its own
+  // (core/pipeline.py), so Vertical Live isn't offered for it.
+  if (!slot.options.vertical_live && shape.orientation === 'vertical' && slot.options.sport) {
+    return (
+      <p className="text-xs text-muted mt-1">
+        {t('This video is 9:16: Sports keeps it as filmed and finds the moments the same way.')}
+      </p>
+    )
+  }
   if (
     !slot.options.vertical_live &&
     shape.orientation === 'vertical' &&

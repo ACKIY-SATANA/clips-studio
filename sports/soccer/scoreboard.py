@@ -22,6 +22,7 @@ with no readable score bug (sideline footage, a stream) is scored without it.
 import re
 import subprocess
 import threading
+from collections import Counter
 from dataclasses import dataclass, field
 
 # Team code, score, team code, as the recogniser reads a bug's line:
@@ -34,6 +35,8 @@ TEAMS_SCORE = re.compile(
 DASH_SCORE = re.compile(r"(?<![\d:])(\d{1,2})\s*[-–]\s*(\d{1,2})(?![\d:])")
 # ffmpeg's showinfo line for each frame it passes on, with the frame's time.
 PTS_TIME = re.compile(r"pts_time:\s*(-?\d+(?:\.\d+)?)")
+O_AFTER = re.compile(r"(?<=\d)(\s*[:\-–·.|]\s*)[Oo](?![A-Za-z])")
+O_BEFORE = re.compile(r"(?<![A-Za-z])[Oo](\s*[:\-–·.|]\s*)(?=\d)")
 CLOCK = re.compile(r"(?<!\d)(\d{1,3})[:.'](\d{2})(?!\d)")
 
 FIND_FRAMES = 14         # most frames looked at, spread through the match, to find the box
@@ -41,6 +44,8 @@ FOUND_AFTER = 5          # ...stopping once this many agree
 FOUND_IN = 3             # the fewest frames the box must be seen in
 BANDS = ((0.0, 0.0, 1.0, 0.22), (0.0, 0.78, 1.0, 1.0))   # (left, top, right, bottom): top, bottom
 READ_WIDTH = 480         # a band is resized to this width for the text search
+SAME_RUN = 0.04          # a gap this wide (share of the band's width) still joins text into one run
+CLOCK_GAP = 8.0          # ...and the clock joins the score from up to this many text heights away
 MIN_CONFIDENCE = 0.5
 EVERY = 10.0             # seconds between readings when frames have to be sought one by one
 GOAL_LOOKBACK = 180.0    # a bug updates after the celebration and replays: the
@@ -57,6 +62,7 @@ class Reading:
     minute: int | None = None        # the match clock's minutes
     clock: int | None = None         # ...and the whole clock, in seconds
     visible: bool = False            # anything was read in the box at all
+    text: str = ""                   # what was read, for a second look once the teams are known
 
 
 @dataclass
@@ -130,7 +136,11 @@ class Scoreboard:
 def parse(texts: list[str]) -> Reading:
     """What a bug's text says: the score, the teams and the clock."""
     line = " ".join(" ".join(str(t).split()) for t in texts)
-    out = Reading(t=0.0, visible=bool(line.strip()))
+    # A 0 read as the letter O beside a score's separator ("1:O", "O-2"): soft
+    # text (a phone filming a screen, an upscaled frame) reads it that way.
+    line = O_AFTER.sub(r"\g<1>0", line)
+    line = O_BEFORE.sub(r"0\g<1>", line)
+    out = Reading(t=0.0, visible=bool(line.strip()), text=line)
     upper = line.upper()
     rest = line
     m = TEAMS_SCORE.search(upper)
@@ -176,20 +186,69 @@ def _crop(img, box):
                int(w * left):max(int(w * left) + 2, int(w * right))]
 
 
+def _score_lines(lines: list[tuple[tuple, str]], aspect: float) -> list[tuple[tuple, str]]:
+    """The bug's own lines among everything read in a band: the run of text
+    on one row, with no wide gap in it, that reads as a score. A band holds
+    more than the bug (ad boards, a stadium's banners), and far more of it
+    in a portrait frame, where the same share of the height is a tall strip
+    of stadium. `aspect`: the band's height over its width, to measure a gap
+    against the text's height. [] when no run reads as a score."""
+    rows: list[dict] = []
+    for box, text in sorted(lines, key=lambda x: (x[0][1] + x[0][3]) / 2):
+        mid = (box[1] + box[3]) / 2
+        row = next((r for r in rows if r["top"] <= mid <= r["bottom"]), None)
+        if row is None:
+            rows.append({"top": box[1], "bottom": box[3], "lines": [(box, text)]})
+        else:
+            row["lines"].append((box, text))
+            row["top"], row["bottom"] = min(row["top"], box[1]), max(row["bottom"], box[3])
+    for row in rows:
+        # The row's height in the width's units.
+        height = max(row["bottom"] - row["top"], 1e-6) * aspect
+        runs: list[list] = []
+        for box, text in sorted(row["lines"], key=lambda x: x[0][0]):
+            # A gap wider than a few characters starts another run: the bug
+            # is one tight line, anything else on its row stands apart.
+            if runs and box[0] - runs[-1][-1][0][2] <= max(3 * height, SAME_RUN):
+                runs[-1].append((box, text))
+            else:
+                runs.append([(box, text)])
+        for i, run in enumerate(runs):
+            if parse([" ".join(t for _, t in run)]).score is not None:
+                # The match clock often stands a little apart in the box
+                # ("CRO     15:07"): the nearest run on the row that is a clock
+                # belongs to it.
+                clocks = [other for other in runs[:i] + runs[i + 1:]
+                          if CLOCK.search(" ".join(t for _, t in other))
+                          and _gap(run, other) <= CLOCK_GAP * height]
+                if clocks:
+                    run = sorted(run + min(clocks, key=lambda other: _gap(run, other)),
+                                 key=lambda x: x[0][0])
+                return run
+    return []
+
+
+def _gap(a: list, b: list) -> float:
+    """The horizontal space between two runs of text boxes."""
+    return max(0.0, max(min(x[0][0] for x in b) - max(x[0][2] for x in a),
+                        min(x[0][0] for x in a) - max(x[0][2] for x in b)))
+
+
 def find_box(grab, duration: float, ocr, frames: int = FIND_FRAMES) -> tuple | None:
-    """Where the score bug is: the region in the top or bottom band where a
-    score shows up on the sampled frames. None when fewer than FOUND_IN show one."""
+    """Where the score bug is: the run of text in the top or bottom band
+    where a score shows up on the sampled frames. None when fewer than
+    FOUND_IN show one."""
     seen: list[tuple] = []
     for i in range(frames):
         img = grab(duration * (i + 1) / (frames + 1))
         if img is None:
             continue
         for band in BANDS:
-            lines = _texts(_crop(img, band), ocr)
-            line = " ".join(t for _, t in sorted(lines, key=lambda x: x[0][0]))
-            if parse([line]).score is None:
+            strip = _crop(img, band)
+            lines = _score_lines(_texts(strip, ocr), strip.shape[0] / max(strip.shape[1], 1))
+            if not lines:
                 continue
-            # The bug: every text box in that band, in whole-frame fractions.
+            # The bug, in whole-frame fractions.
             bl, bt, br, bb = band
             boxes = [(bl + x0 * (br - bl), bt + y0 * (bb - bt), bl + x1 * (br - bl), bt + y1 * (bb - bt))
                      for (x0, y0, x1, y1), _ in lines]
@@ -231,10 +290,65 @@ def rec_line(img) -> str:
 
 
 def from_readings(readings: list[Reading], box: tuple | None = None) -> Scoreboard:
-    board = Scoreboard(box=box, readings=sorted(readings, key=lambda r: r.t))
+    readings = sorted(readings, key=lambda r: r.t)
+    teams = known_teams(readings)
+    if teams is not None:
+        for r in readings:
+            with_known_teams(r, teams)
+    board = Scoreboard(box=box, readings=readings)
     board.changes = changes(board.readings)
     board.halftime = second_half_start(board.readings)
     return board
+
+
+def known_teams(readings: list[Reading]) -> tuple | None:
+    """The two team codes the box shows: the pair most readings agree on, a
+    code with a letter too many in front (the flag beside it, read as "D"
+    or ">") taken as the code it ends in when that is read too."""
+    pairs = Counter(r.teams for r in readings if r.teams)
+    if not pairs:
+        return None
+    seen = Counter()
+    for pair, n in pairs.items():
+        for code in pair:
+            seen[code] += n
+
+    def plain(code: str) -> str:
+        return next((other for other in sorted(seen, key=len)
+                     if other != code and len(other) >= 3 and code.endswith(other) and seen[other] >= 2), code)
+
+    merged = Counter()
+    for (a, b), n in pairs.items():
+        merged[(plain(a), plain(b))] += n
+    a, b = merged.most_common(1)[0][0]
+    return (a, b) if a != b else None
+
+
+# The recogniser's letters for digits, where a score is known to be.
+AS_DIGITS = str.maketrans({"O": "0", "o": "0", "D": "0", "I": "1", "l": "1", "i": "1"})
+
+
+def with_known_teams(r: Reading, teams: tuple) -> None:
+    """A reading put right once the teams are known: their codes as the box
+    writes them, and a score read from between the two codes when the parse
+    missed it. Soft text loses the separator and reads 0 as a letter: in
+    "FRAOOCR0" the score is the "OO"."""
+    if r.teams:
+        r.teams = teams
+    if r.score is not None or not r.text:
+        return
+    upper = r.text.upper().replace("0", "O")
+    first, second = (code.replace("0", "O") for code in teams)
+    i = upper.find(first)
+    j = upper.find(second, i + len(first)) if i >= 0 else -1
+    if i < 0 or j < 0:
+        return
+    groups = re.findall(r"\d+", upper[i + len(first):j].translate(AS_DIGITS))
+    if len(groups) == 1 and len(groups[0]) == 2:
+        groups = [groups[0][0], groups[0][1]]         # "OO": two scores, their separator lost
+    if len(groups) == 2 and all(len(g) <= 2 for g in groups):
+        r.score = (int(groups[0]), int(groups[1]))
+        r.teams = teams
 
 
 def changes(readings: list[Reading]) -> list[ScoreChange]:

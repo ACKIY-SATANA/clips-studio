@@ -159,3 +159,151 @@ def test_a_watch_drops_a_sport_set_beside_gaming():
     assert "sport" not in job_payload(watch, URL)
     alone = {"options": json.dumps({"sport": {"name": "soccer", "highlights": "best", "period": "full"}})}
     assert job_payload(alone, URL)["sport"]["name"] == "soccer"
+
+
+# ---- Longform, and the shape of the source ---------------------------------------------
+
+
+REPORT = {"sport": "Soccer", "found": {"Goal": 1}}
+
+
+class _Match:
+    """A read match: what MatchReading.finish() gives the scorer."""
+
+    def __init__(self):
+        self.report_data = dict(REPORT)
+
+
+def _longform(monkeypatch, tmp_path, db, seen):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
+    import analysis.fusion as fusion
+    import core.pipeline as pipeline
+    import llm.registry as registry
+    import transcription.transcriber as transcriber
+    from core.models import DownloadedVideo
+    from longform import process as longform
+
+    source = tmp_path / "match.mp4"
+    source.write_bytes(b"not really a video")
+    monkeypatch.setattr(pipeline, "_cached_or_download", lambda *_a, **_k: DownloadedVideo(
+        video_id="local_match", title="Match", path=source, duration=600.0))
+    monkeypatch.setattr(transcriber, "transcribe", lambda *_a, **_k: [])
+    monkeypatch.setattr(registry, "create_backend", lambda *_a, **_k: Says())
+
+    class Reading:
+        def __init__(self, config, video):
+            seen["read"] = True
+
+        def finish(self, hype_out=None):
+            return _Match(), None, None
+
+    monkeypatch.setattr(pipeline, "MatchReading", Reading)
+
+    def find(_path, _segments, _llm, _cfg, **kw):
+        seen.update(kw)
+        return [], []
+
+    monkeypatch.setattr(fusion, "find_clips", find)
+    return longform
+
+
+def _longform_config(tmp_path, **clips):
+    return {"clips": {"captions": False, **clips}, "paths": {"data_dir": str(tmp_path)},
+            "whisper": {"model": "tiny", "device": "cpu"}, "llm": {}}
+
+
+def test_longform_reads_the_match_and_keeps_its_report(monkeypatch, tmp_path, db):
+    seen: dict = {}
+    longform = _longform(monkeypatch, tmp_path, db, seen)
+    longform.process_longform("local:match", _longform_config(tmp_path, sport={"name": "soccer"}),
+                              db, {"mode": "short_clips"})
+    assert seen["read"] and isinstance(seen["sport"], _Match) and seen["measure_reaction"] is False
+    assert db.get_outcome("local_match") == {"sport": REPORT, "longform_only": True}
+    # The 16:9 pass's report isn't a Shorts run: a Shorts request still runs.
+    assert not db.shorts_made("local_match")
+
+
+def test_longform_without_a_sport_is_as_before(monkeypatch, tmp_path, db):
+    seen: dict = {}
+    longform = _longform(monkeypatch, tmp_path, db, seen)
+    longform.process_longform("local:match", _longform_config(tmp_path), db, {"mode": "short_clips"})
+    assert "read" not in seen and "sport" not in seen and "measure_reaction" not in seen
+    assert db.get_outcome("local_match") == {}
+
+
+def test_a_longform_pass_after_the_shorts_keeps_their_outcome(db):
+    from longform.process import _record_match
+
+    db.upsert_video("local_both", title="Match")
+    shorts = {"clips": 6, "candidates": 40, "sport": {"sport": "Soccer", "found": {"Goal": 6}}}
+    db.set_outcome("local_both", shorts)
+    _record_match(db, "local_both", {"sport": "Soccer", "found": {"Goal": 5}})
+    assert db.get_outcome("local_both") == shorts
+
+
+class _Stop(Exception):
+    """Stops a run where the test has seen what it needs."""
+
+
+def test_a_match_filmed_9x16_keeps_its_composition(monkeypatch, tmp_path, db):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
+    import core.pipeline as pipeline
+    from core import modes
+    from core.models import DownloadedVideo
+
+    source = tmp_path / "phone.mp4"
+    source.write_bytes(b"not really a video")
+    monkeypatch.setattr(pipeline, "_cached_or_download", lambda *_a, **_k: DownloadedVideo(
+        video_id="local_phone", title="Phone", path=source, duration=600.0))
+    monkeypatch.setattr("video.encoding.source_codec", lambda _p: "h264")
+    monkeypatch.setattr("analysis.audio_features.extract_audio_features", lambda _p: {})
+    monkeypatch.setattr("analysis.visual_features.extract_visual_features", lambda _p: {})
+    monkeypatch.setattr("analysis.hype.audience_signals", lambda *_a, **_k: (None, None))
+    seen: dict = {}
+
+    class Reading:
+        def __init__(self, config, video):
+            seen["clips"] = config["clips"]
+            raise _Stop
+
+    monkeypatch.setattr(pipeline, "MatchReading", Reading)
+    config = {"clips": {"captions": False, "sport": {"name": "soccer"}}, "paths": {"data_dir": str(tmp_path)}}
+    for size, kept in (((1080, 1920), True), ((1920, 1080), False)):
+        monkeypatch.setattr(modes, "probe_size", lambda _p, s=size: s)
+        with pytest.raises(_Stop):
+            pipeline.process_video("local:phone", config, db, force=True)
+        assert bool(seen["clips"].get("vertical_live")) is kept, size
+
+
+def test_a_16x9_match_is_framed_by_the_ball_not_a_face(monkeypatch, tmp_path):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
+    import core.pipeline as pipeline
+    import video.cropper as cropper
+    import video.tracker as tracker
+    from core import modes
+    from core.models import ClipCandidate
+
+    def no_faces(*_a, **_k):
+        raise AssertionError("face tracking ran")
+
+    rendered: dict = {}
+
+    def render(_clip, tracking, output, *_a, **_k):
+        rendered["tracking"] = tracking
+        Path(output).write_bytes(b"clip")
+        return Path(output)
+
+    monkeypatch.setattr(pipeline, "cut_clip", lambda _s, _c, output, **_k: Path(output).write_bytes(b"cut"))
+    monkeypatch.setattr(modes, "probe_size", lambda _p: (1920, 1080))
+    monkeypatch.setattr(sports, "framing", lambda name, path, config: {"mode": "track", "path": [(0.0, 0.3)]})
+    monkeypatch.setattr(cropper, "render_vertical", render)
+    monkeypatch.setattr(tracker, "compute_tracking", no_faces)
+    config = {"clips": {"captions": False, "outro": False, "vertical": True, "sport": {"name": "soccer"}},
+              "paths": {"data_dir": str(tmp_path)}, "tracking": {"detector": "yolov8n-pose.pt", "sample_fps": 8}}
+    final, opts_json = pipeline._render_files(tmp_path / "source.mp4", ClipCandidate(start=10.0, end=40.0, score=80),
+                                              [], tmp_path / "clips", config)
+    assert final.exists() and rendered["tracking"]["path"] == [(0.0, 0.3)]
+    assert json.loads(opts_json)["sport"] == "soccer"

@@ -839,7 +839,14 @@ class StateDB:
         if row is None or row["status"] != "done":
             return False
         if row["outcome"]:
-            return True
+            # A Longform-only Sports run stores the match's report on its own
+            # (longform/process.py _record_match); that isn't a Shorts run.
+            try:
+                recorded = json.loads(row["outcome"])
+            except (ValueError, TypeError):
+                recorded = {}
+            if not (isinstance(recorded, dict) and recorded.get("longform_only")):
+                return True
         return self.conn.execute(
             """SELECT 1 FROM clips WHERE video_id = ?
                AND COALESCE(render_opts, '') NOT LIKE '%"profile"%' LIMIT 1""",

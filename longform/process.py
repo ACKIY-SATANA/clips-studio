@@ -68,6 +68,14 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
         _edited_stream(video, config, db, data_dir, profile, started)
         return
 
+    # A match (the Sports toggle, sports/): read the same way the Shorts path
+    # reads it, its sound and its score box beside Whisper, so its 16:9
+    # clips and its reel are the match's moments too.
+    from core import modes
+    from core.pipeline import MatchReading
+
+    match = MatchReading(config, video) if modes.sport(config) else None
+
     print("[2/4] Transcribing...")
     progress.emit(stage="transcribe", video_id=video.video_id, title=video.title)
     forced_lang = (config.get("content_language") or "auto").lower()
@@ -91,8 +99,15 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     from core.pipeline import clip_direction
 
     intent = clip_direction(config, llm, video.duration)
-    candidates, rejections = find_clips(video.path, segments, llm, cfg,
-                                        **({"intent": intent} if intent is not None else {}))
+    sport_profile, chat, sounds = match.finish() if match is not None else (None, None, None)
+    candidates, rejections = find_clips(
+        video.path, segments, llm, cfg,
+        **({"intent": intent} if intent is not None else {}),
+        **({"sport": sport_profile, "chat": chat, "sounds": sounds, "measure_reaction": False}
+           if sport_profile is not None else {}),
+    )
+    if sport_profile is not None and getattr(sport_profile, "report_data", None):
+        _record_match(db, video.video_id, sport_profile.report_data)
     for r in rejections:
         db.log_rejection(
             video.video_id,
@@ -174,6 +189,20 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     if (_line := _outro.summary()):
         print(f"      {_line}")
     print(f"      Longform done in {elapsed / 60:.1f} min ({done_count} clips)")
+
+
+def _record_match(db: StateDB, video_id: str, report: dict) -> None:
+    """What the match gave, where the clip page shows it. A Shorts run's
+    outcome keeps its own report (it is the same match); a Longform-only run
+    stores the report on its own, marked as this pass's, because an outcome
+    is also how "the Shorts were already made" is known (state.shorts_made)."""
+    outcome = db.get_outcome(video_id)
+    if outcome and not outcome.get("longform_only"):
+        if "sport" not in outcome:
+            outcome["sport"] = report
+            db.set_outcome(video_id, outcome)
+        return
+    db.set_outcome(video_id, {"sport": report, "longform_only": True})
 
 
 def _highlights(

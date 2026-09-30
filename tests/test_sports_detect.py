@@ -33,6 +33,8 @@ def _profile(highlights="best", period="full"):
     ("(HOM4·2|AW069:17", (4, 2), ("HOM", "AWO"), 69),
     ("(>HOM 4: 2 AW0  90:00 +2:", (4, 2), ("HOM", "AWO"), 90),
     ("HOM 0.0 AWO 8:27", (0, 0), ("HOM", "AWO"), 8),
+    (">HOM | 1:O AW0  20:07", (1, 0), ("HOM", "AWO"), 20),     # a 0 read as the letter O
+    ("HOM O-2 AWO 50:01", (0, 2), ("HOM", "AWO"), 50),
     ("1 - 0", (1, 0), None, None),
     ("23:27", None, None, 23),
 ])
@@ -110,6 +112,32 @@ def test_the_box_is_found_where_a_score_shows():
 
     box = sb.find_box(lambda t: frame, 5400, ocr)
     assert box is not None and box[1] < 0.2
+
+
+def test_once_the_teams_are_known_a_soft_reading_still_gives_the_score():
+    # Soft text (an upscaled or filmed screen) loses the separator and reads
+    # 0 as a letter; the flag in front of a code reads as a letter too.
+    readings = [sb.parse([text]) for text in
+                ["HOM 0:0 AWO 16:00", "DHOM 0:0 AWO 16:05", "HOM 0-0 AWO 16:10",
+                 "HOMOOAW016:15", "DHOM1OAW017:02", "HOM1·OAW017:10", "HOM 1 AWO"]]
+    for i, r in enumerate(readings):
+        r.t = float(i * 10)
+    board = sb.from_readings(readings)
+    assert [r.score for r in board.readings] == [(0, 0), (0, 0), (0, 0), (0, 0), (1, 0), (1, 0), None]
+    assert {r.teams for r in board.readings if r.teams} == {("HOM", "AWO")}
+    assert [(c.after, c.team) for c in board.changes] == [((1, 0), "HOM")]
+
+
+def test_the_box_is_the_score_and_its_clock_not_the_banners_beside_it():
+    # A portrait frame's band holds a tall strip of stadium: the score run
+    # and the clock a little apart from it make the box; an ad board on the
+    # same row, and a banner on another, don't.
+    lines = [((0.12, 0.28, 0.24, 0.39), "HOM"), ((0.29, 0.27, 0.43, 0.41), "0:0"),
+             ((0.49, 0.28, 0.60, 0.39), "AWO"), ((0.76, 0.28, 0.90, 0.40), "15:07"),
+             ((0.10, 0.70, 0.60, 0.80), "WORLD CUP FINAL 2026")]
+    run = sb._score_lines(lines, aspect=0.39)
+    assert [t for _b, t in run] == ["HOM", "0:0", "AWO", "15:07"]
+    assert sb._score_lines(lines[4:], aspect=0.39) == []
 
 
 def test_no_score_bug_means_no_board():

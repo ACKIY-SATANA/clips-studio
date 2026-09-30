@@ -72,6 +72,15 @@ misread digit is never a goal. On a 1h42m official upload of a World Cup final
 it read the box 1,541 times (49 seconds on its own, 141 while Whisper was also
 running) and found all six goals, with the right side for each.
 
+The box is the score's own line of text, with the clock beside it, not
+everything written near it: a stadium's ad boards and banners are left out,
+which matters most in a 9:16 frame, where the same strip of the picture holds
+far more stadium. Soft text (an upscaled video, a phone filming a screen)
+loses the separator and reads a 0 as the letter O ("FRAOOCRO"); once the teams
+are known, the score is read from between their codes. On the final that took
+the readings with a score from 1,016 to 1,269, and on a 9:16 version of it from
+59 of 301 to 213, with all its goals found.
+
 **The crowd dates the goal.** The new score shows up some time after the ball
 goes in: 8 seconds after one goal of that final, 40 after another, and on other
 broadcasts only after the replays. So a goal is placed where the crowd's
@@ -161,9 +170,17 @@ at 1280 px. Measured on 200 frames of the final, in the 123 wide shots:
 The bigger model found fewer, and was slower, so no new model is needed. The
 detector and its size are set in `config/sports.yaml` (`framing`).
 
-A match already filmed 9:16 (a phone at the side of the pitch) keeps its own
-picture, as Vertical Live does: the app notices the shape and doesn't reframe
-it. With **Longform**, clips stay 16:9.
+## Vertical videos
+
+A match filmed or streamed 9:16 (a phone at the side of the pitch, a vertical
+feed) keeps its own picture, as Vertical Live does, with nothing to switch on:
+the app notices the shape, doesn't reframe it, and finds the moments the same
+way, score box included. On a 9:16 version of 25 minutes of the final it found
+all three goals at their minutes, and each clip is the whole vertical picture,
+processed in 5 minutes.
+
+With **Longform**, the clips stay 16:9, and they and the Highlights reel are
+the match's moments too.
 
 ## What it doesn't do yet
 
