@@ -212,10 +212,25 @@ class Worker(threading.Thread):
                         cfg["clips"]["captions"] = bool(payload["captions"])
                     if payload.get("min_score") is not None:
                         cfg["clips"]["min_score"] = int(payload["min_score"])
+                    if payload.get("sport"):
+                        # The Sports toggle (sports/): the match's moments,
+                        # found and clipped by the sport's profile.
+                        cfg["clips"]["sport"] = payload["sport"]
                     if payload.get("focus"):
                         # The person's direction (analysis/intent.py): adds
                         # points to what they asked for, and nothing else.
                         cfg["clips"]["focus"] = str(payload["focus"])
+                    if isinstance(payload.get("sport"), dict):
+                        # The Sports toggle's Teams / players, and Custom's own
+                        # words: directions too, so clips whose commentary
+                        # names them get the points. Never guessed onto a clip
+                        # that doesn't.
+                        from sports import direction
+
+                        wanted = direction(payload["sport"])
+                        if wanted:
+                            asked = cfg["clips"].get("focus") or ""
+                            cfg["clips"]["focus"] = f"{asked} {wanted}".strip()
                     if payload.get("long_clips"):
                         # TikTok monetization requires >60s: target 61-180s clips.
                         cfg["clips"]["min_duration"] = 61

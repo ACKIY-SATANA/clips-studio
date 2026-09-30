@@ -79,6 +79,21 @@ def gaming_scoring(config_or_opts: dict | None) -> bool:
     return bool(isinstance(clips, dict) and clips.get("gaming_scoring"))
 
 
+def sport(config_or_opts: dict | None) -> str | None:
+    """The sport a job (its clips section) or a clip's render options is
+    clipped as (sports/, the Sports toggle), or None. Off unless asked for;
+    never combined with Gaming / Reaction or Podcast."""
+    if not config_or_opts:
+        return None
+    raw = config_or_opts.get("sport")
+    clips = config_or_opts.get("clips")
+    if raw is None and isinstance(clips, dict):
+        raw = clips.get("sport")
+    if isinstance(raw, dict):
+        raw = raw.get("name")
+    return str(raw).strip().lower() or None if raw else None
+
+
 GAMING_BY = ("user", "creator", "video", "clip")
 
 
@@ -153,8 +168,9 @@ def measures_reaction(config: dict | None) -> bool:
     layout, Vertical Live included: it reads a game's characters (and the
     people in a video being reacted to) as the streamer, and a top-down game
     as nobody; the streamer's reaction is in their voice, which is scored
-    anyway. A Vertical Live that isn't scored as gaming keeps it."""
-    return not gaming_scoring(config)
+    anyway. A Vertical Live that isn't scored as gaming keeps it. Not a match
+    either: the players on the pitch aren't the person the clip is about."""
+    return not gaming_scoring(config) and sport(config) is None
 
 
 def orientation(width: int, height: int) -> str:

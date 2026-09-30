@@ -204,11 +204,45 @@ FOCUS_PARAM = {
     ),
 }
 
+# The Sports toggle (docs/SPORTS.md). The choices are the engine's (GET
+# /sports); a wrong one comes back as a 400 that lists the right ones.
+SPORT_PARAM = {
+    "type": "object",
+    "description": (
+        "The video is a match: its goals, saves, cards and chances are found from the "
+        "crowd, the commentary and the scoreboard, one clip per moment with its build-up, "
+        "framed to follow the ball. Not with gaming or podcast."
+    ),
+    "properties": {
+        "name": {"type": "string", "description": "The sport: soccer"},
+        "highlights": {
+            "type": "string",
+            "description": (
+                "Which moments become clips: best (default), goals, goals_celebrations, saves, "
+                "chances, attacking, cards, penalties, or custom (with request)"
+            ),
+        },
+        "period": {
+            "type": "string",
+            "description": "full (default), first_half, second_half or extra_time",
+        },
+        "teams": {
+            "type": "string",
+            "description": "Teams or players to favour, as the person named them (never guess)",
+        },
+        "request": {
+            "type": "string",
+            "description": "With highlights=custom: the moments wanted, in the person's words",
+        },
+    },
+    "required": ["name"],
+}
+
 
 def _queue_video(args: dict) -> str:
     body: dict = {"url": args["url"]}
     for key in ("force", "min_score", "max_clips", "podcast", "vertical_live", "gaming", "long_clips",
-                "captions", "focus"):
+                "captions", "focus", "sport"):
         if args.get(key) is not None:
             body[key] = args[key]
     if args.get("watermark"):
@@ -261,6 +295,8 @@ def _queue_local_file(args: dict) -> str:
         body["gaming"] = True
     if args.get("focus"):
         body["focus"] = args["focus"]
+    if args.get("sport"):
+        body["sport"] = args["sport"]
     # Where the file came from (a downloaded live's page), only when known.
     if args.get("source_url"):
         body["source_url"] = args["source_url"]
@@ -883,6 +919,7 @@ TOOLS: list[dict] = [
                 "min_score": {"type": "integer", "description": "Quality bar, 0-100"},
                 "max_clips": {"type": "integer", "description": "Cap clips from this video"},
                 "focus": FOCUS_PARAM,
+                "sport": SPORT_PARAM,
                 "podcast": {
                     "type": "boolean",
                     "description": "Multi-camera podcast footage: framing cuts per shot",
@@ -1028,6 +1065,7 @@ TOOLS: list[dict] = [
                     "description": "Where the video was originally streamed, if known (never guess)",
                 },
                 "focus": FOCUS_PARAM,
+                "sport": SPORT_PARAM,
             },
             "required": ["path"],
         },

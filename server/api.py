@@ -46,6 +46,7 @@ class JobIn(BaseModel):
     filter: str | None = None  # color preset name (video/filters.py) for the whole job
     min_score: int | None = None  # per-job quality bar override (0-100)
     focus: str | None = None  # the person's clip direction, in their words (analysis/intent.py)
+    sport: dict | str | None = None  # the Sports toggle: {name, highlights, period, teams} (sports/)
     longform: dict | None = None  # {"mode": short_clips|clips_140|highlights|edited_stream}
     watermark_profile_id: int | None = None  # branding profile applied to all clips
     podcast: bool | None = None   # multi-cam podcast: letterbox, no subject tracking
@@ -78,6 +79,7 @@ class JobPatch(BaseModel):
     filter: str | None = None
     min_score: int | None = None
     focus: str | None = None
+    sport: dict | str | None = None
     longform: dict | None = None
     watermark_profile_id: int | None = None
     podcast: bool | None = None
@@ -110,6 +112,7 @@ class BatchItemIn(BaseModel):
     filter: str | None = None
     min_score: int | None = None
     focus: str | None = None
+    sport: dict | str | None = None
     longform: dict | None = None
     watermark_profile_id: int | None = None
     podcast: bool | None = None
@@ -218,6 +221,7 @@ class LocalVideoIn(BaseModel):
     filter: str | None = None
     min_score: int | None = None
     focus: str | None = None
+    sport: dict | str | None = None
     max_clips: int | None = None
     force: bool = False
     webhook_url: str | None = None
@@ -466,6 +470,15 @@ def _process_options(body, into: dict | None = None) -> dict:
         payload["gaming_remember"] = True
     if getattr(body, "longform", None):
         payload["longform"] = body.longform
+    if getattr(body, "sport", None):
+        # The Sports toggle (sports/): checked against the sports that exist,
+        # so a job can't be queued for one that doesn't.
+        import sports
+
+        try:
+            payload["sport"] = sports.clean(body.sport)
+        except ValueError as e:
+            raise HTTPException(400, f"sport: {e}") from e
     focus = " ".join(str(getattr(body, "focus", None) or "").split())
     if focus:
         # What the clips should be about, in the person's words: it only adds
@@ -517,6 +530,11 @@ def _process_options(body, into: dict | None = None) -> dict:
     if payload.get("gaming_scoring") and (payload.get("podcast") or payload.get("longform")):
         raise HTTPException(400, "Gaming / reaction scoring works with the standard layout, Vertical "
                                  "Live and Gaming / Reaction, not with Podcast or Longform.")
+    # A match is scored as a match: not also as a game stream or a podcast.
+    if payload.get("sport") and (payload.get("gaming") or payload.get("gaming_scoring")
+                                 or payload.get("podcast")):
+        raise HTTPException(400, "Sports can't be combined with Gaming / Reaction or Podcast: "
+                                 "each scores and lays out the video its own way. Turn one of them off.")
     return payload
 
 
@@ -2899,6 +2917,16 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         return {"deleted": tag}
 
     # ---- settings (quick-setup keys only) -----------------------------------
+
+    @app.get("/sports")
+    def list_sports():
+        """The sports the Sports toggle offers, with their highlight and period
+        choices. Empty when the sports package isn't installed."""
+        try:
+            import sports
+        except ImportError:
+            return []
+        return sports.available()
 
     @app.get("/settings")
     def get_settings():

@@ -2,7 +2,8 @@
 clipping pipeline, one sport per package. Soccer first.
 
 A job with the Sports toggle on carries `sport`, for example
-{"name": "soccer", "highlights": "goals", "period": "full", "teams": "Team A"}.
+{"name": "soccer", "highlights": "goals", "period": "full", "teams": "Team A"}
+(and with Custom highlights, `request`: the moments in the person's words).
 Without it nothing here runs and the video is clipped exactly as before.
 
 It adds no pipeline of its own. The sport's profile plugs into the same
@@ -79,7 +80,24 @@ def clean(raw) -> dict:
     teams = " ".join(str(raw.get("teams") or "").split())[:TEAMS_MAX]
     if teams:
         out["teams"] = teams
+    # Custom highlights: the moments described in the person's own words,
+    # which become a clip direction (analysis/intent.py). Only with Custom.
+    request = " ".join(str(raw.get("request") or "").split())[:TEAMS_MAX]
+    if request and highlights == "custom":
+        out["request"] = request
     return out
+
+
+def direction(opt: dict) -> str:
+    """What a sport option asks for in words, as a clip direction
+    (analysis/intent.py): Custom's description, then the teams or players.
+    "" when it asks for nothing in words."""
+    parts = []
+    if opt.get("request"):
+        parts.append(f"{str(opt['request']).rstrip('.')}.")
+    if opt.get("teams"):
+        parts.append(f"More clips involving {opt['teams']}.")
+    return " ".join(parts)
 
 
 def option(config_or_opts: dict | None) -> dict | None:
@@ -105,3 +123,24 @@ def profile_for(config: dict, video=None):
         return None
     module = importlib.import_module(SPORTS[opt["name"]])
     return module.profile(config, opt, video)
+
+
+def framing(name: str, clip_path, config: dict) -> dict | None:
+    """The sport's crop path for one clip ({"mode": "track", "path": ...}),
+    or None when the sport has no framing of its own."""
+    if name not in SPORTS:
+        return None
+    module = importlib.import_module(SPORTS[name])
+    frame = getattr(module, "framing", None)
+    return frame(clip_path, config) if frame is not None else None
+
+
+def prepass(config: dict, video_path, duration: float) -> dict:
+    """What the sport reads from the video itself while Whisper runs (soccer:
+    the scoreboard), as attributes for its profile. {} for a sport with none."""
+    opt = option(config)
+    if opt is None:
+        return {}
+    module = importlib.import_module(SPORTS[opt["name"]])
+    read = getattr(module, "prepass", None)
+    return read(video_path, duration) if read is not None else {}

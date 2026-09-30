@@ -37,7 +37,7 @@ class SportProfile:
 
     @property
     def spec(self) -> dict:
-        return {"label": f"{self.label} match", **sports.spec(self.name)}
+        return {**sports.spec(self.name), "label": f"{self.label} match"}
 
     @property
     def label(self) -> str:
@@ -63,6 +63,12 @@ class SportProfile:
         return {"label": f"{self.label} match", "highlights": s.get("highlights", "")}
 
     @property
+    def reads_screen(self) -> bool:
+        """Whether reading the screen (analysis/game_text.py) is worth its time
+        for this sport: `read_screen` in its config/sports.yaml entry."""
+        return bool(sports.spec(self.name).get("read_screen", True))
+
+    @property
     def screen_lexicon(self) -> dict:
         """The on-screen words analysis/game_text.py looks for in a match."""
         words = [str(w) for w in (sports.spec(self.name).get("screen_text") or [])]
@@ -84,7 +90,7 @@ class SportProfile:
             f"- The moments that matter: {highlights}.",
             (f"- The commentary names them as they happen ({', '.join(repr(c) for c in callouts[:10])}), "
              "and the CROWD / WHISTLE / ON SCREEN events listed with the transcript mark them too. "
-             "A crowd roaring and the commentator's voice jumping together is the surest sign."),
+             "A crowd roaring is the surest sign, and a goal's roar is the loudest and longest."),
             ("- For a goal, include the attack that led to it and the celebration; for any moment, "
              "a few seconds of build-up before it and the reaction after. 15-40 seconds is ideal."),
             ("- Score low: stoppages, routine passing in midfield, substitutions, pre-match and "
@@ -121,6 +127,12 @@ class SportProfile:
     def replay_within(self) -> float:
         return float(sports.spec(self.name).get("replay_within_seconds", 90) or 90)
 
+    def replay_said(self, text: str) -> bool:
+        """Whether the commentary says a replay is showing ("let's see it again")."""
+        low = (text or "").lower()
+        return any(re.search(rf"(?<!\w){re.escape(str(w).lower())}(?!\w)", low)
+                   for w in sports.spec(self.name).get("replay_words") or [])
+
     def _callouts(self) -> list[tuple[str, re.Pattern]]:
         if getattr(self, "_compiled", None) is None:
             s = sports.spec(self.name)
@@ -147,17 +159,18 @@ class SportProfile:
 
     def classify(self, said: list[tuple[str, str]], signals: list[str]) -> tuple[str, float]:
         """(event type, confidence) from what the commentary said and the other
-        signals seen. A type needs TYPED_AT independent signals (the callout
-        counts as one); otherwise the moment is a "big moment", or nothing when
-        nothing at all marked it."""
+        signals seen (the crowd, the commentator's voice jumping, a whistle,
+        the scoreboard, on-screen text).
+
+        A type needs TYPED_AT independent signals, the callout counting as one.
+        The commentary alone is never a moment: commentators name a substitution
+        in passing, or recall an earlier goal in a lull. Signals without a
+        callout make a "big moment", never a guessed type."""
         others = len(signals)
         kinds = {k for k, _ in said}
-        if kinds:
+        if kinds and others >= TYPED_AT - 1:
             kind = max(kinds, key=self.importance)
-            support = 1 + others
-            if support >= TYPED_AT:
-                return kind, min(1.0, support / 3)
-            return "big_moment", 0.34
+            return kind, min(1.0, (1 + others) / 3)
         if others >= 1:
             return "big_moment", min(1.0, others / 3)
         return "", 0.0

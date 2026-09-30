@@ -27,6 +27,11 @@ soccer:
 
   # A replay shown within this many seconds after a moment is the same moment.
   replay_within_seconds: 90
+  # What commentators say over a replay: a second "goal" moment soon after the
+  # first, with no new score, is the same goal shown again.
+  replay_words: [replay, replays, "see it again", "watch it again", "show it again", "there it is again",
+                 "one more time", "another angle", "look at it again", "slow motion", "in slow-mo",
+                 repetición, "otra vez", "de nuevo", "au ralenti", "noch einmal", zeitlupe, rivediamo]
 
   # Each kind of moment: its label, how much it is worth (0-100) and how many
   # seconds of play a clip keeps before and after it. The clip also stays
@@ -73,7 +78,7 @@ soccer:
                    "falló el penalti", "falla el penal", "pênalti perdido", "elfmeter verschossen",
                    "rigore sbagliato", "tir au but manqué"]
     save: [save, saves, saved, "what a save", "great save", "brilliant save",
-           "denied", "tipped over", "tipped wide", parada, paradón, atajada, "que parada", defesa,
+           "tipped over", "tipped wide", parada, paradón, atajada, "que parada", defesa,
            defendeu, "arrêt", parade, gehalten, "pariert", parata, "che parata"]
     chance: [chance, "big chance", "so close", "off the post", "hits the post", "the post", "the bar",
              crossbar, woodwork, "just wide", "over the bar", "inches wide", "how has he missed",
@@ -111,6 +116,10 @@ soccer:
 
   # Words the broadcast writes on screen for a moment (analysis/game_text.py
   # reads them; the score bug itself is read by sports/soccer/scoreboard.py).
+  # Off: on a broadcast final, reading the screen at the loudest moments took
+  # 115 s and found none of them, since graphics like these come up later, in
+  # the replays and the review, and the score box already confirms the goals.
+  read_screen: false
   screen_text: [GOAL, GOL, TOR, BUT, "OWN GOAL", PENALTY, PENALTI, ELFMETER, RIGORE, VAR,
                 "VAR CHECK", "NO GOAL", "GOAL CONFIRMED", "RED CARD", "YELLOW CARD", OFFSIDE,
                 SUBSTITUTION, "HALF TIME", "HALF-TIME", "FULL TIME", "FULL-TIME", "TARJETA ROJA",
@@ -121,6 +130,14 @@ soccer:
   # play for fouls, cards and the end of each half.
   sounds: {gunfire: 0.0, explosion: 0.2, crash: 0.1, crowd: 1.0, whistle: 0.8, scream: 0.6,
            laughter: 0.2}
+
+  # The 9:16 framing's ball and player detector (sports/soccer/ball.py).
+  # Measured on 200 frames of a broadcast final: in the 123 wide shots the
+  # shipped yolov8n found the ball in 35 at 640 px, 77 at 960 and 90 at
+  # 1280 (34 ms a frame on the GPU); yolov8s, a 22 MB download, found 78 at
+  # 1280 and was slower. A broadcast ball is a few pixels wide, so the input
+  # size matters more than the model.
+  framing: {model: yolov8n.pt, imgsz: 1280}
 
   # What the Highlights choice keeps: the event types it selects, and (for
   # "Goals + celebrations") extra seconds kept after the moment. `all` keeps

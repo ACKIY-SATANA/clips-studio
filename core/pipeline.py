@@ -210,6 +210,13 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
             raise modes.NotVerticalError(width, height)
         print(f"      Vertical Live: {width}×{height}, keeping the stream's own layout "
               "(no face tracking or reframing)")
+    elif modes.sport(config):
+        # A match already filmed for 9:16 keeps its composition, exactly as a
+        # Vertical Live does: the moments are still found the sport's way.
+        width, height = modes.probe_size(video.path)
+        if modes.orientation(width, height) == "vertical":
+            print(f"      Sports: {width}×{height} is already vertical, keeping its composition")
+            config = {**config, "clips": {**config["clips"], "vertical_live": True}}
 
     cancel.clear(video.video_id)  # fresh start; any stale flag from a prior run gone
     # Source length is stored too: the queue's time estimate scales its history
@@ -316,6 +323,9 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     # Optional signal: any failure just means no bonus.
     hype_out: dict = {}
     gaming_scoring = modes.gaming_scoring(config)
+    # A match (the Sports toggle, sports/): scored for its moments with the
+    # same evidence a gaming stream gets, plus the sport's own.
+    sport_name = modes.sport(config)
     known_games = list(getattr(video, "games", None) or []) or db.video_games(video.video_id)
 
     def _fetch_hype() -> None:
@@ -326,7 +336,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
             if curve is not None:
                 hype_out["curve"] = curve
             # What chat said, for a gaming stream's reading of its reactions.
-            if gaming_scoring and messages:
+            if (gaming_scoring or sport_name) and messages:
                 hype_out["messages"] = messages
         except Exception as e:
             print(f"      (audience hype fetch failed: {e})")
@@ -344,7 +354,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     # VOD. Optional: without the model the stream is scored without it.
     sounds_out: dict = {}
     sounds_thread = None
-    if gaming_scoring:
+    if gaming_scoring or sport_name:
         def _listen() -> None:
             try:
                 from analysis import game_audio, gaming, panns
@@ -359,6 +369,22 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
 
         sounds_thread = threading.Thread(target=_listen, daemon=True, name="game-sounds-prepass")
         sounds_thread.start()
+
+    # A sport's own reading of the video (soccer: the scoreboard), done while
+    # Whisper runs. Optional: whatever it can't read, the match is scored without.
+    sport_out: dict = {}
+    sport_thread = None
+    if sport_name:
+        def _sport_prepass() -> None:
+            try:
+                import sports
+
+                sport_out.update(sports.prepass(config, video.path, video.duration))
+            except Exception as e:
+                print(f"      ({sport_name}: reading the video failed: {e})")
+
+        sport_thread = threading.Thread(target=_sport_prepass, daemon=True, name="sport-prepass")
+        sport_thread.start()
 
     print("[2/4] Transcribing...")
     progress.emit(stage="transcribe", video_id=video.video_id, title=video.title)
@@ -392,10 +418,16 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     hype_thread.join(timeout=60)  # network fetch; hard cap so it never stalls
     if sounds_thread is not None:
         sounds_thread.join(timeout=900)  # done long before Whisper, bar a stuck decode
+    if sport_thread is not None:
+        sport_thread.join(timeout=900)
     llm = create_backend(_with_usable_model(config["llm"]))
-    gaming_profile, chat, sounds = _gaming_scoring_inputs(
-        config, video, db, known_games, hype_out, sounds_out.get("heard")) \
-        if gaming_scoring else (None, None, None)
+    gaming_profile, sport_profile, chat, sounds = None, None, None, None
+    if sport_name:
+        sport_profile, chat, sounds = _sport_inputs(config, video, hype_out, sounds_out.get("heard"),
+                                                    sport_out)
+    elif gaming_scoring:
+        gaming_profile, chat, sounds = _gaming_scoring_inputs(
+            config, video, db, known_games, hype_out, sounds_out.get("heard"))
     intent = clip_direction(config, llm, video.duration)
     candidates, rejections = find_clips(
         video.path, segments, llm, config,
@@ -406,6 +438,8 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         **({"measure_reaction": False} if not modes.measures_reaction(config) else {}),
         **({"gaming": gaming_profile, "chat": chat, "sounds": sounds}
            if gaming_profile is not None else {}),
+        **({"sport": sport_profile, "chat": chat, "sounds": sounds}
+           if sport_profile is not None else {}),
         **({"intent": intent} if intent is not None else {}),
     )
     for r in rejections:
@@ -426,6 +460,9 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         # What the direction was understood as, and what it couldn't find,
         # where the clip page shows it.
         outcome["intent"] = intent.report()
+    if sport_profile is not None and getattr(sport_profile, "report_data", None):
+        # What the match gave (goals found, the score read, replays grouped).
+        outcome["sport"] = sport_profile.report_data
     db.set_outcome(video.video_id, outcome)
 
     if not candidates:
@@ -691,6 +728,60 @@ def _gaming_scoring_inputs(config: dict, video, db: StateDB, games: list, hype_o
     return profile, chat, sounds
 
 
+def _sport_inputs(config: dict, video, hype_out: dict, heard: dict | None, prepass: dict):
+    """(the sport's profile, what chat's reactions mark, what the match's
+    sound marks) for a job with a sport. The profile carries the crowd and
+    the whistle as curves of their own and whatever the sport's prepass read
+    (soccer: the scoreboard). Failure-safe: a match with none of it is still
+    scored, as a match."""
+    import sports
+    from analysis import gaming
+
+    profile = sports.profile_for(config, video)
+    for key, value in (prepass or {}).items():
+        setattr(profile, key, value)
+    chat = None
+    if hype_out.get("messages"):
+        try:
+            from analysis.chat_moments import chat_signal
+
+            k = gaming.knowledge()
+            chat = chat_signal(hype_out["messages"], video.duration, k.get("chat_classes") or {},
+                               float(k.get("chat_lag_seconds", 6)), k.get("chat_ignore") or [])
+        except Exception as e:
+            print(f"      (chat moments unavailable: {e})")
+    sounds = None
+    profile.curves = {}
+    if heard:
+        try:
+            from analysis.game_audio import sound_signal
+
+            groups = gaming.knowledge().get("sound_groups") or {}
+            seconds = max(v.size for v in heard.values())
+            track = profile.genre_track(seconds)
+            sounds = sound_signal(heard, groups, track, profile.sound_weights())
+            # The crowd and the whistle each as a curve of their own: the
+            # moments are typed by which of them agree.
+            for name in ("crowd", "whistle"):
+                if name in heard:
+                    one = sound_signal({name: heard[name]}, groups, track, {profile.name: {name: 1.0}})
+                    if one is not None:
+                        profile.curves[name] = one.game
+            # ...and how sure the sound model is that a crowd is cheering, as
+            # it heard it: what dates a goal the scoreboard confirms.
+            if "crowd" in heard:
+                profile.curves["crowd_heard"] = heard["crowd"]
+        except Exception as e:
+            print(f"      (match sounds unavailable: {e})")
+    board = getattr(profile, "board", None)
+    if board is not None and board.box:
+        teams, final = board.teams(), board.final()
+        print(f"      Scoreboard: {len(board.changes)} goal(s) read"
+              + (f", {teams[0]} v {teams[1]}" if teams else "")
+              + (f", {final[0]}-{final[1]} at the end" if final else ""))
+    return profile, chat, sounds
+
+
 def _cached_or_download(url: str, data_dir: Path, db: StateDB, vertical: bool = False):
     """Reprocessing must never depend on the platform being reachable: when
     the source file is already on disk, use it (with title/channel from the
@@ -854,6 +945,9 @@ def _render_files(
     from core import modes
 
     vertical_live = not landscape and (modes.is_vertical_live(opts) or modes.is_vertical_live(config))
+    # A match (the Sports toggle, sports/): framed by the ball and the play.
+    # From the job or the clip's saved options, so re-renders keep it.
+    sport_name = modes.sport(opts) or modes.sport(config)
     # Gaming / Split-Screen (gaming/): opt-in, per video or per clip. Tried
     # first inside the tracked branch; anything it declines or fails at goes
     # on to the standard layout below. Off -> never imported.
@@ -1002,8 +1096,17 @@ def _render_files(
                 from video.tracker import compute_tracking  # lazy: imports torch
 
                 crop_mode = opts.get("crop", "track")
+                sport_framing = (_sport_framing(intermediate, config, sport_name)
+                                 if sport_name and crop_mode in ("track", "bias_left", "bias_right")
+                                 else None)
                 if crop_mode == "center":
                     tracking = {"mode": "track", "path": [(0.0, 0.5)]}
+                elif sport_framing is not None:
+                    # A match (sports/): the ball and the play, not a face.
+                    tracking = sport_framing
+                    if crop_mode in ("bias_left", "bias_right"):
+                        shift = -0.12 if crop_mode == "bias_left" else 0.12
+                        tracking["path"] = [(t, x + shift) for t, x in tracking["path"]]
                 else:
                     tracking_cfg = config["tracking"]
                     tracking = compute_tracking(
@@ -1087,9 +1190,24 @@ def _render_files(
             # Persist the resolved branding so a later re-render reapplies it,
             # even when it came from the job/config default (not per-clip opts).
             **({"watermark": wm_cfg} if wm_cfg else {}),
+            # The sport, so a re-render frames the ball again, not a face.
+            **({"sport": sport_name} if sport_name else {}),
         }
-    ) if (opts or caption_style or filter_name != "none" or wm_cfg or vertical_live) else ""
+    ) if (opts or caption_style or filter_name != "none" or wm_cfg or vertical_live or sport_name) else ""
     return final_path, render_opts_json
+
+
+def _sport_framing(clip_path: Path, config: dict, sport_name: str) -> dict | None:
+    """The sport's own framing for a clip (sports/), or None to use the face
+    tracker as always: a sport without framing, or a failure, never stops a
+    clip from rendering."""
+    try:
+        import sports
+
+        return sports.framing(sport_name, clip_path, config)
+    except Exception as e:
+        print(f"      ({sport_name} framing failed: {e}; framing it the usual way)")
+        return None
 
 
 def _register_clip(

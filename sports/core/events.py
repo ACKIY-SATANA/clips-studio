@@ -21,9 +21,11 @@ class SportEvent:
     team: str = ""               # only when the scoreboard or the commentary names it
     player: str = ""             # the same; never guessed
     period: str = ""             # first_half | second_half | extra_time | "" when unknown
+    minute: int | None = None    # the match minute, when the clock was read
     signals: list = field(default_factory=list)   # what marked it: "crowd", "score 1-0", ...
     is_replay: bool = False
     group: int = 0               # the moment it belongs to (0: not grouped yet)
+    confirmed: bool = False      # the scoreboard confirmed it: the score changed for it
 
     def overlaps(self, other: "SportEvent", min_ratio: float = 0.3) -> bool:
         """Whether the two windows share at least min_ratio of the shorter."""

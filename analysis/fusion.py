@@ -31,6 +31,15 @@ from core import cancel, progress
 from core.models import ClipCandidate, Rejection, Segment
 from llm.base import LLMBackend, generate_json
 
+try:
+    # Sports (sports/): used only when a job has a sport. Without the package
+    # everything else here runs as it always has.
+    from sports.core import clips as sport_clips
+    from sports.core import detect as sport_detect
+    from sports.core import select as sport_select
+except ImportError:
+    sport_clips = sport_detect = sport_select = None
+
 # The shape rerank.txt asks for; held to it on a cloud model (llm.base.generate_json).
 ORDER_SCHEMA = {
     "type": "object",
@@ -56,6 +65,7 @@ def find_clips(
     chat=None,  # analysis.chat_moments.ChatSignal: what chat's reactions mark
     sounds=None,  # analysis.game_audio.GameSounds: what the game's own sound marks
     intent=None,  # analysis.intent.ClipIntent: the person's direction; only ever adds
+    sport=None,  # sports.core.profile.SportProfile: a match, scored for its moments (sports/)
 ) -> tuple[list[ClipCandidate], list[Rejection]]:
     clips_cfg = config["clips"]
     analysis_cfg = config["analysis"]
@@ -64,6 +74,12 @@ def find_clips(
         "weights",
         {"text": 0.30, "visual": 0.20, "reaction": 0.20, "audio": 0.20, "engagement": 0.10},
     )
+    if sport is not None and gaming is None:
+        # A match answers what the gaming path asks (sports/core/profile.py),
+        # so its proven evidence (the voice jump, the crowd and whistle,
+        # on-screen text, event windows, the capped bonus) runs with the
+        # sport's data in it.
+        gaming = sport
     if gaming is not None:
         # The standard weights (analysis/gaming.py): talk is judged as on any
         # stream, and the game adds on top (the game bonus below).
@@ -122,7 +138,7 @@ def find_clips(
             sources += [(game_sound, 0.7), (people_sound, 0.5)]
             game_events += list(sounds.events)
         game_curve = _soft_or(sources)
-        if scoring_cfg.get("read_screen", True) and game_curve.size:
+        if scoring_cfg.get("read_screen", True) and game_curve.size and getattr(gaming, "reads_screen", True):
             # What the game writes on screen in those moments: an event's
             # banner, or a menu chat reacted to.
             screen = _read_screen(video_path, game_curve, segments, clips_cfg, gaming)
@@ -136,7 +152,8 @@ def find_clips(
         if len({str(g.get("name") or "") for g in gaming.games}) > 1:
             guidance = lambda start, end: gaming.guidance("clips", start, end)  # noqa: E731
         events_title = "GAME / CHAT / AUDIO EVENTS (from signal analysis):"
-        print(f"  Gaming: scoring as a {gaming.spec.get('label', 'game')} stream"
+        print(f"  {'Sports' if sport is not None else 'Gaming'}: scoring as a "
+              f"{gaming.spec.get('label', 'game')}{'' if sport is not None else ' stream'}"
               + (f" ({gaming.game})" if gaming.game else "")
               + f": {len(chat.events) if chat is not None else 0} chat moment(s), "
               f"{len(sounds.events) if sounds is not None else 0} game sound(s), "
@@ -249,6 +266,35 @@ def find_clips(
             ]
             intent.added = len(asked)
 
+    # ---- 2c. a match's moments (sports/) ----------------------------------
+    # Goals, saves, cards: found where the crowd, the commentary, the whistle,
+    # the screen and the scoreboard agree, each given its own window (the
+    # build-up, the moment, the reaction) as a candidate scored like any other.
+    sport_moments: list = []
+    if sport is not None:
+        highlights_choice = sport.option.get("highlights", "best")
+        sport_moments = sport_detect.moments(
+            sport, segments, curves=getattr(sport, "curves", None) or {}, voice=voice,
+            screen=[(sec, desc) for sec, desc in events
+                    if desc.startswith("ON SCREEN") and "menu" not in desc],
+            board=getattr(sport, "board", None),
+            video_end=max(segments[-1].end if segments else 0.0, float(audio_excitement.size)),
+            min_len=clips_cfg["min_duration"], max_len=clips_cfg["max_duration"],
+            extra_after=sport_select.post_extra(sport.spec, highlights_choice),
+            extra_types=sport_select.event_types(sport.spec, highlights_choice) or (),
+        )
+        wanted = sport_clips.windows_to_add(sport_moments, candidates)
+        typed = sum(1 for e in sport_moments if e.confidence >= sport_clips.TYPED and e.type != "big_moment")
+        print(f"  {sport.label}: {len(sport_moments)} moment(s), {typed} typed, "
+              f"{sum(e.is_replay for e in sport_moments)} replay(s); scoring {len(wanted)} window(s)")
+        if wanted:
+            found = highlights.score_windows(
+                segments, llm, [(e.start, e.end) for e in wanted], events=events,
+                guidance=sport.guidance("windows"), events_title=events_title, batch=8)
+            for c in found:
+                c.source = "sport"
+            candidates += found
+
     if not candidates:
         return [], []
 
@@ -342,6 +388,8 @@ def find_clips(
     n_game = 0
     n_menu = 0
     n_intent = 0
+    n_sport = 0
+    sport_attached = sport_clips.attach(sport_moments, candidates) if sport is not None else {}
     for c in candidates:
         fused = round(100 * _fuse(c, weights, c.subscores["reaction"] / 100.0, speech[id(c)],
                                   game=gaming is not None))
@@ -458,6 +506,15 @@ def find_clips(
                 c.subscores["intent"] = b
                 c.subscores["intent_why"] = "; ".join(reasons)
                 n_intent += 1
+        # The match moment this clip shows (sports/): capped by its worth, a
+        # goal most, a replay nothing.
+        moment = sport_attached.get(id(c))
+        if moment is not None:
+            b = sport_clips.bonus(moment)
+            sport_clips.mark(c, moment, sport.event_label(moment.type), b)
+            if b:
+                fused = min(100, fused + b)
+                n_sport += 1
         c.score = fused
     if n_context:
         print(f"  Creator context boosted {n_context} candidate(s) (max +{ctx_cap})")
@@ -477,6 +534,17 @@ def find_clips(
                             clips_cfg["min_score"], analysis_cfg["max_overlap"])
         for label in intent.not_found:
             print(f"  Clip direction: couldn't find {label} in this video")
+    sport_dropped: list = []
+    if sport is not None:
+        print(f"  {sport.label} moments added to {n_sport} candidate(s) (up to +{sport_clips.BONUS_MAX})")
+        # One clip per moment, the Highlights choice and the period.
+        candidates, sport_dropped, sport_notes = sport_clips.choose(
+            sport, candidates, sport_attached, min_score=clips_cfg["min_score"],
+            max_len=clips_cfg["max_duration"])
+        sport.report_data = sport_clips.report(sport, sport_moments, candidates, sport_attached, sport_notes)
+        if sport_dropped:
+            print(f"  {sport.label}: {len(sport_dropped)} candidate(s) set aside "
+                  f"(the same moment again, or not in the chosen highlights)")
 
     # ---- 4. dedup + threshold (reusing the proven logic) ------------------
     # max_clips_per_video == 0 means automatic: keep EVERY unique clip that
@@ -486,7 +554,8 @@ def find_clips(
     selection_cap = max_clips if max_clips > 0 else len(candidates)
     # A must-have the person asked for is chosen first, so a clip cap can't
     # squeeze it out. Without a direction the order is the score, as always.
-    first = (lambda c: (clip_intent.is_required(c), c.score)) if intent is not None else None
+    first = ((lambda c: (clip_intent.is_required(c), c.score))
+             if intent is not None or sport is not None else None)
     finalists, rejections = highlights._select_unique(
         candidates, segments,
         min_score=clips_cfg["min_score"],
@@ -496,11 +565,13 @@ def find_clips(
         max_segment_reuse=analysis_cfg["max_segment_reuse"],
         **({"priority": first} if first is not None else {}),
     )
+    rejections += [Rejection(c, reason) for c, reason in sport_dropped]
 
     # ---- 4b. a gaming stream's best candidates, looked at -----------------
     # The first time anything sees the picture: a local model that takes
-    # images is shown a few frames of each (analysis/game_vision.py).
-    if gaming is not None and finalists and scoring_cfg.get("look_at_game", True):
+    # images is shown a few frames of each (analysis/game_vision.py). Not a
+    # match: its question is about menus and lobbies.
+    if gaming is not None and sport is None and finalists and scoring_cfg.get("look_at_game", True):
         _look_at_game(finalists, video_path, llm, gaming, segments, events)
         # Seen as a menu, or as nothing happening, can take a clip under the bar.
         under = [c for c in finalists if c.score < clips_cfg["min_score"]]
@@ -798,9 +869,11 @@ def _read_screen(video_path, game_curve: np.ndarray, segments: list[Segment], cl
                              existing=[])
     windows.sort(key=lambda w: -float(game_curve[int(w[0]):int(w[1]) + 1].max()))
     t0 = time.monotonic()
+    # A sport brings its own on-screen words (sports/core/profile.py).
+    lexicon = getattr(gaming, "screen_lexicon", None) or knowledge().get("screen_text") or {}
     try:
         screen = game_text.read_screen(Path(video_path), windows, lambda s, e: gaming.game_at(s, e)[1],
-                                       knowledge().get("screen_text") or {})
+                                       lexicon)
     except Exception as e:
         print(f"  (on-screen text unavailable: {e})")
         return None

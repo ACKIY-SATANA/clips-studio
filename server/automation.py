@@ -187,6 +187,8 @@ def job_payload(watch, url: str, origin: str = "watch") -> dict:
         payload.pop("gaming")
     if payload.get("gaming_scoring") and any(payload.get(k) for k in ("podcast", "longform")):
         payload.pop("gaming_scoring")  # the same, for gaming stream scoring
+    if payload.get("sport") and any(payload.get(k) for k in ("gaming", "gaming_scoring", "podcast")):
+        payload.pop("sport")  # and a sport set beside a mode it can't share
     return payload
 
 

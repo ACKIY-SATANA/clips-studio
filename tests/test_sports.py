@@ -3,6 +3,8 @@ deterministic logic every sport shares: a moment's window, grouping a moment
 with its replays, typing a moment only when signals agree, and choosing what
 a job keeps. No model runs here."""
 
+import importlib
+
 import pytest
 
 pytest.importorskip("yaml")
@@ -46,10 +48,37 @@ def test_the_option_is_cleaned_and_unknown_values_refused():
     got = sports.clean({"name": "Soccer", "highlights": "goals", "period": "second_half",
                         "teams": "  Team   A  "})
     assert got == {"name": "soccer", "highlights": "goals", "period": "second_half", "teams": "Team A"}
+    # Custom's own words go with Custom only.
+    custom = sports.clean({"name": "soccer", "highlights": "custom", "request": " the  saves "})
+    assert custom["request"] == "the saves"
+    assert "request" not in sports.clean({"name": "soccer", "highlights": "goals", "request": "the saves"})
     for bad in ({"name": "curling"}, {"name": "soccer", "highlights": "dunks"},
                 {"name": "soccer", "period": "third_half"}, 42):
         with pytest.raises(ValueError):
             sports.clean(bad)
+
+
+def test_the_words_become_a_clip_direction():
+    assert sports.direction({"name": "soccer"}) == ""
+    assert sports.direction({"teams": "Team A"}) == "More clips involving Team A."
+    both = sports.direction({"request": "the saves.", "teams": "Team B"})
+    assert both == "the saves. More clips involving Team B."
+
+
+def test_the_framing_hook_reaches_the_ball_follower(monkeypatch):
+    # The pipeline reaches a sport's framing through sports.framing(), the
+    # package's framing() hook. A module named framing.py beside it would
+    # shadow the hook (or be shadowed by it), and every clip would quietly
+    # fall back to face tracking: checked both before and after the module
+    # itself has been imported.
+    from sports.soccer import ball
+
+    monkeypatch.setattr(ball, "compute", lambda path, model_name, imgsz: {
+        "mode": "track", "path": [(0.0, 0.4)], "led": {"ball": 1}, "imgsz": imgsz})
+    got = sports.framing("soccer", "clip.mp4", {})
+    assert got == {"mode": "track", "path": [(0.0, 0.4)], "imgsz": 1280}
+    importlib.import_module("sports.soccer.ball")        # imported by name: still the hook
+    assert callable(importlib.import_module("sports.soccer").framing)
 
 
 def test_no_sport_means_no_profile():
@@ -95,10 +124,17 @@ def test_everyday_words_are_not_moments(soccer, said):
 
 def test_a_type_needs_a_second_signal(soccer):
     said = soccer.callouts_in("what a goal")
-    assert soccer.classify(said, []) == ("big_moment", pytest.approx(0.34))
+    # The commentary alone recalls goals in lulls and names substitutions in
+    # passing: never a moment on its own.
+    assert soccer.classify(said, []) == ("", 0.0)
     assert soccer.classify(said, ["crowd"])[0] == "goal"
-    assert soccer.classify([], ["crowd"])[0] == "big_moment"
+    assert soccer.classify([], ["crowd"]) == ("big_moment", pytest.approx(1 / 3))
     assert soccer.classify([], []) == ("", 0.0)
+
+
+def test_replay_words(soccer):
+    assert soccer.replay_said("Let's see it again from another angle")
+    assert not soccer.replay_said("he plays it long again? no, short")
 
 
 # ---- windows -------------------------------------------------------------------
