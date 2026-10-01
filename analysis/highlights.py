@@ -374,6 +374,8 @@ def _parse_clips_json(raw: str) -> list[ClipCandidate] | None:
 
     clips = []
     for item in clips_raw:
+        if not isinstance(item, dict):
+            continue  # a string or a number where an entry belongs: malformed too
         try:
             engagement = item.get("engagement")
             clips.append(
