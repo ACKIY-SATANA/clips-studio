@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { t } from '../lib/i18n'
-import { REELS, fitSport, rememberSport } from '../lib/sports'
+import { COMING_SOON, REELS, SPORT_ICONS, fitSport, rememberSport, sportName } from '../lib/sports'
 import type { SportChoice, SportOption } from '../lib/types'
 
 /** The Sports toggle's choices, under a video or a watched channel: which
@@ -35,14 +35,20 @@ export default function SportFields({
     <>
       <span className="label shrink-0">{t('Sport')}</span>
       <select
-        className="input !w-36"
+        className="input !w-48"
         value={value.name}
         onChange={(e) => set({ name: e.target.value, highlights: undefined, period: undefined })}
         aria-label={`${t('Sport')}${suffix}`}
       >
         {sports.map((s) => (
           <option key={s.id} value={s.id}>
-            {t(s.label)}
+            {SPORT_ICONS[s.id] ? `${SPORT_ICONS[s.id]} ` : ''}
+            {t(sportName(s))}
+          </option>
+        ))}
+        {COMING_SOON.map((s) => (
+          <option key={s.label} value="" disabled>
+            {`${s.icon} ${t(s.label)} (${t('coming soon')})`}
           </option>
         ))}
       </select>

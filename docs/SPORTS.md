@@ -18,7 +18,7 @@ and none of its code runs.
 
 - **A video or file**: tick **Sports** in the Generate bar. A row appears under
   the video:
-  - **Sport**: Soccer.
+  - **Sport**: ⚽ Soccer / Football. Basketball and Cricket are listed under it as coming soon.
   - **Highlights**: which moments become clips (below).
   - **Period**: Full match, 1st half, 2nd half or Extra time.
   - **Teams or players** (optional): clips where the commentary names them get

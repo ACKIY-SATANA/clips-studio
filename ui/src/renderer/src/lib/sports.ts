@@ -73,6 +73,24 @@ export function fitSport(o: SportOption, list: SportChoice[]): SportOption | nul
   }
 }
 
+/** Each sport's icon in the Sport menu. */
+export const SPORT_ICONS: Record<string, string> = { soccer: '⚽' }
+
+/** A sport's name as the app shows it, where it differs from the engine's
+ *  (which also goes into the scoring prompt, so it stays as it is). */
+const SPORT_NAMES: Record<string, string> = { soccer: 'Soccer / Football' }
+
+export function sportName(s: { id: string; label: string }): string {
+  return SPORT_NAMES[s.id] ?? s.label
+}
+
+/** Sports on the way: listed under the ones on offer, greyed out, to hint at
+ *  what's next. UI only, so one can never be sent in a job. */
+export const COMING_SOON: { label: string; icon: string }[] = [
+  { label: 'Basketball', icon: '🏀' },
+  { label: 'Cricket', icon: '🏏' }
+]
+
 /** The story reels a match can have joined from its clips, in their order. */
 export const REELS: { id: string; label: string; title: string }[] = [
   {
@@ -135,12 +153,12 @@ export function startingSport(list: SportChoice[]): SportOption | null {
 
 const titled = (id: string): string => id.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 
-/** "Sports · Soccer · All goals · 2nd half · Team A", for the queue's chip. */
+/** "Sports · Soccer / Football · All goals · 2nd half · Team A", for the queue's chip. */
 export function describeSport(o: SportOption): string {
   const sport = offered?.find((s) => s.id === o.name)
   const named = (id: string, from: { id: string; label: string }[] | undefined): string =>
     from?.find((x) => x.id === id)?.label ?? titled(id)
-  const parts = ['Sports', sport?.label ?? titled(o.name)]
+  const parts = ['Sports', sport ? sportName(sport) : titled(o.name)]
   if (o.highlights) parts.push(named(o.highlights, sport?.highlights))
   if (o.period && o.period !== 'full') parts.push(named(o.period, sport?.periods))
   if (o.teams) parts.push(o.teams.length > 30 ? `${o.teams.slice(0, 30)}…` : o.teams)

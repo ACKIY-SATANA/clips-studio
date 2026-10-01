@@ -45,6 +45,7 @@ were often broken in a way that only showed up on somebody else's machine.
     video's description: "18:16 Goal Player A", "45+2' yellow card") and each becomes a clip, with the player
     or team on it. Match minutes are placed by the clock on screen or the list's kick-off times; a club app's
     tag gets a clip long enough to hold the attack, the goal and the celebration.
+  - The Sport menu shows ⚽ Soccer / Football, with Basketball and Cricket listed as coming soon.
   - **Story reels**: **Also make** a Match recap (every goal, card and save, in match order), a reel per team,
     and a reel per player named in two moments or more, by your match events or by the commentary for a name in
     Teams or players. Joined from the clips already made, so they take seconds, with one end card at the end and
