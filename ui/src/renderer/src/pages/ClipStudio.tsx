@@ -164,9 +164,40 @@ export default function ClipStudio({
     if (!q) return videos
     return videos.filter(
       (v) =>
-        (v.title || '').toLowerCase().includes(q) || (v.channel_name || '').toLowerCase().includes(q)
+        (v.title || '').toLowerCase().includes(q) ||
+        (v.channel_name || '').toLowerCase().includes(q) ||
+        (v.creator_name || '').toLowerCase().includes(q)
     )
   }, [videos, videoSearch])
+
+  // The videos by creator, so a long library reads as a short list of names.
+  // A creator is the Creators page's profile, which joins one person's
+  // channels across platforms; a video with no profile yet goes by its
+  // channel's name. Creators in the order of their newest video, videos with
+  // neither at the end.
+  const creatorGroups = useMemo(() => {
+    const byCreator = new Map<string, { key: string; label: string; list: typeof shownVideos }>()
+    for (const v of shownVideos) {
+      const channel = (v.channel_name || '').trim()
+      const key = v.creator_id != null ? `creator:${v.creator_id}` : channel ? `channel:${channel}` : ''
+      const label = (v.creator_name || '').trim() || channel || 'Other videos'
+      const group = byCreator.get(key) ?? { key, label, list: [] }
+      group.list.push(v)
+      byCreator.set(key, group)
+    }
+    return [...byCreator.values()].sort((a, b) => Number(a.key === '') - Number(b.key === ''))
+  }, [shownVideos])
+  // The creator whose list of videos is open, if any; a click elsewhere closes it.
+  const [openCreator, setOpenCreator] = useState<string | null>(null)
+  const creatorsRow = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (openCreator === null) return
+    const away = (e: MouseEvent): void => {
+      if (creatorsRow.current && !creatorsRow.current.contains(e.target as Node)) setOpenCreator(null)
+    }
+    document.addEventListener('mousedown', away)
+    return () => document.removeEventListener('mousedown', away)
+  }, [openCreator])
 
   const shownClips = useMemo(
     () =>
@@ -244,21 +275,53 @@ export default function ClipStudio({
       )}
 
       {shownVideos.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {shownVideos.map((v) => (
-            <button
-              key={v.video_id}
-              onClick={() => setActiveVideo(v.video_id)}
-              className={`px-3 py-1.5 rounded-lg text-sm max-w-64 truncate ${
-                activeVideo === v.video_id
-                  ? 'bg-accent/15 text-accent'
-                  : 'bg-raised text-muted hover:text-ink'
-              }`}
-            >
-              {v.channel_name ? `${v.channel_name} — ` : ''}
-              {v.title || v.video_id}
-            </button>
-          ))}
+        <div ref={creatorsRow} className="flex gap-2 flex-wrap">
+          {creatorGroups.map(({ key, label, list }) => {
+            const open = openCreator === key
+            const current = list.some((v) => v.video_id === activeVideo)
+            return (
+              <div key={key || '(none)'} className="relative">
+                <button
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={open}
+                  onClick={() => setOpenCreator(open ? null : key)}
+                  className={`px-3 py-1.5 rounded-lg text-sm max-w-64 truncate ${
+                    current ? 'bg-accent/15 text-accent' : 'bg-raised text-muted hover:text-ink'
+                  }`}
+                >
+                  {label} ({list.length}) {open ? '▾' : '▸'}
+                </button>
+                {open && (
+                  <ul
+                    role="listbox"
+                    aria-label={label}
+                    className="absolute z-40 mt-1 left-0 min-w-64 max-w-96 max-h-80 overflow-y-auto rounded-lg bg-surface border border-raised shadow-xl p-1"
+                  >
+                    {list.map((v) => (
+                      <li key={v.video_id}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={activeVideo === v.video_id}
+                          title={v.title || v.video_id}
+                          onClick={() => {
+                            setActiveVideo(v.video_id)
+                            setOpenCreator(null)
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md text-sm truncate hover:bg-raised ${
+                            activeVideo === v.video_id ? 'text-accent' : 'text-ink'
+                          }`}
+                        >
+                          {v.title || v.video_id}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

@@ -19,10 +19,17 @@ and none of its code runs.
 - **A video or file**: tick **Sports** in the Generate bar. A row appears under
   the video:
   - **Sport**: ⚽ Soccer / Football. Basketball and Cricket are listed under it as coming soon.
-  - **Highlights**: which moments become clips (below).
-  - **Period**: Full match, 1st half, 2nd half or Extra time.
+  - **Highlights**: which moments become clips (below). Hover a choice in the
+    list to see what it keeps.
   - **Teams or players** (optional): clips where the commentary names them get
     extra points. Nothing else is left out for it.
+  - **Also make**: the [story reels](#story-reels-the-match-in-one-video).
+
+  The whole match is always clipped. To ask for particular moments in your own
+  words, or to give the [match events](#match-events-the-goals-as-you-have-them),
+  use Ask Clips Kitty, the box at the bottom.
+- **A match streamed 9:16**: tick **Vertical Live** and choose **⚽ Soccer /
+  Football** as its content, after Talking / IRL and Gaming / reaction.
 - **A queued video**: the same, in its **Settings**.
 - **A watched channel**: the same, in the channel's clip settings, so every
   match a channel posts is clipped this way.
@@ -31,8 +38,8 @@ and none of its code runs.
 
 Sports can't be combined with **Podcast** or **Gaming / Reaction**: each scores
 and lays out the video its own way. It works with **Longform** (16:9 clips of
-the moments) and with **Vertical Live** (a match filmed 9:16 keeps its own
-layout).
+the moments) and with **Vertical Live**, where Soccer is one of the content
+choices (a match filmed 9:16 keeps its own layout).
 
 ### Highlights
 
@@ -46,11 +53,12 @@ layout).
 | **Attacking plays** | Goals, chances, shots, penalties, free kicks, corners |
 | **Cards** | Red and yellow cards, and VAR reviews |
 | **Penalties** | Penalties given, scored and missed |
-| **Custom** | Everything, plus the moments you describe in your own words ("the saves and the late chances"), which get extra points |
 
 With a choice other than Best moments, the clips of those moments are kept even
 when their score is under your minimum, and the others are set aside with a
-reason ("not in the chosen highlights").
+reason ("not in the chosen highlights"). To ask for something in your own words
+("the saves and the late chances"), say it in the box at the bottom of the app:
+those moments get extra points.
 
 ## What it finds, and how
 
@@ -186,10 +194,9 @@ the match's moments too.
 
 A club's own camera (an auto-camera like Veo, a parent's phone at the
 touchline) is the footage clubs actually own, and it is nothing like a
-broadcast: no score box, no commentary, a handful of people watching. The
-**Footage** choice in the Sport row says which it is: **Automatic** (the
-default) takes a match with no score box on screen as club or phone footage;
-**TV broadcast** and **Club or phone** set it.
+broadcast: no score box, no commentary, a handful of people watching. The app
+tells which it is by itself: a match with no score box on screen is taken as
+club or phone footage, whichever way it was filmed.
 
 On club or phone footage:
 - **The framing still follows the ball.** A wide club camera is cropped to
@@ -206,10 +213,10 @@ On club or phone footage:
 
 ## Match events: the goals as you have them
 
-**Match events** in the Sport row takes the match's goals and other moments as
-you already have them, one per line: from your club app (Veo tags its goals),
-the match report, or the video's own description. Each one becomes a clip, and
-it's certain: "from your match events".
+Tell **Ask Clips Kitty**, the box at the bottom, the match's goals and other
+moments as you already have them, with the link, one per line: from your club
+app (Veo tags its goals), the match report, or the video's own description.
+Each one becomes a clip, and it's certain: "from your match events".
 
 ```
 09:22 Kick off
@@ -243,7 +250,8 @@ It belongs to one video: the next video in the Generate list starts without it.
 
 ## Story reels: the match in one video
 
-**Also make** in the Sport row joins the match's clips into longer videos:
+**Also make** in the Sports row joins the match's clips into longer videos (Ask
+Clips Kitty can ask for them too):
 
 - **Match recap**: every named moment (the goals, cards, saves and chances the
   evidence confirmed), in match order, titled with the score read ("HOM 2-1

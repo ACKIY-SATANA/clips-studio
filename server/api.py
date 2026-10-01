@@ -1610,6 +1610,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
     def ai_edit(clip_id: int, body: AiEditIn):
         """Chat-driven editing: plain language in, validated edit + re-render out."""
         from analysis.clip_edit import interpret_edit
+        from core.pipeline import _with_usable_model
         from llm.registry import create_backend
 
         d = db()
@@ -1641,7 +1642,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
                 clip_state=clip_state,
                 caption_lines=caption_lines,
                 source_duration=source_duration,
-                llm=create_backend(config["llm"]),
+                llm=create_backend(_with_usable_model(config["llm"])),  # one that's installed (#118)
             )
 
             job_id = None

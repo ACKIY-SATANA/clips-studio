@@ -52,15 +52,14 @@ AI improvements and performance work. Start with
 
 None of this delays the alpha.
 
-- **Gaming / Reaction, next steps**: separate game and webcam recordings (two
-  files, as some recorders make), and more than one layout within a clip
+- **More sports**: the most-watched sports online after Soccer, Basketball and
+  Cricket first (the Sport menu already lists them as coming soon)
+- **Text updates when things finish**: a text message when a video's clips are
+  ready, when they're posted, and when something fails
 - **Reaction videos that understand the video being reacted to**, not just the
   words spoken over it (the split layout is done: Gaming / Reaction)
-- **Android companion app** for Twitch, Kick and local files, within Google
-  Play's policies
-- Remote rendering: shipped (experimental) under Settings → Advanced settings
-  ([docs/REMOTE-RENDERING.md](docs/REMOTE-RENDERING.md)); next, testing across
-  more real two-PC setups
+- **Android companion app, Vertical Live only**, so it stays lightweight: Twitch,
+  Kick and local files, within Google Play's policies
 - Plugin architecture and community extensions
 - Creator analytics
 - More models, better AI workflows, more platforms where they make sense

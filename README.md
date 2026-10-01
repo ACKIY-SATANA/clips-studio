@@ -132,35 +132,24 @@ table won't update itself.</sub>
 
 ## How it works
 
-```
-        Video input  (YouTube · Twitch VOD · Kick VOD · local file)
-             │
-             ▼
-        Transcription           faster-whisper, word-level timestamps, local
-             │
-             ▼
-        AI video analysis       audio · visual · reaction signals, computed
-             │                  over the whole video in 1-second bins
-             ▼
-        Clip detection          local LLM scores the transcript in context of
-        and scoring             those signals; signal peaks become candidates
-             │                  too, so laughs and hype aren't missed
-             ▼
-        Video editing           YOLOv8 pose tracking + TalkNet active-speaker
-             │                  detection → 9:16 crop that cuts to whoever is
-             │                  speaking; trims, cuts, watermark
-             ▼
-        Captions/subtitles      word-synced, burned in, fully editable
-             │
-             ▼
-        Multilingual            translate, subtitle, or dub into 19 languages
-             │
-             ▼
-        Export                  organized folders, clean filenames, metadata
+```mermaid
+flowchart TD
+    W["Watched channel<br/>YouTube's RSS feed spots a new video"] --> I
+    I["Video input<br/>YouTube · Twitch VOD · Kick VOD · local file"] --> T
+    T["Transcription<br/>faster-whisper, word-level timestamps<br/>local, or OpenRouter on your own key"] --> A
+    A["AI video analysis<br/>audio · visual · reaction signals in 1-second bins"] --> S
+    S["Clip detection and scoring<br/>an LLM scores the transcript with those signals<br/>local (Ollama) by default, or OpenRouter on your own key"] --> E
+    E["Video editing<br/>9:16 crop on whoever is speaking (YOLOv8 + TalkNet),<br/>on the ball for a match, webcam + game for Gaming / Reaction"] --> C
+    C["Captions<br/>word-synced, burned in, fully editable"] --> M
+    M["Multilingual<br/>translate, subtitle or dub into 19 languages"] --> X
+    X["Export<br/>organized folders, clean filenames, metadata"] --> P
+    P["Publishing<br/>YouTube, TikTok, Instagram: now, on a schedule,<br/>or hands-off for a watched channel"]
 ```
 
-**Every stage above runs on your computer.** The only thing that touches the network
-in a normal run is downloading the source video.
+**Every stage runs on your computer unless you choose otherwise:** OpenRouter, on
+your own key, for the AI or the transcription, and publishing, which uploads only the
+clips you send. Otherwise the only thing that touches the network in a normal run is
+downloading the source video.
 
 ### The stages in detail
 
@@ -777,30 +766,18 @@ Packaging and release documentation:
 The short version is in [ROADMAP.md](ROADMAP.md). The reasoning behind the harder
 calls is below, because "why not yet" is usually more useful than "not yet".
 
-1. **Android companion app**: clip from a phone. Twitch, Kick and local video files
-   only, to comply with Play Store policy.
-2. **Remote rendering** *(shipped, experimental)*: another PC of yours renders the
-   clips, so a long stream doesn't tie up the computer you're using. Settings →
-   Advanced settings; see [docs/REMOTE-RENDERING.md](docs/REMOTE-RENDERING.md).
-3. **Fully automated posting**: the **Watched channels** page now covers the
-   unattended half. It watches a YouTube, Twitch or Kick channel, clips each new video
-   once, and publishes the clips through WoopSocial automatically or after you say so.
-   It is off until you switch it on, it asks before publishing unless you tell it not
-   to, and it never posts a clip to the same platform twice. Set a channel to
-   hands-off and an always-on PC clips and publishes everything it posts, retrying
-   whatever fails, with nobody there. What remains is trust:
-   posting on your behalf while you sleep needs to be right about what it picked, not
-   just able to upload, which is why "Ask first" is the default. The old command-line
-   monitor (`python main.py run`) still works, but it predates the queue and
-   WoopSocial, so use the page instead.
-4. **Gaming and reaction layouts** *(done as Gaming / Reaction)*: the creator's
-   webcam and the game or reacted-to video in one vertical frame, as a self-contained
-   mode that cannot affect the standard path. It came back with the two fixes it
-   needed: TalkNet decides who the streamer is (never the biggest face), and the split
-   is checked on the video's own frames before processing, remembered per creator so
-   it's set once. Next: separate game and webcam recordings, and more than one layout
-   within a clip.
-5. **Voice cloning for dubbing** *(last on this list on purpose)*: dubbing today uses
+1. **Android companion app, Vertical Live only**, so it stays lightweight: a
+   vertical live is already framed for a phone screen, so the app keeps the stream's
+   own layout and only has to find the moments, with no face tracking or reframing.
+   Twitch, Kick and local video files only, to comply with Play Store policy.
+2. **More sports**: Soccer is the first. The most-watched sports online come next,
+   Basketball and Cricket first (the Sport menu already lists them as coming soon),
+   each as its own module the way Soccer is (see
+   [docs/SPORTS.md](docs/SPORTS.md#adding-a-sport)).
+3. **Text updates when things finish**: a text message when a video's clips are
+   ready, when they're posted, and when something fails, so a hands-off channel can
+   run without anyone watching the app.
+4. **Voice cloning for dubbing** *(last on this list on purpose)*: dubbing today uses
    a preset local voice. Speaking translations in the creator's **own** voice needs a
    cloning model, and every credible local one pulls in its own PyTorch build: on a
    machine set up for clipping that downgrades torch to a CPU-only build and silently

@@ -44,33 +44,38 @@ export function useSports(): SportChoice[] | null {
   return list
 }
 
-/** An option made valid against what the engine offers: a highlights or
- *  period choice it doesn't have falls back to its first. Null when the
- *  sport itself isn't offered. Text is kept as typed (trimmed on the engine),
- *  so a space between two words survives the keystroke. */
+/** An option made valid against what the engine offers: a highlights
+ *  choice it doesn't have falls back to its first. Null when the sport itself
+ *  isn't offered. The whole match is always clipped and the footage is told
+ *  apart by itself, so neither is sent; Custom isn't offered either (the box
+ *  at the bottom says what the clips should be about, in words). Text is kept
+ *  as typed (trimmed on the engine), so a space between two words survives
+ *  the keystroke. */
 export function fitSport(o: SportOption, list: SportChoice[]): SportOption | null {
   const sport = list.find((s) => s.id === o.name)
   if (!sport) return null
-  const highlights = sport.highlights.some((h) => h.id === o.highlights)
-    ? o.highlights
-    : sport.highlights[0]?.id
-  const period = sport.periods.some((p) => p.id === o.period) ? o.period : sport.periods[0]?.id
+  const offered = sport.highlights.filter((h) => h.id !== 'custom')
+  const highlights = offered.some((h) => h.id === o.highlights) ? o.highlights : offered[0]?.id
   const reels = REELS.map((r) => r.id).filter((id) => (o.reels ?? []).includes(id))
-  // Automatic is the default and isn't sent; a choice the engine doesn't offer is dropped.
-  const footage =
-    o.footage && o.footage !== 'auto' && (sport.footage ?? []).some((f) => f.id === o.footage)
-      ? o.footage
-      : undefined
   return {
     name: sport.id,
     ...(highlights ? { highlights } : {}),
-    ...(period ? { period } : {}),
-    ...(footage ? { footage } : {}),
     ...(o.teams ? { teams: o.teams } : {}),
-    ...(o.request && highlights === 'custom' ? { request: o.request } : {}),
     ...(o.events && o.events.trim() ? { events: o.events } : {}),
     ...(reels.length ? { reels } : {})
   }
+}
+
+/** What each Highlights choice keeps, shown under its name in the list. */
+export const HIGHLIGHT_HINTS: Record<string, string> = {
+  best: 'The match’s biggest moments, of any kind',
+  goals: 'Every goal, with its build-up and celebration',
+  goals_celebrations: 'Every goal, with a longer celebration after it',
+  saves: 'The goalkeepers’ best saves',
+  chances: 'Near misses, big chances and shots',
+  attacking: 'Goals, chances, shots and set pieces',
+  cards: 'Yellow and red cards, and VAR checks',
+  penalties: 'Every penalty, scored or missed'
 }
 
 /** Each sport's icon in the Sport menu. */
@@ -112,8 +117,8 @@ export const REELS: { id: string; label: string; title: string }[] = [
 
 const LAST = 'generate-sport-choice'
 
-/** The sport, highlights and period last chosen on the Generate list. Teams
- *  and a Custom description belong to one match, so they aren't kept. */
+/** The sport, highlights and reels last chosen on the Generate list. Teams
+ *  and match events belong to one match, so they aren't kept. */
 export function lastSport(): SportOption | null {
   try {
     const raw = JSON.parse(localStorage.getItem(LAST) ?? 'null')
@@ -121,8 +126,6 @@ export function lastSport(): SportOption | null {
       ? {
           name: raw.name,
           highlights: raw.highlights,
-          period: raw.period,
-          ...(raw.footage ? { footage: raw.footage } : {}),
           ...(Array.isArray(raw.reels) && raw.reels.length ? { reels: raw.reels.map(String) } : {})
         }
       : null
@@ -133,17 +136,14 @@ export function lastSport(): SportOption | null {
 
 export function rememberSport(o: SportOption): void {
   try {
-    localStorage.setItem(
-      LAST,
-      JSON.stringify({ name: o.name, highlights: o.highlights, period: o.period, footage: o.footage, reels: o.reels })
-    )
+    localStorage.setItem(LAST, JSON.stringify({ name: o.name, highlights: o.highlights, reels: o.reels }))
   } catch {
     // Not remembered for next time; this video still gets it.
   }
 }
 
 /** What the Sports toggle starts with: the last choice while it's still
- *  offered, else the first sport's first highlights and the whole match. */
+ *  offered, else the first sport's first highlights. */
 export function startingSport(list: SportChoice[]): SportOption | null {
   const last = lastSport()
   const sport = list.find((s) => s.id === last?.name) ?? list[0]

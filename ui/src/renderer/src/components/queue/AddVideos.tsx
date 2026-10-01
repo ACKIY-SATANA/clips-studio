@@ -431,12 +431,18 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
 
   /** Under Vertical Live, like Longform's output: what the live is. Gaming /
    *  reaction scores it as a gaming stream (gaming_scoring). */
-  const setVerticalContent = (slot: Slot, gaming: boolean): void => {
-    const next = { ...slot.options }
-    if (gaming) next.gaming_scoring = true
+  /** What a Vertical Live is, which decides how it's scored. Soccer is the
+   *  Sports switch's match scoring, picked here for a match streamed 9:16. */
+  const setVerticalContent = (slot: Slot, content: 'standard' | 'gaming' | 'sport'): void => {
+    if (content === 'sport') {
+      replaceOptions(slot.key, toggle(slot.options, 'sport', true))
+      return
+    }
+    const next = slot.options.sport ? toggle(slot.options, 'sport', false) : { ...slot.options }
+    if (content === 'gaming') next.gaming_scoring = true
     else delete next.gaming_scoring
     try {
-      localStorage.setItem(PREF.gaming_scoring, String(gaming))
+      localStorage.setItem(PREF.gaming_scoring, String(content === 'gaming'))
     } catch {
       // a blocked localStorage only means it isn't remembered
     }
@@ -690,19 +696,20 @@ export default function AddVideos({ onAdded }: { onAdded?: () => void }): JSX.El
               </div>
             )}
 
-            {/* A match is scored as a match, so Sports answers this instead. */}
-            {slot.options.vertical_live && !slot.options.sport && (
+            {/* What the live is: talking, a game, or a match (Sports). */}
+            {slot.options.vertical_live && (
               <div className="flex items-center gap-3 flex-wrap mt-2">
                 <span className="label shrink-0">{t('Vertical Live content')}</span>
                 <select
                   className="input !w-72"
-                  value={slot.options.gaming_scoring ? 'gaming' : 'standard'}
-                  onChange={(e) => setVerticalContent(slot, e.target.value === 'gaming')}
+                  value={slot.options.sport ? 'sport' : slot.options.gaming_scoring ? 'gaming' : 'standard'}
+                  onChange={(e) => setVerticalContent(slot, e.target.value as 'standard' | 'gaming' | 'sport')}
                   aria-label={`${t('Vertical Live content')} ${n + 1}`}
                   title={t('Gaming / reaction: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
                 >
                   <option value="standard">{t('Talking / IRL')}</option>
                   <option value="gaming">{t('Gaming / reaction')}</option>
+                  {offered.length > 0 && <option value="sport">⚽ {t('Soccer / Football')}</option>}
                 </select>
               </div>
             )}

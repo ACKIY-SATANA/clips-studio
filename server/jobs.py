@@ -411,7 +411,7 @@ class Worker(threading.Thread):
         writes new files. A failure here can never damage a clip."""
         import json as _json
 
-        from core.pipeline import _safe_name
+        from core.pipeline import _safe_name, _with_usable_model
         from llm.registry import create_backend
         from multilingual import glossary, publish
 
@@ -429,7 +429,7 @@ class Worker(threading.Thread):
         if tm and is_local(llm_cfg.get("backend") or ""):
             llm_cfg["backend"] = tm if "/" in tm else f"ollama/{tm}"
             print(f"      Translating with {tm}")
-        llm = create_backend(llm_cfg)
+        llm = create_backend(_with_usable_model(llm_cfg))  # one that's installed (#118)
         written: list[str] = []
 
         n_clips = len(payload["clip_ids"])

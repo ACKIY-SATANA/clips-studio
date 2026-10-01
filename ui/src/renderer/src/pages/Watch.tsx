@@ -457,16 +457,26 @@ export default function Watch({
               />
             </div>
           )}
-          {addClip.vertical_live && !addClip.sport && (
+          {addClip.vertical_live && (
             <div className="flex items-center gap-3 flex-wrap">
               <span className="label shrink-0">{t('Vertical Live content')}</span>
               <select
                 className="input !w-72"
-                value={addClip.gaming_scoring ? 'gaming' : 'standard'}
+                value={addClip.sport ? 'sport' : addClip.gaming_scoring ? 'gaming' : 'standard'}
                 onChange={(e) => {
                   const next = { ...addClip }
-                  if (e.target.value === 'gaming') next.gaming_scoring = true
-                  else delete next.gaming_scoring
+                  if (e.target.value === 'sport') {
+                    // Soccer is the Sports switch's match scoring, for a match streamed 9:16.
+                    const start = next.sport ?? startingSport(offeredSports)
+                    if (start) next.sport = start
+                    delete next.podcast
+                    delete next.gaming
+                    delete next.gaming_scoring
+                  } else {
+                    delete next.sport
+                    if (e.target.value === 'gaming') next.gaming_scoring = true
+                    else delete next.gaming_scoring
+                  }
                   setAddClip(next)
                 }}
                 aria-label={t('Vertical Live content')}
@@ -474,6 +484,9 @@ export default function Watch({
               >
                 <option value="standard">{t('Talking / IRL')}</option>
                 <option value="gaming">{t('Gaming / reaction')}</option>
+                {(offeredSports.length > 0 || addClip.sport) && (
+                  <option value="sport">⚽ {t('Soccer / Football')}</option>
+                )}
               </select>
             </div>
           )}

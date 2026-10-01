@@ -8,7 +8,7 @@ were often broken in a way that only showed up on somebody else's machine.
 
 ---
 
-## 1.3.0: Soccer, and NVIDIA PCs transcribe again
+## 2.0.0: Soccer, and NVIDIA PCs transcribe again
 
 If videos stopped at "Transcribing" on your NVIDIA PC, this release fixes it. It also
 brings Sports (Soccer first), Gaming / Reaction layouts, watched channels that clip and
@@ -18,8 +18,8 @@ post on their own, and the option to use your own AI key.
 
 - **Sports, starting with Soccer.** Tick **Sports** for a match, and choose which moments
   to keep (Best moments, All goals, Goals + celebrations, Best saves, Best chances,
-  Attacking plays, Cards, Penalties, or Custom in your own words), which part of the match,
-  and optionally the teams or players to favour. Each moment becomes one clip with its
+  Attacking plays, Cards or Penalties, each explained in the list), and optionally the
+  teams or players to favour. The whole match is always clipped. Each moment becomes one clip with its
   build-up and its reaction, and the 9:16 crop follows the ball instead of the biggest face.
   Also in a queued video's settings, a watched channel's settings, the API and MCP. It uses
   the models you already have: no new download.
@@ -34,14 +34,16 @@ post on their own, and the option to use your own AI key.
   - Vertical videos too: a match filmed or streamed 9:16 is kept as filmed, with nothing to switch on, and its
     goals are found the same way. With Longform, the 16:9 clips and the Highlights reel are the match's
     moments as well.
-  - Club and phone footage: a **Footage** choice (Automatic, TV broadcast, Club or phone). Club footage is
+  - Club and phone footage, recognised by itself when no score box shows. Club footage is
     framed on the ball like a broadcast, but with no score box or commentary nothing marks its goals, so none
     are claimed: a choice like All goals keeps the best moments instead, and the clip page says so.
-  - **Match events**: paste the match's goals as you have them (from your club app, the match report or the
-    video's description: "18:16 Goal Player A", "45+2' yellow card") and each becomes a clip, with the player
-    or team on it. Match minutes are placed by the clock on screen or the list's kick-off times; a club app's
-    tag gets a clip long enough to hold the attack, the goal and the celebration.
+  - **Match events**: tell Ask Clips Kitty the match's goals as you have them (from your club app, the match
+    report or the video's description: "18:16 Goal Player A", "45+2' yellow card") and each becomes a clip,
+    with the player or team on it. Match minutes are placed by the clock on screen or the list's kick-off
+    times; a club app's tag gets a clip long enough to hold the attack, the goal and the celebration.
   - The Sport menu shows ⚽ Soccer / Football, with Basketball and Cricket listed as coming soon.
+    Hover a Highlights choice to see what it keeps. For a match streamed 9:16, Soccer is a Vertical Live
+    content choice.
   - **Story reels**: **Also make** a Match recap (every goal, card and save, in match order), a reel per team,
     and a reel per player named in two moments or more, by your match events or by the commentary for a name in
     Teams or players. Joined from the clips already made, so they take seconds, with one end card at the end and
@@ -55,6 +57,9 @@ post on their own, and the option to use your own AI key.
   are identical to local ones. Transfers resume, results are checked, a render PC that
   drops out gives its clips back, and nothing needs your router opened (Tailscale for
   PCs in different places). See docs/REMOTE-RENDERING.md.
+
+- **The Clip Editor groups your videos by creator.** Pick a creator, then a video from its list, so a
+  big library stays tidy.
 
 - **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam and
   the game (or the video they're reacting to) laid out together, in one of eleven layouts
@@ -340,6 +345,10 @@ post on their own, and the option to use your own AI key.
 
 ### Fixed
 
+- **16:9 clips no longer fail with "error 404".** Longform asked for the AI model named in
+  settings even when setup had downloaded a different one for your graphics card, so every
+  run stopped with a 404. It now uses the model you have, as 9:16 clips already did.
+  Translating clips and the clip editor's chat did the same, and are fixed too (#118).
 - **Cancel stops a long video while it's being analysed.** On a long VOD, pressing Cancel
   during "Finding the best moments" did nothing until a whole-video pass (its sound and
   picture, the chat replay) had finished, which on a 4-hour stream looked like loading

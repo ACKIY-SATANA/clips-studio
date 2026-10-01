@@ -318,3 +318,23 @@ def test_vertical_live_and_an_original_link_reach_the_engine(monkeypatch):
     assert sent[0] == ("/jobs", {"url": "https://youtu.be/x", "vertical_live": True})
     assert sent[1] == ("/videos/local", {"path": "C:/lives/live.mp4", "vertical_live": True,
                                          "source_url": "https://www.tiktok.com/@someone/live"})
+
+
+def test_a_matchs_events_and_reels_said_to_the_assistant_reach_the_job(monkeypatch):
+    """The Sport row has no box for match events or story reels: they're said
+    in Ask Clips Kitty, so its tool takes them and hands them on untouched."""
+    sent = {}
+
+    def request(method, path, body=None, *a, **k):
+        sent.update(body or {})
+        return {"job_id": 150}
+
+    monkeypatch.setattr(mcp, "_request", request)
+    sport = {"name": "soccer", "highlights": "goals", "events": "18:16 Goal Player A\n28:40 Goal",
+             "reels": ["recap"]}
+    reply = _send(_request(6, "tools/call", {
+        "name": "queue_video", "arguments": {"url": "https://youtu.be/x", "sport": sport}}))
+    assert reply["result"]["isError"] is False
+    assert sent["sport"] == sport
+    props = mcp.SPORT_PARAM["properties"]
+    assert "events" in props and props["reels"]["items"]["enum"] == ["recap", "teams", "players"]

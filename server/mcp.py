@@ -234,6 +234,24 @@ SPORT_PARAM = {
             "type": "string",
             "description": "With highlights=custom: the moments wanted, in the person's words",
         },
+        # The app's Sport row has no box for these: they're said here instead.
+        "events": {
+            "type": "string",
+            "description": (
+                "The match's events exactly as the person typed them, one per line, each a time and "
+                "what happened (\"18:16 Goal Player A\", \"45+2' yellow card\", \"09:22 Kick off\"): each "
+                "becomes a clip. Only what they wrote; never invent or complete any"
+            ),
+        },
+        "reels": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["recap", "teams", "players"]},
+            "description": (
+                "Story reels joined from the match's clips, only when the person asks for them: recap "
+                "(every goal, card and save in one video), teams (a video per team), players (a video "
+                "per player named in two moments or more)"
+            ),
+        },
     },
     "required": ["name"],
 }

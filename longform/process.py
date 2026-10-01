@@ -32,7 +32,8 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     _outro.reset_tally()
     from analysis.metadata import generate_metadata_batch
     from core.models import RenderedClip
-    from core.pipeline import _cached_or_download, _register_clip, _render_files, _safe_name
+    from core.pipeline import (_cached_or_download, _register_clip, _render_files, _safe_name,
+                               _with_usable_model)
     from llm.registry import create_backend
     from transcription.transcriber import transcribe
 
@@ -96,7 +97,9 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     cfg = copy.deepcopy(config)
     cfg["clips"]["min_duration"] = profile["min_duration"]
     cfg["clips"]["max_duration"] = profile["max_duration"]
-    llm = create_backend(config["llm"])
+    # The installed model when the one in settings isn't downloaded, as the
+    # Shorts path does: otherwise Ollama answers 404 and the run fails (#118).
+    llm = create_backend(_with_usable_model(config["llm"]))
     from core.pipeline import clip_direction
 
     intent = clip_direction(config, llm, video.duration)

@@ -252,18 +252,30 @@ export default function QueueItemSettings({
         </div>
       )}
 
-      {verticalLive && !sport && (
+      {verticalLive && (
         <div className="flex items-center gap-3 flex-wrap">
           <p className="label shrink-0">{t('Vertical Live content')}</p>
           <select
             className="input !w-72"
-            value={gamingScoring ? 'gaming' : 'standard'}
-            onChange={(e) => setGamingScoring(e.target.value === 'gaming')}
+            value={sport ? 'sport' : gamingScoring ? 'gaming' : 'standard'}
+            onChange={(e) => {
+              if (e.target.value === 'sport') {
+                // Soccer is the Sports switch's match scoring, for a match streamed 9:16.
+                setSport(sport ?? startingSport(sports))
+                setPodcast(false)
+                setGaming(false)
+                setGamingScoring(false)
+              } else {
+                setSport(null)
+                setGamingScoring(e.target.value === 'gaming')
+              }
+            }}
             aria-label={t('Vertical Live content')}
             title={t('Gaming / reaction: what you say counts as on any stream, and in-game moments (a kill streak, a boss going down, a goal) and the reactions to them add to it, from chat and your voice, even when you say little. Game characters and people in a video you watch aren’t taken for you.')}
           >
             <option value="standard">{t('Talking / IRL')}</option>
             <option value="gaming">{t('Gaming / reaction')}</option>
+            {(sports.length > 0 || sport) && <option value="sport">⚽ {t('Soccer / Football')}</option>}
           </select>
         </div>
       )}
