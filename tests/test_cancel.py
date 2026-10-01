@@ -209,3 +209,55 @@ def test_waiting_for_a_different_video_returns_at_once():
     finally:
         never_finishes.set()
         t.join(timeout=5)
+
+
+def test_waiting_on_a_background_pass_stops_when_the_video_is_cancelled():
+    """#113: the job waited on its background passes (the whole video's sound
+    and picture, the chat replay) with a plain join(), so six Cancels and a
+    paused queue went unanswered on a 3h46m VOD."""
+    import threading
+
+    cancel.set_active("vid")
+    slow = threading.Thread(target=time.sleep, args=(30,), daemon=True)
+    slow.start()
+    threading.Timer(0.3, cancel.request_cancel, args=("vid",)).start()
+    started = time.monotonic()
+    with pytest.raises(cancel.CancelledError):
+        cancel.wait(slow, video_id="vid")
+    assert time.monotonic() - started < 3
+
+
+def test_waiting_keeps_its_timeout_and_returns_when_the_pass_is_done():
+    import threading
+
+    done = threading.Thread(target=time.sleep, args=(0.1,), daemon=True)
+    done.start()
+    cancel.wait(done, video_id="vid")
+    assert not done.is_alive()
+    slow = threading.Thread(target=time.sleep, args=(30,), daemon=True)
+    slow.start()
+    started = time.monotonic()
+    cancel.wait(slow, timeout=0.5, video_id="vid")
+    assert 0.4 < time.monotonic() - started < 2 and slow.is_alive()
+
+
+def test_a_long_decode_is_stopped_when_the_video_is_cancelled():
+    import sys
+    import threading
+
+    cancel.set_active("vid")
+    # Writes a little every 0.1 s for a minute: a decode in progress.
+    cmd = [sys.executable, "-c",
+           "import sys, time\nfor _ in range(600):\n    sys.stdout.write('x' * 100); sys.stdout.flush(); time.sleep(0.1)"]
+    threading.Timer(0.5, cancel.request_cancel, args=("vid",)).start()
+    started = time.monotonic()
+    with pytest.raises(cancel.CancelledError):
+        cancel.run(cmd)
+    assert time.monotonic() - started < 5
+
+
+def test_a_decode_that_finishes_gives_its_output():
+    import sys
+
+    out = cancel.run([sys.executable, "-c", "import sys; sys.stdout.write('done'); sys.stderr.write('note')"])
+    assert out.returncode == 0 and out.stdout == b"done" and out.stderr == b"note"

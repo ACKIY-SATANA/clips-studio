@@ -14,11 +14,11 @@ percentiles. No ML models involved — this is signal processing, which is
 exactly why it's fast (~seconds for a 30-minute video).
 """
 
-import subprocess
 from pathlib import Path
 
 import numpy as np
 
+from core import cancel
 from core.binaries import ffmpeg
 
 SAMPLE_RATE = 16000
@@ -85,7 +85,7 @@ def _decode_mono_pcm(video_path: Path) -> np.ndarray:
         "-vn", "-ac", "1", "-ar", str(SAMPLE_RATE),
         "-f", "s16le", "-",
     ]
-    result = subprocess.run(cmd, capture_output=True)
+    result = cancel.run(cmd)  # stops if the video is cancelled (#113)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg audio decode failed:\n{result.stderr[-1000:].decode(errors='replace')}")
     return np.frombuffer(result.stdout, dtype=np.int16).astype(np.float32) / 32768.0

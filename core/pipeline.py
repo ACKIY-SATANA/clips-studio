@@ -310,6 +310,8 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
             audio_raw = extract_audio_features(video.path)
             visual_raw = extract_visual_features(video.path)
             signals_out["signals"] = (audio_raw, visual_raw)
+        except cancel.CancelledError:
+            return  # the video was cancelled: its decode stopped with it
         except Exception as e:
             print(f"      (background signal extraction failed, will retry in analysis: {e})")
 
@@ -402,10 +404,12 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     cancel.check(video.video_id)
     print("[3/4] Multimodal analysis (transcript + audio + visual)...")
     progress.emit(stage="analyze", video_id=video.video_id)
-    signals_thread.join()  # usually already done — transcription takes longer
-    hype_thread.join(timeout=60)  # network fetch; hard cap so it never stalls
+    # Waited for the way Cancel can interrupt (#113): on a long video these
+    # passes can still be running, and a plain join() didn't listen.
+    cancel.wait(signals_thread, video_id=video.video_id)  # usually already done — transcription takes longer
+    cancel.wait(hype_thread, 60, video.video_id)  # network fetch; hard cap so it never stalls
     if sounds_thread is not None:
-        sounds_thread.join(timeout=900)  # done long before Whisper, bar a stuck decode
+        cancel.wait(sounds_thread, 900, video.video_id)  # done long before Whisper, bar a stuck decode
     llm = create_backend(_with_usable_model(config["llm"]))
     gaming_profile, sport_profile, chat, sounds = None, None, None, None
     if match is not None:
@@ -871,7 +875,7 @@ class MatchReading:
         sound marks), once both passes are done: long before Whisper, bar a
         stuck decode."""
         for thread in self._threads:
-            thread.join(timeout=900)
+            cancel.wait(thread, 900, self.video.video_id)
         return _sport_inputs(self.config, self.video, hype_out or {}, self._heard.get("heard"), self._read)
 
 
@@ -1014,7 +1018,7 @@ def _cached_or_download(url: str, data_dir: Path, db: StateDB, vertical: bool = 
         capture_output=True, text=True,
     )
     duration = float(probe.stdout.strip() or 0)
-    print("      Source already downloaded — skipping YouTube")
+    print("      Source already downloaded — skipping the download")
     return DownloadedVideo(
         video_id=video_id,
         title=title or video_id,

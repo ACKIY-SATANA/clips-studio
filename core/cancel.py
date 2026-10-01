@@ -6,7 +6,9 @@ and the pipeline checks at every stage boundary (and inside the download
 progress hook and render loop), raising CancelledError to unwind cleanly.
 """
 
+import subprocess
 import threading
+import time
 
 _lock = threading.Lock()
 _cancelled: set[str] = set()
@@ -73,3 +75,48 @@ def check_active() -> None:
 def clear(video_id: str) -> None:
     with _lock:
         _cancelled.discard(video_id)
+
+
+def wait(thread: threading.Thread, timeout: float | None = None, video_id: str | None = None) -> None:
+    """thread.join(timeout), except that it stops waiting, raising
+    CancelledError, as soon as the video is cancelled.
+
+    The background passes over a whole video (its sound and picture, the chat
+    replay) can run for many minutes on a long one, and a plain join() left
+    Cancel unanswered for all of them: on a 3h46m Twitch VOD the person
+    pressed Cancel six times and paused the queue while it carried on (#113)."""
+    deadline = None if timeout is None else time.monotonic() + timeout
+    while thread.is_alive():
+        if video_id is not None:
+            check(video_id)
+        check_active()
+        left = 0.5 if deadline is None else min(0.5, deadline - time.monotonic())
+        if left <= 0:
+            return
+        thread.join(left)
+
+
+def run(cmd: list[str]) -> subprocess.CompletedProcess:
+    """subprocess.run(cmd, capture_output=True) for a long FFmpeg pass,
+    except that the process is stopped and CancelledError raised as soon as
+    the video being processed is cancelled, rather than decoding the rest of
+    a long video for nobody."""
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    errors: list[bytes] = []
+    reader = threading.Thread(target=lambda: errors.append(proc.stderr.read()), daemon=True)
+    reader.start()
+    chunks: list[bytes] = []
+    try:
+        while True:
+            chunk = proc.stdout.read1(1 << 20)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            check_active()
+    except CancelledError:
+        proc.kill()
+        proc.wait()
+        raise
+    proc.wait()
+    reader.join(5)
+    return subprocess.CompletedProcess(cmd, proc.returncode, b"".join(chunks), errors[0] if errors else b"")

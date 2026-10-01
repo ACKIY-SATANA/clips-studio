@@ -16,12 +16,12 @@ candidate window in `reaction_for_window`, not globally — detector time is
 only spent inside likely clips.
 """
 
-import subprocess
 from pathlib import Path
 
 import cv2
 import numpy as np
 
+from core import cancel
 from core.binaries import ffmpeg
 from video.capture import video_capture
 
@@ -71,7 +71,7 @@ def _decode_sampled_gray(video_path: Path) -> np.ndarray:
         "-vf", f"fps={SAMPLE_FPS},scale={FRAME_W}:{FRAME_H}",
         "-f", "rawvideo", "-pix_fmt", "gray", "-",
     ]
-    result = subprocess.run(cmd, capture_output=True)
+    result = cancel.run(cmd)  # stops if the video is cancelled (#113)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg visual decode failed:\n{result.stderr[-1000:].decode(errors='replace')}")
     buf = np.frombuffer(result.stdout, dtype=np.uint8)

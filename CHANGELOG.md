@@ -335,6 +335,11 @@ were often broken in a way that only showed up on somebody else's machine.
 
 ### Fixed
 
+- **Cancel stops a long video while it's being analysed.** On a long VOD, pressing Cancel
+  during "Finding the best moments" did nothing until a whole-video pass (its sound and
+  picture, the chat replay) had finished, which on a 4-hour stream looked like loading
+  forever. Cancel now stops it within a couple of seconds, decoding and all.
+
 - **One odd answer from the AI model no longer fails a whole video.** When the model
   put a line of text where a clip belonged, the video stopped with "'str' object has
   no attribute 'get'", ten minutes into a long match. That entry is now skipped and
