@@ -8,16 +8,12 @@ were often broken in a way that only showed up on somebody else's machine.
 
 ---
 
-## Unreleased
+## 1.3.0: Soccer, and NVIDIA PCs transcribe again
 
-- **Remote rendering (experimental).** Another computer of yours can render the clips,
-  so the one you use stays free while a long stream is processed. Settings → Advanced
-  settings (off by default, and invisible until you switch it on): pair a render PC with
-  a one-time code, then render on this computer, automatically on a render PC when one
-  is free, or only on a chosen one. Only the rendering moves; the clips it sends back
-  are identical to local ones. Transfers resume, results are checked, a render PC that
-  drops out gives its clips back, and nothing needs your router opened (Tailscale for
-  PCs in different places). See docs/REMOTE-RENDERING.md.
+If videos stopped at "Transcribing" on your NVIDIA PC, this release fixes it. It also
+brings Sports (Soccer first), Gaming / Reaction layouts, watched channels that clip and
+post on their own, and the option to use your own AI key.
+
 ### Added
 
 - **Sports, starting with Soccer.** Tick **Sports** for a match, and choose which moments
@@ -50,6 +46,15 @@ were often broken in a way that only showed up on somebody else's machine.
     and a reel per player named in two moments or more, by your match events or by the commentary for a name in
     Teams or players. Joined from the clips already made, so they take seconds, with one end card at the end and
     the moments listed in the description. With Longform, in 16:9 too.
+
+- **Remote rendering (experimental).** Another computer of yours can render the clips,
+  so the one you use stays free while a long stream is processed. Settings → Advanced
+  settings (off by default, and invisible until you switch it on): pair a render PC with
+  a one-time code, then render on this computer, automatically on a render PC when one
+  is free, or only on a chosen one. Only the rendering moves; the clips it sends back
+  are identical to local ones. Transfers resume, results are checked, a render PC that
+  drops out gives its clips back, and nothing needs your router opened (Tailscale for
+  PCs in different places). See docs/REMOTE-RENDERING.md.
 
 - **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam and
   the game (or the video they're reacting to) laid out together, in one of eleven layouts
