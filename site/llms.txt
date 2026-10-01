@@ -8,7 +8,9 @@
 
 Clips Kitty is a desktop application, not a web service. Everything (the
 transcription, the clip selection, the subject tracking and the language model)
-runs on the user's own machine. It is a local-first, open-source alternative to
+runs on the user's own machine by default. When the PC is too old, OpenRouter,
+signed in with the user's own account, can run the language model or the
+transcription instead. It is a local-first, open-source alternative to
 Opus Clip and other cloud clipping tools, aimed at creators who would rather not
 pay per video or upload their footage to someone else's server.
 
@@ -34,6 +36,15 @@ pay per video or upload their footage to someone else's server.
 - **Reframes** to 9:16 with YOLO pose tracking and active-speaker detection, so
   the person talking stays in shot and it cuts between speakers rather than
   zooming out to hold both.
+- **Frames matches and game streams**: a soccer match follows the ball (the
+  Sports toggle); Gaming / Reaction puts the webcam and the game together in one
+  of eleven layouts; a stream that was 9:16 all along keeps its own layout
+  (Vertical Live).
+- **Watches channels**: new videos on a YouTube, Twitch or Kick channel are
+  spotted (YouTube's through its RSS feed) and clipped by themselves.
+- **Posts, if asked**: clips go to nine platforms at once through a publishing
+  service the user connects, now, on a schedule, or hands-off for a watched
+  channel.
 - **Edits**: a built-in editor for fixing anything the AI got wrong, caption
   styling, watermarks, multilingual captions and dubbing.
 
@@ -41,9 +52,11 @@ pay per video or upload their footage to someone else's server.
 
 - **Good at:** IRL, just chatting, podcasts, vlogs, interviews. That is what it
   is tuned for and tested on.
-- **Not yet:** gaming, split-screen and reaction videos. The framing did not
-  reliably find the action, and subject tracking mistook characters inside a
-  game for the streamer, so it is held back rather than shipped half-working.
+- **Also does:** game streams and reaction videos (Gaming / Reaction), and
+  soccer matches (Sports), with goals read from the score box, the crowd and the
+  commentary.
+- **Not yet:** basketball and cricket, next on the roadmap. VTubers are not
+  supported: the framing needs a real person on camera.
 
 ## Requirements
 

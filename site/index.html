@@ -175,38 +175,53 @@
         <div class="wrap">
           <h2>How it works</h2>
           <p class="section-lead">
-            Every step that makes the clip runs locally. The only thing that touches the
-            network in a normal run is downloading the video you asked for. Posting the
-            result is the one optional step that leaves your PC, and it is off until you
-            turn it on.
+            Every step that makes the clip runs on your PC unless you choose otherwise:
+            OpenRouter, signed in with your own account, can run the AI or the
+            transcription when your PC is too old, and posting sends the finished clips.
+            Otherwise the only thing that touches the network in a normal run is
+            downloading the video you asked for.
           </p>
           <ol class="pipeline">
+            <li>
+              <strong>Watching a channel, if you want it</strong>
+              <span
+                >New videos on a YouTube, Twitch or Kick channel you watch are spotted
+                (YouTube's through its RSS feed) and queued by themselves.</span
+              >
+            </li>
+            <li>
+              <strong>Video in</strong>
+              <span>A YouTube link, a Twitch or Kick VOD, or a file from your PC.</span>
+            </li>
             <li>
               <strong>Transcription</strong>
               <span
                 >faster-whisper with word-level timing, so captions land on the right syllable
-                and clips start on a real sentence.</span
+                and clips start on a real sentence. On your PC, or through OpenRouter.</span
               >
             </li>
             <li>
               <strong>Signal analysis</strong>
               <span
                 >Loudness spikes, laughter-shaped bursts, scene cuts, motion and on-screen
-                reactions, measured across the whole video.</span
+                reactions, measured across the whole video. For a match, the score box and
+                the crowd too.</span
               >
             </li>
             <li>
               <strong>Scoring</strong>
               <span
-                >A local language model reads the transcript <em>alongside</em> those signals,
-                so a quiet line during an explosive moment is judged correctly.</span
+                >A language model reads the transcript <em>alongside</em> those signals,
+                so a quiet line during an explosive moment is judged correctly. Local
+                through Ollama by default, or through OpenRouter.</span
               >
             </li>
             <li>
               <strong>Framing</strong>
               <span
-                >Pose detection keeps the subject in frame, and in group footage the camera
-                follows whoever is speaking. Crops are never stretched.</span
+                >The 9:16 crop follows whoever is speaking, follows the ball in a match, or
+                puts the webcam and the game together for a game stream. A stream that was
+                vertical all along keeps its own layout. Crops are never stretched.</span
               >
             </li>
             <li>
@@ -217,11 +232,18 @@
               >
             </li>
             <li>
+              <strong>Languages and export</strong>
+              <span
+                >Translate, subtitle or dub a clip into 19 languages, then export to organized
+                folders with clean file names.</span
+              >
+            </li>
+            <li>
               <strong>Posting, if you want it</strong>
               <span
                 >Send a clip, or a whole batch, to nine platforms at once through a
-                publishing service you connect. Optional, off by default, and the only step
-                here that is not local.</span
+                publishing service you connect: now, on a schedule, or by itself for a
+                channel you watch. Optional and off by default.</span
               >
             </li>
           </ol>
@@ -275,6 +297,21 @@
               </p>
             </div>
             <div class="card">
+              <h3>Game streams</h3>
+              <p>
+                The streamer's webcam and the game together in one of eleven layouts, with
+                the in-game moments and the reactions to them scored, from chat and your voice.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Soccer matches</h3>
+              <p>
+                Tick Sports and a match's goals, saves and cards become clips, with a match
+                recap and team or player reels if you want them. Basketball and cricket are
+                next.
+              </p>
+            </div>
+            <div class="card">
               <h3>Post it everywhere</h3>
               <p>
                 Write the title once and send a clip to YouTube, TikTok, Instagram, Facebook,
@@ -306,20 +343,25 @@
               vlogs, interviews. This is what the clip-picking and the framing are tuned
               for, and it's what gets tested on real streams before anything ships.
             </li>
-            <li class="weak">
-              <strong>Gaming and split-screen aren't shipped yet.</strong> Two things
-              weren't good enough in testing: the framing didn't reliably find the part
-              of the screen where the action was, and subject tracking mistook characters
-              <em>inside the game</em> for the streamer. To a person detector, a person on
-              screen is a person on screen. That produces clips centred on the wrong
-              human, so it's held back rather than shipped half-working. It's being
-              worked on.
+            <li>
+              <strong>Game streams and reaction videos.</strong> Gaming / Reaction puts the
+              streamer's webcam and the game together in one of eleven layouts, picked on
+              the video's own frames, and scores the in-game moments and the reactions to
+              them. Characters <em>inside the game</em> aren't taken for the streamer.
+            </li>
+            <li>
+              <strong>Soccer matches.</strong> Tick Sports and a match's goals, saves and
+              cards become clips, found from the score box, the crowd and the commentary.
+              Club or phone footage has no score box or commentary, so its goals come from
+              the match events you give it. Basketball and cricket are next.
             </li>
             <li class="weak">
-              <strong>Reaction content isn't really its thing.</strong> Clips are chosen
-              from what's <em>said</em>; it can't watch the video you're reacting to, so
-              the moment that made the clip is invisible to it. Re-uploading someone
-              else's footage is also a copyright question worth settling yourself.
+              <strong>VTubers aren't supported.</strong> The framing looks for a real
+              person on camera; with an avatar, the game fills the screen instead.
+            </li>
+            <li class="weak">
+              <strong>Reaction videos raise a copyright question.</strong> Re-uploading
+              someone else's footage is worth settling yourself before you post it.
             </li>
           </ul>
           <p class="note">
