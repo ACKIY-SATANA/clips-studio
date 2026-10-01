@@ -273,6 +273,27 @@ How they're made:
   clips, then process the video again. Each reel is made again into the same
   clip, keeping its title.
 
+## Measured and left out
+
+Two ideas were measured on the broadcast final before anything was built, each
+against a bar set beforehand. Neither cleared it, so neither is in the app.
+
+- **Reading shirt numbers**, so "#10" could pick a player's clips. Over the six
+  goals' windows the person detector found 118 players close enough to the camera,
+  and the app's text reader read a number on 15 of them (13%). Checked by eye on 64:
+  about 20 showed a number a person could read, the reader got 5 of those right,
+  and 2 of its 7 reads were numbers nobody wore (a referee read as 11, and a 39).
+  The bar was 70% right and at most 5% wrong. Players are found by the commentary
+  and by your match events instead.
+- **MatchVision**, a soccer event model (UniSoccer, Apache-2.0 checkpoints: a 1.7 GB
+  classifier on a 0.8 GB SigLIP backbone; trained on a dataset released for research
+  use). On the 12 moments the app clipped, it named five of the six goals (the score
+  box already finds all six) and called the sixth, a goalkeeper's mistake, a
+  clearance. On the other six it was right on one (a corner), close on two (a kick-off,
+  the closing minutes) and wrong on three, mostly at 17-35% confidence. The bar was
+  clearly better naming of saves and chances without missing a goal, so it isn't
+  offered, even as an optional download.
+
 ## What it doesn't do yet
 
 - Goals in club and phone footage with no score box or commentary, unless
