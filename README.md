@@ -42,11 +42,12 @@ captions, and writes titles, descriptions, and hashtags.
 No cloud AI by default. No subscription. No per-clip fees. Your footage never leaves
 your computer, unless you ask it to publish a clip to your own YouTube channel.
 
-Local first, cloud when you need it: if your PC is too old to run the AI, bring your
-own API key and a cloud provider runs it instead, billed to your own account.
-**OpenRouter is the recommended cloud path**: one key for many models (Claude, GPT,
-Gemini, Muse Spark and more). OpenAI, Claude, Gemini, xAI, Meta, DeepSeek and Qwen also
-work directly.
+Local first, cloud when you need it: if your PC is too old to run the AI, a cloud
+provider runs it instead, billed to your own account.
+**OpenRouter is the recommended cloud path**: sign in with your OpenRouter account
+(OAuth, no key to copy) for many models (Claude, GPT, Gemini, Muse Spark and more).
+OpenAI, Claude, Gemini, xAI, Meta, DeepSeek and Qwen also work directly, on your own API
+key.
 See [docs/AI-BACKENDS.md](docs/AI-BACKENDS.md).
 
 **Why it exists:** most creators growing a channel are doing all of it themselves:
@@ -136,9 +137,9 @@ table won't update itself.</sub>
 flowchart TD
     W["Watched channel<br/>YouTube's RSS feed spots a new video"] --> I
     I["Video input<br/>YouTube · Twitch VOD · Kick VOD · local file"] --> T
-    T["Transcription<br/>faster-whisper, word-level timestamps<br/>local, or OpenRouter on your own key"] --> A
+    T["Transcription<br/>faster-whisper, word-level timestamps<br/>local, or OpenRouter, signed in with OAuth"] --> A
     A["AI video analysis<br/>audio · visual · reaction signals in 1-second bins"] --> S
-    S["Clip detection and scoring<br/>an LLM scores the transcript with those signals<br/>local (Ollama) by default, or OpenRouter on your own key"] --> E
+    S["Clip detection and scoring<br/>an LLM scores the transcript with those signals<br/>local (Ollama) by default, or OpenRouter, signed in with OAuth"] --> E
     E["Video editing<br/>9:16 crop on whoever is speaking (YOLOv8 + TalkNet),<br/>on the ball for a match, webcam + game for Gaming / Reaction"] --> C
     C["Captions<br/>word-synced, burned in, fully editable"] --> M
     M["Multilingual<br/>translate, subtitle or dub into 19 languages"] --> X
@@ -146,8 +147,8 @@ flowchart TD
     P["Publishing<br/>YouTube, TikTok, Instagram: now, on a schedule,<br/>or hands-off for a watched channel"]
 ```
 
-**Every stage runs on your computer unless you choose otherwise:** OpenRouter, on
-your own key, for the AI or the transcription, and publishing, which uploads only the
+**Every stage runs on your computer unless you choose otherwise:** OpenRouter, signed
+in with your account, for the AI or the transcription, and publishing, which uploads only the
 clips you send. Otherwise the only thing that touches the network in a normal run is
 downloading the source video.
 
