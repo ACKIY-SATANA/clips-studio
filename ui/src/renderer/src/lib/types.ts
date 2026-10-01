@@ -85,6 +85,9 @@ export interface SubScores {
   sport_team?: string
   /** A player (or a team) as a match events list named them. */
   sport_player?: string
+  /** A story reel joined from the match's clips: its kind and how many moments. */
+  sport_reel?: string
+  sport_parts?: number
   sport_period?: string
   sport_replay?: boolean
   sport_bonus?: number
@@ -366,6 +369,8 @@ export interface SportOption {
   footage?: string
   /** The match's events as the person has them, one per line ("18:16 Goal"). */
   events?: string
+  /** Story reels to join from the match's clips: 'recap', 'teams', 'players'. */
+  reels?: string[]
 }
 
 /** One sport the engine offers (GET /sports), with its menus. */

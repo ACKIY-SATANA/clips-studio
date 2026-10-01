@@ -472,6 +472,9 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
 
     print("[4/4] Rendering clips...")
     rendered = []
+    # This run's clips, the re-rendered ones too (a re-run registers nothing
+    # new): a match's story reels are joined from them.
+    made = []
     # Human-browsable layout: clips/<channel>/<video title> [id]/clip_*.mp4
     clip_dir = (
         data_dir / "clips"
@@ -578,6 +581,7 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
                               render_opts_json, config)
         if clip:
             rendered.append(clip)
+        made.append(clip or RenderedClip(source_video_id=video.video_id, candidate=candidate, path=final_path))
 
     # Remote rendering (Settings -> Advanced settings): None unless it is on
     # and not set to this computer, so this is the local loop as always.
@@ -612,6 +616,11 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
     if knowledge_thread is not None:
         knowledge_thread.join(timeout=600)  # normally finished during renders
 
+    # A match's story reels, when asked for (sports/core/reels.py): joined
+    # from the clips just rendered.
+    if sport_profile is not None and made and (sport_profile.option or {}).get("reels"):
+        rendered += _sport_reels(db, video.video_id, sport_profile, made, clip_dir, config, segments)
+
     elapsed = time.monotonic() - started
     db.set_process_seconds(video.video_id, elapsed)
     db.set_video_status(video.video_id, "done")
@@ -624,6 +633,106 @@ def process_video(url: str, config: dict, db: StateDB, force: bool = False) -> l
         print(f"      {_line}")
     print(f"      Done in {elapsed / 60:.1f} min ({len(rendered)} clips)")
     return rendered
+
+
+def _sport_reels(db: StateDB, video_id: str, profile, clips: list, clip_dir: Path, config: dict,
+                 segments: list | None = None, start: float = 0.0, opts: dict | None = None) -> list:
+    """The story reels a Sports job asked for, joined from this run's
+    `clips` and registered as clips of their own: the recap, a reel per
+    team, per player (the transcript's `segments` say which clips' commentary
+    names a player typed in Teams or players). Longform's 16:9 reels pass
+    its `start` nudge and its profile in `opts`. Failure-safe: a reel that
+    can't be joined is skipped, and the clips stay as they are.
+
+    A reel is known by what it is (its kind, its team or player, its
+    format), not by its length: a re-run makes it again into its own row and
+    file, and a reel never takes another clip's row because it is as long."""
+    reel_clips = []
+    try:
+        from analysis.metadata import ClipMetadata
+        from sports.core import reels
+        from video import outro
+
+        report = getattr(profile, "report_data", None) or {}
+
+        def said(clip) -> str:
+            lo, hi = clip.candidate.start, clip.candidate.end
+            return " ".join(s.text for s in segments or [] if s.end > lo and s.start < hi)
+
+        planned = reels.plan(clips, profile.option.get("reels"), report.get("score", ""),
+                             profile.option.get("teams", ""), said if segments else None)
+        labels = {"recap": "Match recap", "team": "Team reel", "player": "Player reel"}
+        card = outro.enabled(config)
+        before = _reel_rows(db, video_id)
+        for reel in planned:
+            label = labels[reel.kind]
+            # Each clip's end card off (a clip whose card was skipped keeps
+            # all of it), and one at the end of the reel, made the way a
+            # clip's is: outro.finish writes the reel from the join.
+            paths = [c.path for c in reel.parts]
+            trims = [outro.DURATION if outro.has_outro(c.path, c.candidate.end - c.candidate.start) else 0.0
+                     for c in reel.parts]
+            out = clip_dir / reels.file_name(reel)
+            joined = out.with_name(f"{out.stem}.pre-card.mp4") if card else out
+            try:
+                lengths = reels.join(paths, joined, trims)
+            except Exception as e:
+                if card:
+                    discard(joined)
+                print(f"      ({label.lower()} not made: {e})")
+                continue
+            if card:
+                outro.finish(joined, out, config)
+            scores = {"sport_reel": reel.kind, "sport_label": label, "sport_parts": len(reel.parts)}
+            chapters = reels.chapters(reel.parts, lengths)
+            row = before.get((reel.kind, reel.subject, (opts or {}).get("profile")))
+            # Its own length, not the source's span: the card shows it.
+            end = _free_end(db, video_id, start, start + sum(lengths), row["id"] if row else None)
+            if row is not None:
+                # Made again: its title is kept (it may have been edited),
+                # its chapters are this join's.
+                db.set_clip(row["id"], path=str(out), end_s=end, scores=json.dumps(scores), description=chapters)
+                print(f"      {label} made again: {row['title']} ({len(reel.parts)} moments, {sum(lengths):.0f}s)")
+                continue
+            candidate = ClipCandidate(start=start, end=end, score=max(c.candidate.score for c in reel.parts),
+                                      hook=reel.title, subscores=scores)
+            meta = ClipMetadata(title=reel.title, description=chapters, hashtags=[])
+            known = {**(opts or {}), "reel": reel.kind, **({"of": reel.subject} if reel.subject else {})}
+            clip = _register_clip(db, video_id, candidate, out, meta, json.dumps(known), config)
+            if clip:
+                reel_clips.append(clip)
+                print(f"      {label}: {reel.title} ({len(reel.parts)} moments, {sum(lengths):.0f}s)")
+    except Exception as e:
+        print(f"      (story reels not made: {e})")
+    return reel_clips
+
+
+def _reel_rows(db: StateDB, video_id: str) -> dict:
+    """The video's story reels already made, by (kind, team or player,
+    Longform profile or None)."""
+    rows = {}
+    for row in db.clips_for_video(video_id):
+        try:
+            opts = json.loads(row["render_opts"] or "{}")
+        except ValueError:
+            continue
+        if isinstance(opts, dict) and opts.get("reel"):
+            rows[(opts["reel"], opts.get("of", ""), opts.get("profile"))] = row
+    return rows
+
+
+def _free_end(db: StateDB, video_id: str, start: float, end: float, own: int | None = None) -> float:
+    """`end`, or the next hundredth after it that no other clip of the video
+    has with this start: a clip's window is what its row is known by."""
+    end = round(end, 2)
+    while True:
+        row = db.conn.execute(
+            "SELECT id FROM clips WHERE video_id = ? AND start_s = ? AND end_s = ?",
+            (video_id, round(start, 2), end),
+        ).fetchone()
+        if row is None or row["id"] == own:
+            return end
+        end = round(end + 0.01, 2)
 
 
 def _remote_renderer(config: dict):

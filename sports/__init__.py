@@ -87,6 +87,18 @@ def clean(raw) -> dict:
     teams = " ".join(str(raw.get("teams") or "").split())[:TEAMS_MAX]
     if teams:
         out["teams"] = teams
+    # Story reels to make from the match's clips (sports/core/reels.py).
+    raw_reels = raw.get("reels") or []
+    if isinstance(raw_reels, str):
+        raw_reels = [r.strip() for r in raw_reels.split(",")]
+    from sports.core.reels import KINDS
+
+    reels = [str(r) for r in raw_reels if str(r).strip()]
+    bad = [r for r in reels if r not in KINDS]
+    if bad:
+        raise ValueError(f"reels must be some of: {', '.join(KINDS)}")
+    if reels:
+        out["reels"] = [k for k in KINDS if k in reels]
     # The match's events as the person has them (sports/core/events_import.py).
     # Refused only when not one line can be read: the rest are listed back
     # with the match's report.

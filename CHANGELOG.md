@@ -45,6 +45,10 @@ were often broken in a way that only showed up on somebody else's machine.
     video's description: "18:16 Goal Player A", "45+2' yellow card") and each becomes a clip, with the player
     or team on it. Match minutes are placed by the clock on screen or the list's kick-off times; a club app's
     tag gets a clip long enough to hold the attack, the goal and the celebration.
+  - **Story reels**: **Also make** a Match recap (every goal, card and save, in match order), a reel per team,
+    and a reel per player named in two moments or more, by your match events or by the commentary for a name in
+    Teams or players. Joined from the clips already made, so they take seconds, with one end card at the end and
+    the moments listed in the description. With Longform, in 16:9 too.
 
 - **Gaming / Reaction, for game streams and reaction videos.** The streamer's webcam and
   the game (or the video they're reacting to) laid out together, in one of eleven layouts
@@ -329,6 +333,11 @@ were often broken in a way that only showed up on somebody else's machine.
   processed exactly as before. Works with every AI setup; on the API and MCP it's `focus`.
 
 ### Fixed
+
+- **One odd answer from the AI model no longer fails a whole video.** When the model
+  put a line of text where a clip belonged, the video stopped with "'str' object has
+  no attribute 'get'", ten minutes into a long match. That entry is now skipped and
+  the rest of the answer kept, like any other entry it can't read.
 
 - **Videos no longer fail at "Transcribing" on NVIDIA PCs** with "Library
   cublas64_12.dll is not found". Whisper's engine needs NVIDIA's cuBLAS 12, which

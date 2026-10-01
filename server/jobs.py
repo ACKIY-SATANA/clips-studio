@@ -712,6 +712,12 @@ class Worker(threading.Thread):
             merged_style = {**render_opts.get("caption_style", {}), **(incoming["caption_style"] or {})}
             render_opts["caption_style"] = merged_style
         render_opts.update({k: v for k, v in incoming.items() if k != "caption_style"})
+        if render_opts.get("reel"):
+            # A match's story reel is joined from its clips (sports/core/reels.py),
+            # not cut from one stretch of the video: rendering it from the
+            # source would make a different video.
+            raise ValueError("A reel is joined from the match's clips, so it can't be re-rendered: "
+                             "change the clips, then process the video again for a new reel.")
 
         vrow = db.conn.execute(
             "SELECT title, channel_name FROM videos WHERE video_id = ?", (video_id,)

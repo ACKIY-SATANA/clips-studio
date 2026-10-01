@@ -241,6 +241,38 @@ it's certain: "from your match events".
 
 It belongs to one video: the next video in the Generate list starts without it.
 
+## Story reels: the match in one video
+
+**Also make** in the Sport row joins the match's clips into longer videos:
+
+- **Match recap**: every named moment (the goals, cards, saves and chances the
+  evidence confirmed), in match order, titled with the score read ("HOM 2-1
+  AWO: match recap").
+- **Team reels**: a video per team of the moments the score box or your match
+  events give it.
+- **Player reels**: a video per player named in two moments or more, by your
+  match events, or by the commentary for a name you type in **Teams or
+  players** (the whole name or its surname, accents and case aside). A team
+  the score box read, typed as its code or a name starting with it ("Home
+  United" for HOM), is left to its team reel. A player in three moments or
+  more, and more than anyone else, is titled "the most moments": the stand-in
+  for a player of the match, and said to be only that.
+
+How they're made:
+
+- **A reel needs two moments.** Big moments and replays aren't in one.
+- **They're joined, not rendered.** The reels are joined from the clips already
+  made, without re-encoding, so they take seconds.
+- **One end card.** Each clip's own end card is left off, and the reel gets one
+  at its end.
+- **Chapters.** The description lists where each moment starts ("0:22 Goal
+  28' AWO").
+- **With Longform,** its 16:9 clips make 16:9 reels too. Its Highlights video
+  already is the match's recap.
+- **Changing a reel.** A reel isn't re-rendered on its own: re-render its
+  clips, then process the video again. Each reel is made again into the same
+  clip, keeping its title.
+
 ## What it doesn't do yet
 
 - Goals in club and phone footage with no score box or commentary, unless
@@ -265,6 +297,8 @@ channel's options take `sport`:
 - `events` (optional): the match's events as text, one per line, up to 4000
   characters (see [Match events](#match-events-the-goals-as-you-have-them)).
   Refused only when no line has both a time and a kind of moment.
+- `reels` (optional): the story reels to make, any of `recap`, `teams` and
+  `players` (see [Story reels](#story-reels-the-match-in-one-video)).
 - `teams` (optional): up to 200 characters.
 - `request` (optional, with `custom` only): the moments wanted, in words.
 
@@ -276,7 +310,11 @@ A finished run's outcome carries `sport`: the moments found by type, the big
 moments, the replays grouped, and the score read. Each clip's scores carry the
 moment: `sport_event`, `sport_label`, `sport_minute` (from the clock), `sport_t`
 (seconds into the video), `sport_why` (the signals), `sport_team`,
-`sport_period` and `sport_bonus`.
+`sport_player` (from your match events), `sport_period` and `sport_bonus`. A
+story reel is a clip whose scores carry `sport_reel` (`recap`, `team` or
+`player`) and `sport_parts` (how many moments it joins); its render options
+carry `reel` and `of` (its team or player), and it can't be re-rendered on its
+own.
 
 ## Adding a sport
 

@@ -31,6 +31,7 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
 
     _outro.reset_tally()
     from analysis.metadata import generate_metadata_batch
+    from core.models import RenderedClip
     from core.pipeline import _cached_or_download, _register_clip, _render_files, _safe_name
     from llm.registry import create_backend
     from transcription.transcriber import transcribe
@@ -144,6 +145,7 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     )
     workers = max(1, int(config.get("video", {}).get("parallel_renders", 2)))
     done_count = 0
+    made = []   # this run's clips, re-rendered ones too, for a match's reels
 
     def _finish(candidate, meta, get_result) -> None:
         nonlocal done_count
@@ -154,8 +156,9 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
         except Exception as e:
             print(f"      Render failed for {candidate.start:.0f}s-{candidate.end:.0f}s: {e}")
             return
-        _register_clip(db, video.video_id, candidate, final_path, meta,
-                       render_opts_json, config)
+        clip = _register_clip(db, video.video_id, candidate, final_path, meta,
+                              render_opts_json, config)
+        made.append(clip or RenderedClip(source_video_id=video.video_id, candidate=candidate, path=final_path))
 
     # Remote rendering, when on (Settings -> Advanced settings); else local as always.
     from core.pipeline import _remote_renderer
@@ -179,6 +182,14 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
             dict(render_opts), content_lang, workers,
         ):
             _finish(candidate, meta, get_result)
+
+    # A match's story reels in 16:9, joined from these clips as the Shorts'
+    # are from theirs. (Highlights doesn't get here: it is the recap.)
+    if sport_profile is not None and made and (sport_profile.option or {}).get("reels"):
+        from core.pipeline import _sport_reels
+
+        _sport_reels(db, video.video_id, sport_profile, made, clip_dir, config, segments,
+                     start=_NUDGE, opts={"profile": mode})
 
     elapsed = time.monotonic() - started
     db.set_process_seconds(video.video_id, elapsed)

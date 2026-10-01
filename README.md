@@ -227,7 +227,8 @@ through Ollama.
 - **Sports (Soccer first)**: goals, saves, cards and big chances from a match, one clip
   per moment with its build-up and reaction. Goals are read off the score box and dated
   by the crowd, and the 9:16 crop follows the ball. Pick All goals, Best saves, Cards and
-  more. See [docs/SPORTS.md](docs/SPORTS.md).
+  more, and have the moments joined into a match recap and team or player reels. See
+  [docs/SPORTS.md](docs/SPORTS.md).
 - **Editable burned-in captions**: word-synced, and styled how you like (colour, size,
   position, words per line, casing, or off). Fix a transcription mistake line by line
   before export.
@@ -258,7 +259,7 @@ or less thinking than the feature list suggests, so nothing comes as a surprise:
 |---|---|
 | **IRL, just chatting, podcasts, vlogs, interviews** | What it's tuned for and what gets tested on real streams before release |
 | **Gaming and reactions** | With **Gaming / Reaction** switched on: the webcam in one half, the game or the reacted-to video in the other, checked on the video's own frames before processing ([docs/GAMING.md](docs/GAMING.md)). The streamer is whoever is talking, never the biggest face. Without the switch, framing can follow a character inside the game. People on camera only, no VTubers |
-| **Sports matches** | With **Sports** switched on: made for broadcasts with a score box and commentary, where goals are certain. Sideline or phone footage without a score box gets its moments from the crowd and the commentary alone ([docs/SPORTS.md](docs/SPORTS.md)) |
+| **Sports matches** | With **Sports** switched on: made for broadcasts with a score box and commentary, where goals are certain. Club or phone footage usually has neither: its clips follow the ball, and its goals come from the match events you paste, such as a club app's goal tags ([docs/SPORTS.md](docs/SPORTS.md)) |
 | **What a reaction is reacting to** | Clips are still chosen from what's *said*, so a moment in the watched video that nobody comments on is invisible to it |
 
 Clip selection is transcript-and-signal driven. When the funny thing is *visual only*

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { t } from '../lib/i18n'
-import { fitSport, rememberSport } from '../lib/sports'
+import { REELS, fitSport, rememberSport } from '../lib/sports'
 import type { SportChoice, SportOption } from '../lib/types'
 
 /** The Sports toggle's choices, under a video or a watched channel: which
@@ -110,8 +110,24 @@ export default function SportFields({
         maxLength={200}
         value={value.teams ?? ''}
         onChange={(e) => set({ teams: e.target.value })}
-        title={t('Clips where the commentary names them get extra points. Nothing is left out for it, and nobody is guessed.')}
+        title={t('Clips where the commentary names them get extra points. Nothing is left out for it, and nobody is guessed. With Player reels, a name the commentary says in two moments or more gets a reel of its own.')}
       />
+      <span className="label shrink-0">{t('Also make')}</span>
+      {REELS.map((reel) => (
+        <label key={reel.id} className="flex items-center gap-1.5 text-sm cursor-pointer shrink-0" title={t(reel.title)}>
+          <input
+            type="checkbox"
+            className="size-4 accent-[#38BDF8]"
+            aria-label={`${t(reel.label)}${suffix}`}
+            checked={(value.reels ?? []).includes(reel.id)}
+            onChange={(e) => {
+              const others = (value.reels ?? []).filter((id) => id !== reel.id)
+              set({ reels: e.target.checked ? [...others, reel.id] : others })
+            }}
+          />
+          {t(reel.label)}
+        </label>
+      ))}
       <button
         type="button"
         className="btn-ghost !py-1 shrink-0"
