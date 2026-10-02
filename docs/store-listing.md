@@ -38,6 +38,30 @@ under that:
 Turn long videos into vertical clips using AI that runs on your own PC. Paste a stream or video link and Clips Kitty finds the moments worth clipping, keeps the speaker in frame and adds subtitles. Your footage stays on your PC. Free and open source.
 ```
 
+## What's new in this version (1,500 max)
+
+Shown on the listing for the current release. No other companies' names in new copy: the names below that stay (Windows, NVIDIA, GitHub, Ollama) passed review before. 2.0:
+
+```
+Version 2.0
+
+Videos no longer get stuck at "Transcribing" when your graphics card does the transcription: the libraries it needs now come with the app, and if they can't be loaded it carries on with the processor instead of failing.
+
+New:
+• Sports, starting with soccer: tick Sports for a match and get its goals, saves and cards as clips, with a match recap and team or player reels if you want them.
+• Game streams and reaction videos: the streamer's webcam and the game together, in eleven layouts.
+• Watched channels: Clips Kitty clips a channel's new videos by itself, and can post them for you.
+• Cloud AI when your PC is too old for a model of its own: sign in with your own account at a cloud AI service.
+• 16:9 and 9:16 clips of the same video in one go.
+• Tell it what the clips should be about, in a sentence.
+
+Fixed:
+• 16:9 clips no longer fail with error 404 when the AI model in settings isn't downloaded.
+• Cancel stops a long video while it's being analysed.
+• One odd answer from the AI model no longer fails a whole video.
+• The minimum clip score can be changed in Settings, under Advanced settings.
+```
+
 ## Description (10,000 max)
 
 ```
@@ -45,12 +69,15 @@ Clips Kitty finds the best moments in a long video and cuts them into vertical c
 
 Everything runs on your computer.
 
-That is the part that makes it different. Most AI clipping tools upload your video to a server, charge a monthly fee, and cap how many clips you get. Clips Kitty does the transcription, the scoring, the speaker tracking, the subtitles and the rendering locally, on your own hardware. Your footage never leaves your computer unless you tell it to publish, and then it goes straight to YouTube. There is no subscription, no clip limit, and no account to create.
+That is the part that makes it different. Most AI clipping tools upload your video to a server, charge a monthly fee, and cap how many clips you get. Clips Kitty does the transcription, the scoring, the speaker tracking, the subtitles and the rendering locally, on your own hardware. Your footage never leaves your computer unless you tell it to publish, or choose cloud AI. There is no subscription, no clip limit, and no account to create.
 
 WHAT IT DOES
 
 • Finds the moments: transcribes the whole video, then scores every candidate on what was said, how the audience reacted, and what is happening on screen
 • Keeps the speaker in frame: tracks who is actually talking, by lip movement rather than by who is biggest in the shot, so a two-person conversation does not jump to the wrong face
+• Game streams and reactions: the streamer's webcam and the game together, in eleven layouts
+• Sports, starting with soccer: a match's goals, saves and cards become clips, with a match recap and team or player reels
+• Watches channels: new videos on a channel you follow are clipped by themselves, and can be posted for you
 • Writes the titles: a local language model drafts a title and description for each clip
 • Burns in subtitles: word-level timing, styled, in the language of the clip
 • Speaks 19 languages: translate, subtitle and dub clips into any of them
@@ -60,11 +87,11 @@ WHAT IT DOES
 
 YOUR CHOICE OF AI MODEL
 
-The language model runs through Ollama, on your machine, and you pick it. A small model runs on a laptop with no graphics card; a larger one gives better scoring if you have the VRAM for it. The app recommends one based on your hardware and downloads it for you on first run.
+The language model runs through Ollama, on your machine, and you pick it. A small model runs on a laptop with no graphics card; a larger one gives better scoring if you have the VRAM for it. The app recommends one based on your hardware and downloads it for you on first run. If your PC is too old to run one, a cloud model can run it instead, on your own account with a cloud AI service.
 
 FREE AND OPEN SOURCE
 
-The whole thing is on GitHub under the AGPL-3.0 licence. You can read exactly what it does, including every line that touches the network. Bug reports, translations and pull requests are welcome: 18 of the 19 interface translations have never been checked by a native speaker, and that is an open invitation.
+The whole thing is on GitHub under the AGPL-3.0 licence. You can read exactly what it does, including every line that touches the network. Bug reports, translations and pull requests are welcome.
 
 WHAT YOU NEED
 
@@ -75,26 +102,30 @@ WHAT YOU NEED
 
 ALPHA SOFTWARE
 
-Clips Kitty is version 1.1.3 and it is early. It works, and it is rough in places. The known issues are listed openly in the repository, and there is a feedback button in the app that files a report for you without needing a GitHub account.
+Clips Kitty is version 2.0. It works, and it is still rough in places. The known issues are listed openly in the repository, and there is a feedback button in the app that files a report for you without needing a GitHub account.
 
-It was built for IRL, just-chatting and talking-head content, which is what it has been tested on. Gaming footage with a busy background is the weakest case today.
+It was built for IRL, just-chatting and talking-head content, which is what it is tested on most. It also clips game streams and reaction videos, and soccer matches. VTubers are not supported.
 ```
 
 ## App features (200 chars each, 20 max)
 
-Displayed as a bulleted list, so short lines beat complete sentences. Eight
+Displayed as a bulleted list, so short lines beat complete sentences. Eleven
 rather than the maximum twenty: a reader skims the first few and stops, and a
 long list buries the two that actually sell it (runs on your PC, no
-subscription).
+subscription). 2.0 added the three for soccer, game streams and watched
+channels.
 
 ```
-Runs entirely on your PC. Nothing uploaded unless you publish
+Runs on your PC. Nothing uploaded unless you publish or choose cloud AI
 Works from stream and video links, or your own files
 Finds the best moments from speech, audience reaction and video
 Keeps whoever is talking in frame
+Clips soccer matches: goals, saves and cards
+Webcam and game together for game streams
+Clips a followed channel's new videos by itself
 Burns in word-timed subtitles
 Translates and dubs into 19 languages
-Pick the local AI model that suits your hardware
+Pick the local AI model that suits your hardware, or use cloud AI
 No subscription, no account, no clip limit
 ```
 

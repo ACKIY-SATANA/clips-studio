@@ -4,7 +4,7 @@ New in 2.0:
 - Sports, starting with Soccer: tick Sports for a match and get its goals, saves and cards as clips, framed on the ball. A match recap and team or player reels can be joined from them.
 - Gaming / Reaction: the streamer's webcam and the game together, in eleven layouts.
 - Watched channels: Clips Kitty clips a channel's new videos by itself, and can post them for you.
-- Bring your own AI key when your PC is too old for a model of its own.
+- Cloud AI when your PC is too old for a model of its own: sign in with OpenRouter, or use another provider's key.
 - 16:9 and 9:16 clips of the same video in one go.
 - Tell it what the clips should be about, in a sentence.
 
