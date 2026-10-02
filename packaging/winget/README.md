@@ -46,8 +46,8 @@ does steps 1 and 2 and opens the pull request for you.
 ## Two things that could get it rejected
 
 **The installer is a web installer.** `ClipsKitty-Web-Setup-<v>.exe` is under a
-megabyte and downloads the payload from Hugging Face when it runs: **5.8 GB as
-of 1.1.4**, not the 2 GB this file used to say, because the bundled Ollama
+megabyte and downloads the payload from Hugging Face when it runs: **6.7 GB as
+of 2.0.0**, not the 2 GB this file used to say, because the bundled Ollama
 runtime and Whisper weights arrived since. winget itself is fine with that; it
 just runs the installer. But the validation pipeline installs the package in a
 VM on a timer, and a download that size inside that window is much the most
