@@ -46,6 +46,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://colingpt9.github.io/clips-studio/gaming.html</loc>
+    <lastmod>2026-10-01</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://colingpt9.github.io/clips-studio/hi.html</loc>
     <lastmod>2026-10-01</lastmod>
     <priority>0.6</priority>
@@ -104,6 +109,11 @@
     <loc>https://colingpt9.github.io/clips-studio/ru.html</loc>
     <lastmod>2026-10-01</lastmod>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://colingpt9.github.io/clips-studio/sports.html</loc>
+    <lastmod>2026-10-01</lastmod>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://colingpt9.github.io/clips-studio/th.html</loc>
