@@ -80,6 +80,7 @@ the graphics card.
 - [Clipping YouTube](https://colingpt9.github.io/clips-studio/youtube.html)
 - [Local vs cloud clipping](https://colingpt9.github.io/clips-studio/local-vs-cloud.html)
 - [Opus Clip alternative](https://colingpt9.github.io/clips-studio/opus-clip-alternative.html)
+- [Descript alternative](https://colingpt9.github.io/clips-studio/descript-alternative.html)
 
 ## In other languages
 

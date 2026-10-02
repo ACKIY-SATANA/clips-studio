@@ -28,6 +28,7 @@ BASE = "https://colingpt9.github.io/clips-studio/"
 PRIORITY = {
     "index.html": "1.0",
     "opus-clip-alternative.html": "0.9",
+    "descript-alternative.html": "0.9",
     "alternatives.html": "0.9",
     "twitch.html": "0.8",
     "kick.html": "0.8",
