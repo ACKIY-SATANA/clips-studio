@@ -1,6 +1,7 @@
 # Clips Kitty
 
-> Free, open-source AI video clipping that runs entirely on your own Windows PC.
+> Free, open-source AI video clipping software and Opus Clip alternative that
+> runs entirely on your own Windows PC.
 > Paste a Twitch VOD, Kick VOD or YouTube link and it finds the moments worth
 > posting, crops them to vertical with the speaker kept in frame, burns in
 > word-synced captions and writes the titles. No uploads, no subscription, no
