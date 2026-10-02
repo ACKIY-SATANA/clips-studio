@@ -78,6 +78,8 @@ the graphics card.
 - [Clipping Twitch](https://colingpt9.github.io/clips-studio/twitch.html)
 - [Clipping Kick](https://colingpt9.github.io/clips-studio/kick.html)
 - [Clipping YouTube](https://colingpt9.github.io/clips-studio/youtube.html)
+- [Game stream clips](https://colingpt9.github.io/clips-studio/gaming.html)
+- [Soccer highlight clips](https://colingpt9.github.io/clips-studio/sports.html)
 - [Local vs cloud clipping](https://colingpt9.github.io/clips-studio/local-vs-cloud.html)
 - [Opus Clip alternative](https://colingpt9.github.io/clips-studio/opus-clip-alternative.html)
 - [Descript alternative](https://colingpt9.github.io/clips-studio/descript-alternative.html)

@@ -33,6 +33,8 @@ PRIORITY = {
     "twitch.html": "0.8",
     "kick.html": "0.8",
     "youtube.html": "0.8",
+    "gaming.html": "0.8",
+    "sports.html": "0.8",
     "local-vs-cloud.html": "0.7",
 }
 DEFAULT_PRIORITY = "0.6"

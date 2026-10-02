@@ -126,7 +126,7 @@ header.site .wrap {
 }
 nav.site {
   display: flex;
-  gap: 18px;
+  gap: 16px;
   margin-left: auto;
   font-size: 0.92rem;
   flex-wrap: wrap;
