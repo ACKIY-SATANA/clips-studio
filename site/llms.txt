@@ -15,6 +15,13 @@ transcription instead. It is a local-first, open-source alternative to
 Opus Clip and other cloud clipping tools, aimed at creators who would rather not
 pay per video or upload their footage to someone else's server.
 
+## Mission
+
+Clips Kitty is a free, open-source AI video editor built to help small
+streamers and creators turn their long-form videos and livestreams into
+short-form content without hiring an editor or spending hours editing footage
+themselves.
+
 ## How it compares to Opus Clip
 
 - **Price:** free, AGPL-3.0, no paid tier. Opus Clip has a free tier plus
