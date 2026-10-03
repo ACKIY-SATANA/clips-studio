@@ -46,6 +46,9 @@ Local first, cloud when you need it: if your PC is too old to run the AI, a clou
 provider runs it instead, billed to your own account.
 **OpenRouter is the recommended cloud path**: sign in with your OpenRouter account
 (OAuth, no key to copy) for many models (Claude, GPT, Gemini, Muse Spark and more).
+In my testing, a 2-hour video cost about 11 cents on OpenRouter, with Gemma
+(Gemma 4 26B-A4B) picking the clips and Whisper (large-v3-turbo) transcribing; what you
+pay depends on the models you pick and the length of the video.
 OpenAI, Claude, Gemini, xAI, Meta, DeepSeek and Qwen also work directly, on your own API
 key.
 See [docs/AI-BACKENDS.md](docs/AI-BACKENDS.md).
