@@ -32,8 +32,13 @@ def process_longform(url: str, config: dict, db: StateDB, options: dict) -> None
     _outro.reset_tally()
     from analysis.metadata import generate_metadata_batch
     from core.models import RenderedClip
-    from core.pipeline import (_cached_or_download, _register_clip, _render_files, _safe_name,
-                               _with_usable_model)
+    from core.pipeline import (
+        _cached_or_download,
+        _register_clip,
+        _render_files,
+        _safe_name,
+        _with_usable_model,
+    )
     from llm.registry import create_backend
     from transcription.transcriber import transcribe
 
