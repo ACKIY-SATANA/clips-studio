@@ -712,6 +712,16 @@ class Worker(threading.Thread):
             merged_style = {**render_opts.get("caption_style", {}), **(incoming["caption_style"] or {})}
             render_opts["caption_style"] = merged_style
         render_opts.update({k: v for k, v in incoming.items() if k != "caption_style"})
+        if render_opts.get("caption_lines"):
+            # Saved caption text is timed for the clip as it was saved: carried
+            # to the clip as it is now, and the seconds it gained captioned (#120).
+            from video.captions import DEFAULT_STYLE, refit_caption_lines
+
+            style = render_opts.get("caption_style") or (self.config.get("clips") or {}).get("caption_style")
+            render_opts["caption_lines"] = refit_caption_lines(
+                render_opts["caption_lines"], segments, float(clip["start_s"]), start, end,
+                {**DEFAULT_STYLE, **(style or {})}["words_per_caption"],
+            )
         if render_opts.get("reel"):
             # A match's story reel is joined from its clips (sports/core/reels.py),
             # not cut from one stretch of the video: rendering it from the

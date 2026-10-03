@@ -8,6 +8,20 @@ were often broken in a way that only showed up on somebody else's machine.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Captions on the seconds you add to a clip.** A clip made longer, in AI Edit or the
+  editor, came back with no captions on the added seconds, and neither re-rendering nor
+  changing the font brought them. It happened to a clip whose captions had been saved
+  before, and opening the Captions panel and pressing Apply was enough to save them.
+  Saved captions now follow the clip: the added seconds are captioned, your corrected
+  text stays, and a clip already stuck this way is put right the next time it is
+  re-rendered (#120).
+
+---
+
 ## 2.0.0: Soccer, and NVIDIA PCs transcribe again
 
 If videos stopped at "Transcribing" on your NVIDIA PC, this release fixes it. It also

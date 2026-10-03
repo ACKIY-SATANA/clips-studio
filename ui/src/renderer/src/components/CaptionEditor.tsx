@@ -14,6 +14,9 @@ export default function CaptionEditor({
   onQueued: (msg: string) => void
 }): JSX.Element {
   const [lines, setLines] = useState<CaptionLine[] | null>(null)
+  // Whether a line's text was changed. Only then are the lines sent: sent with
+  // a font change alone, they pinned the clip's captions to the clip as it was.
+  const [linesDirty, setLinesDirty] = useState(false)
   const [style, setStyle] = useState<Required<CaptionStyle>>({
     ...DEFAULT_CAPTION_STYLE,
     ...clip.render_opts?.caption_style
@@ -25,6 +28,7 @@ export default function CaptionEditor({
 
   useEffect(() => {
     setLines(null)
+    setLinesDirty(false)
     setDirty(false)
     setOpen(false)
     setStyle({ ...DEFAULT_CAPTION_STYLE, ...clip.render_opts?.caption_style })
@@ -50,6 +54,7 @@ export default function CaptionEditor({
     const next = [...lines]
     next[i] = { ...next[i], text }
     setLines(next)
+    setLinesDirty(true)
     setDirty(true)
   }
 
@@ -64,8 +69,9 @@ export default function CaptionEditor({
       await api.rerenderClip(clip.id, undefined, {
         captions: burn,
         caption_style: style,
-        ...(lines ? { caption_lines: lines } : {})
+        ...(lines && linesDirty ? { caption_lines: lines } : {})
       })
+      setLinesDirty(false)
       setDirty(false)
       onQueued('Caption changes queued — the clip is re-rendering.')
     } catch (e) {

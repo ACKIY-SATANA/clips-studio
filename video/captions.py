@@ -102,6 +102,66 @@ def build_caption_lines(
     return lines
 
 
+# Saved line times are rounded to a hundredth, and a word often starts on the
+# very instant the one before it ends.
+_EDGE = 0.006
+
+
+def refit_caption_lines(
+    lines: list[dict],
+    segments: list[Segment],
+    old_start: float,
+    new_start: float,
+    new_end: float,
+    words_per_caption: int = 3,
+) -> list[dict]:
+    """Saved caption lines carried to a clip whose start or end has moved.
+
+    Saved lines hold the user's corrected text, timed from the clip start they
+    were saved for (`old_start`). Burned in untouched after the clip grew, they
+    left the added seconds with no captions on every later render, and a moved
+    start put all of them out of sync (#120). So the lines shift with the
+    start, the ones the clip no longer holds are dropped, and the stretch
+    before the first and after the last is captioned from the transcript. A
+    line the user blanked still covers its time, and stays blank."""
+    duration = new_end - new_start
+    shift = old_start - new_start
+    kept = []
+    for line in lines:
+        try:
+            start, end = float(line["start"]) + shift, float(line["end"]) + shift
+        except (KeyError, TypeError, ValueError):
+            continue
+        start, end = max(0.0, start), min(duration, end)
+        if end > start:
+            kept.append({**line, "start": round(start, 2), "end": round(end, 2)})
+    if not kept:
+        return build_caption_lines(
+            segments, ClipCandidate(start=new_start, end=new_end, score=0), words_per_caption
+        )
+    kept.sort(key=lambda l: l["start"])
+
+    # A word the saved lines already hold is never said twice: one cut by the
+    # old edge of the clip belongs to the saved line it was in. The head is
+    # what the old start left out. The tail goes by where the saved lines
+    # end, not by the old end of the clip, so a clip that grew before this
+    # existed gets its missing captions back too.
+    last = new_start + kept[-1]["end"]
+    words = _words_in_window(segments, new_start, new_end)
+    head = [w for w in words if w["end"] <= old_start]
+    tail = [w for w in words if w["start"] >= last - _EDGE]
+    size = max(1, int(words_per_caption))
+    added = []
+    for group in _grouped(head, size) + _grouped(tail, size):
+        start = max(0.0, group[0]["start"] - new_start)
+        end = min(duration, group[-1]["end"] - new_start)
+        if end > start:
+            added.append(
+                {"start": round(start, 2), "end": round(end, 2), "text": " ".join(w["word"] for w in group)}
+            )
+    return sorted(added + kept, key=lambda l: l["start"])
+
+
 def build_captions(
     segments: list[Segment],
     candidate: ClipCandidate,
