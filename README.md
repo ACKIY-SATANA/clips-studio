@@ -14,7 +14,6 @@
 [![Open source](https://img.shields.io/badge/open%20source-yes-brightgreen)](https://github.com/ColinGPT9/clips-studio)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 [![Docker](https://img.shields.io/badge/docker-compose%20up-2496ED?logo=docker&logoColor=white)](docs/DOCKER.md)
-[![AlternativeTo](https://img.shields.io/badge/AlternativeTo-like%20it-0289D1)](https://alternativeto.net/software/clips-kitty/about/)
 
 ### Star and share Clips Kitty ⭐ Goal: 100
 
