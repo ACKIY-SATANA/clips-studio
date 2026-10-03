@@ -1,10 +1,12 @@
 # Architecture: Clips Kitty
 
 Clips Kitty is a local-first AI clipping engine with a desktop front end. It ingests a
-long video, finds the moments worth posting using a local LLM plus multimodal signal
+long video, finds the moments worth posting using an LLM plus multimodal signal
 analysis, renders speaker-tracked captioned vertical clips, and hands them to a review
-and editing studio. Nothing is sent to a cloud AI service, and there is no paid
-inference anywhere in the pipeline.
+and editing studio. By default nothing is sent to a cloud AI service and there is no
+paid inference anywhere in the pipeline; cloud AI is an opt-in on the user's own
+account ([Cloud AI](#cloud-ai-opt-in)). Opt-in modes change the framing and the scoring
+for game streams, matches, lives that were already vertical, and 16:9 output.
 
 This document describes the system as it is built today. It is the only architecture
 document: design notes that used to live separately have been folded in here.
@@ -32,52 +34,109 @@ document: design notes that used to live separately have been folded in here.
 ## 1. System overview
 
 ```
-                        ┌───────────────────────────────┐
-                        │   Clips Kitty desktop app    │
-                        │   Electron + React + Vite     │
-                        └───────────────┬───────────────┘
-                                        │  HTTP + WebSocket (127.0.0.1:8765)
-                        ┌───────────────▼───────────────┐
-                        │   FastAPI service (server/)   │
-                        │   job queue · progress events │
-                        └───────────────┬───────────────┘
-                                        │
-┌───────────────────────────────────────▼────────────────────────────────────┐
-│                          PIPELINE (core/pipeline.py)                       │
-│                                                                            │
-│  SOURCE ──► DOWNLOAD ──► TRANSCRIBE ──► ANALYZE ──► RENDER ──► METADATA    │
-│  youtube      yt-dlp     faster-      multimodal   track +      local LLM  │
-│  twitch                  whisper      fusion +     crop +                  │
-│  kick                                 local LLM    captions                │
-│  local file                                                                │
-│                                                                            │
-│         signals: audio · visual · reaction · text · engagement             │
-│         side channels: creator knowledge · chat replay · heatmaps          │
-└───────────────────────────────────────┬────────────────────────────────────┘
-                                        │
-              ┌─────────────────────────┼─────────────────────────┐
-              ▼                         ▼                         ▼
-      ┌───────────────┐        ┌────────────────┐        ┌────────────────┐
-      │  SQLite state │        │  Rendered mp4  │        │  Creator KB    │
-      │  core/state   │        │  data/clips/   │        │  knowledge +   │
-      │               │        │                │        │  events        │
-      └───────────────┘        └────────────────┘        └────────────────┘
+┌──────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
+│ Desktop app              │  │ Watched channels,        │  │ Assistants               │
+│ Electron + React + Vite  │  │ streamer-tool hand-offs  │  │ Ask Clips Kitty · MCP    │
+└────────────┬─────────────┘  └────────────┬─────────────┘  └────────────┬─────────────┘
+             └─────────────────────────────┼─────────────────────────────┘
+                                           │  HTTP + WebSocket (127.0.0.1:8765)
+                  ┌────────────────────────▼────────────────────────┐
+                  │ FastAPI service (server/)                       │
+                  │ queue · progress events · publisher · webhooks  │
+                  └────────────────────────┬────────────────────────┘
+                                           │
+┌──────────────────────────────────────────▼───────────────────────────────────────────┐
+│                                                                                      │
+│                             PIPELINE (core/pipeline.py)                              │
+│                                                                                      │
+│ SOURCE ──► DOWNLOAD ──► TRANSCRIBE ──► ANALYZE ───►  RENDER ───────► METADATA        │
+│ YouTube    yt-dlp       Whisper,       signals +     framing by mode titles,         │
+│ Twitch                  local, or      the LLM,      + captions,     descriptions,   │
+│ Kick                    cloud on the   local or      here or on a    hashtags        │
+│ local file              user's account cloud         render PC                       │
+│                                                                                      │
+│ signals: audio · visual · reaction · text · engagement                               │
+│ side channels: creator knowledge · chat replay · heatmaps · game metadata ·          │
+│                score box (OCR) · crowd, whistle and game sounds (PANNs)              │
+│ framing by mode: speaker tracking (standard) · webcam + game (Gaming / Reaction)     │
+│                  · the whole 9:16 frame (Vertical Live) · the ball (Sports)          │
+│                  · 16:9 (Longform) · per shot (Podcast)                              │
+│                                                                                      │
+└──────────────────────────────────────────┬───────────────────────────────────────────┘
+                                           │
+          ┌─────────────────────┬──────────┴──────────┬─────────────────────┐
+          ▼                     ▼                     ▼                     ▼
+┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐
+│ SQLite state      │ │ Rendered clips    │ │ Creator KB        │ │ Publishing        │
+│ core/state.py     │ │ data/clips/       │ │ knowledge +       │ │ YouTube ·         │
+│                   │ │                   │ │ events            │ │ WoopSocial ·      │
+│                   │ │                   │ │                   │ │ Upload-Post       │
+└───────────────────┘ └───────────────────┘ └───────────────────┘ └───────────────────┘
 ```
 
-Everything in that diagram runs on the local machine. The only network calls a normal
-run makes are **yt-dlp fetching the source video** and, for Twitch VODs, an optional
-chat-replay request. Whisper, the LLM, YOLOv8, and FFmpeg are all local.
+By default everything in that diagram runs on the local machine. The only network calls
+a normal run makes are **yt-dlp fetching the source video** and, for Twitch VODs, an
+optional chat-replay request. Whisper, the LLM, YOLOv8, and FFmpeg are all local.
+
+Three things add network paths, and each is off until the user turns it on: **cloud AI**
+(the transcript, or the audio for cloud transcription, goes to the provider the user
+signed in to), **publishing** (finished clips go to the platforms, directly or through a
+publishing service) and **remote rendering** (one clip's stretch of video goes to the
+user's own render PC, [10.3](#103-remote-rendering)).
+
+### End to end
+
+The same flow as the README, from a watched channel to a published clip:
+
+```mermaid
+flowchart TD
+    W["Watched channel<br/>YouTube's RSS feed spots a new video"] --> I
+    I["Video input<br/>YouTube · Twitch VOD · Kick VOD · local file"] --> T
+    T["Transcription<br/>faster-whisper, word-level timestamps<br/>local, or OpenRouter, signed in with OAuth"] --> A
+    A["AI video analysis<br/>audio · visual · reaction signals in 1-second bins"] --> S
+    S["Clip detection and scoring<br/>an LLM scores the transcript with those signals<br/>local (Ollama) by default, or OpenRouter, signed in with OAuth"] --> E
+    E["Video editing<br/>9:16 crop on whoever is speaking (YOLOv8 + TalkNet),<br/>on the ball for a match, webcam + game for Gaming / Reaction"] --> C
+    C["Captions<br/>word-synced, burned in, fully editable"] --> M
+    M["Multilingual<br/>translate, subtitle or dub into 19 languages"] --> X
+    X["Export<br/>organized folders, clean filenames, metadata"] --> P
+    P["Publishing<br/>YouTube, TikTok, Instagram: now, on a schedule,<br/>or hands-off for a watched channel"]
+```
 
 ### The AI stack
 
 | Job | Tool | Where it runs |
 |---|---|---|
 | Download | yt-dlp | local |
-| Transcription | faster-whisper, word-level timestamps | local, CUDA or CPU |
-| Clip scoring, titles, translation, edit chat | any Ollama model (Gemma by default) | local, GPU via Ollama |
+| Transcription | faster-whisper, word-level timestamps | local, CUDA or CPU; or a cloud Whisper on the user's account |
+| Clip scoring, titles, translation, edit chat, assistant | any Ollama model (Gemma by default), or a cloud model | local via Ollama; or OpenRouter or a direct provider on the user's account |
 | Person/pose detection | YOLOv8 (`yolov8n-pose.pt`) + OpenCV | local, CUDA or CPU |
+| Text on screen (score box, game banners) | RapidOCR | local |
+| Sound events (crowd, whistle, game sounds) | PANNs (an AudioSet tagger) | local |
+| Ball detection (Sports) | YOLOv8n, "sports ball" | local |
 | Rendering | FFmpeg with hardware encoding (NVENC / AMF / QSV) | local |
 | Dubbing voices | local TTS | local |
+
+### Cloud AI (opt-in)
+
+The LLM and transcription can each run in the cloud instead, on the user's own account,
+chosen in Settings → AI ([docs/AI-BACKENDS.md](docs/AI-BACKENDS.md)). Local stays the
+default and the first choice.
+
+- `llm/providers/catalog.py` lists the providers: OpenRouter as the recommended cloud
+  path, direct APIs (OpenAI, Anthropic, Gemini, xAI, Meta and others) as advanced. An
+  OpenAI-compatible provider is one entry; a new wire format is one adapter in
+  `llm/providers/adapters/`.
+- Every request goes through `llm/providers/http.py`: the key in a header, plain-English
+  errors, bounded retries. A failing cloud model fails the job; it never falls back to
+  another provider or to local AI behind the user's back.
+- OpenRouter can be signed in to instead of pasting a key: OAuth with PKCE
+  (`llm/providers/oauth.py`), with the engine on localhost receiving the callback. The
+  key it returns is the user's own and lives in the app's credential store
+  (`llm/providers/keys.py`).
+- OpenRouter requests carry its app-attribution headers (`llm/providers/openrouter.py`),
+  so the usage counts toward OpenRouter's public app rankings.
+- Cloud transcription (`transcription/cloud.py`) writes the same transcript cache as local
+  Whisper, so every later stage is unchanged.
 
 ---
 
@@ -88,13 +147,18 @@ clips-studio/
 ├── main.py                     # CLI entry: process, serve, models, status, channels
 ├── config/
 │   ├── settings.yaml           # quick setup at the top, advanced below
-│   └── prompts/                # every LLM prompt as an editable text file
+│   ├── prompts/                # every LLM prompt as an editable text file
+│   ├── gaming.yaml             # kinds of game and what a highlight is in each
+│   └── sports.yaml             # each sport's moments, windows and commentary words
 ├── core/
 │   ├── pipeline.py             # stage orchestration for one video
 │   ├── state.py                # SQLite schema + all queries
 │   ├── models.py               # dataclasses shared between stages
 │   ├── progress.py             # stage events → WebSocket
 │   ├── cancel.py               # cooperative cancellation flags
+│   ├── modes.py                # Vertical Live, Gaming / Reaction and Sports switches
+│   ├── preflight.py            # can this install make a clip? (setup checks)
+│   ├── binaries.py             # bundled FFmpeg, Ollama and model weights
 │   ├── queue.py                # queue manager: order, pause, retry, estimate
 │   ├── prefetch.py             # download-ahead for queued jobs
 │   ├── housekeeping.py         # disk reclamation
@@ -108,16 +172,27 @@ clips-studio/
 │   ├── vod_finder.py           # the VOD a finished livestream left behind
 │   └── ytdlp_common.py         # chunked, resumable download shared by all
 ├── transcription/
-│   └── transcriber.py          # faster-whisper, word timestamps, GPU/CPU fallback
+│   ├── transcriber.py          # faster-whisper, word timestamps, GPU/CPU fallback
+│   └── cloud.py                # transcription on the user's own provider account
 ├── llm/                        # ── swappable model layer ──
 │   ├── base.py                 # LLMBackend interface
 │   ├── ollama_backend.py       # anything Ollama serves
 │   ├── registry.py             # config string → backend instance
-│   └── manager.py              # install/switch/recommend models
+│   ├── manager.py              # install/switch/recommend models
+│   ├── spec.py                 # which provider and model a backend spec names
+│   └── providers/              # cloud AI on the user's own account: catalog, adapters,
+│                               # http, keys, OAuth sign-in, OpenRouter attribution
 ├── analysis/                   # ── the clip engine ──
 │   ├── audio_features.py       # loudness, spikes, burst density, laughter proxy
 │   ├── visual_features.py      # scene cuts, motion, flashes, face metrics
 │   ├── hype.py                 # Twitch chat replay + YouTube most-replayed
+│   ├── gaming.py               # scores a gaming stream as a gaming stream
+│   ├── game_audio.py           # what the game sounds like
+│   ├── game_text.py            # what the game writes on screen
+│   ├── game_vision.py          # the AI looks at a gaming stream's best candidates
+│   ├── chat_moments.py         # what chat's reactions say happened
+│   ├── panns.py                # PANNs sound tagger: game sounds, crowd, whistle
+│   ├── intent.py               # clip direction: what the clips should be about
 │   ├── fusion.py               # candidate generation, weighted scoring, rerank
 │   ├── highlights.py           # LLM transcript scoring + duplicate prevention
 │   ├── metadata.py             # titles, descriptions, hashtags
@@ -147,6 +222,17 @@ clips-studio/
 │   ├── overlay.py              # hook text
 │   ├── watermark.py            # branding profiles
 │   └── export.py               # final render
+├── gaming/                     # ── Gaming / Reaction (opt-in) ──
+│   ├── detect.py               # who the streamer is, where the webcam sits
+│   ├── panels.py               # chat boxes and timers the game crop keeps out
+│   ├── layout.py               # where each part of a layout comes from and goes
+│   ├── framing.py              # the eleven layouts (data in gaming/layouts.json)
+│   ├── compose.py              # the FFmpeg render for a layout, one encode
+│   └── run.py                  # the two calls the pipeline makes
+├── sports/                     # ── Sports (opt-in), one package per sport ──
+│   ├── __init__.py             # the registry: options, profile, prepass, framing
+│   ├── core/                   # evidence, moment windows, selection, match events, story reels
+│   └── soccer/                 # score box (OCR), ball framing, the soccer profile
 ├── longform/                   # ── 16:9 outputs ──
 │   ├── profiles.py             # short_clips / clips_140 / highlights / edited_stream
 │   ├── highlight_select.py     # best-of selection across a whole video
@@ -167,8 +253,16 @@ clips-studio/
 │   ├── api.py                  # FastAPI routes
 │   ├── jobs.py                 # SQLite-backed worker
 │   ├── events.py               # WebSocket broadcasting
-│   └── feedback.py             # in-app bug reports + diagnostics
-├── publish/                    # YouTube Data API upload, metadata, scheduling
+│   ├── feedback.py             # in-app bug reports + diagnostics
+│   ├── ai_api.py               # Settings → AI: local or cloud, which model
+│   ├── automation.py           # watched channels: new video → clips → publish
+│   ├── agent.py                # the Ask Clips Kitty assistant
+│   ├── mcp.py                  # the same tools over MCP (stdio)
+│   ├── integrations.py         # streamer tools hand over a finished livestream
+│   ├── webhooks.py             # tell another program a job finished
+│   └── publisher.py            # upload thread; *_service.py / *_api.py per provider
+├── publish/                    # YouTube Data API, WoopSocial, Upload-Post; metadata, scheduling, quota
+├── remote_render/              # a second PC renders clips: service, TLS gateway, worker, protocol
 ├── third_party/talknet/        # vendored TalkNet-ASD — do not edit
 ├── models/                     # TalkNet weights (pretrain_TalkSet.model), PANNs game sounds
 ├── ui/                         # ── desktop app ──
@@ -191,7 +285,7 @@ stage instead of redoing (or re-uploading) completed work.
 | 1 | `sources/*` → disk | `data/downloads/{id}.mp4` | `downloaded` |
 | 2 | `transcription/` → disk | segments + word timestamps | `transcribed` |
 | 3 | `analysis/` ↔ LLM | `ClipCandidate[]` with subscores | `analyzed` |
-| 4 | `video/tracker` → `video/cropper` | crop path per clip |: |
+| 4 | framing by mode: `video/tracker` → `video/cropper` (the speaker), `gaming/` (webcam + game), `sports/soccer/ball.py` (the ball), `video/podcast.py` (per shot); a Vertical Live is one whole-frame encode | crop path or layout per clip |: |
 | 5 | render + captions → disk | `data/clips/{id}/clip_{n}.mp4` | `rendered` |
 | 6 | `analysis/metadata` ↔ LLM | title, description, hashtags | `done` |
 
@@ -359,6 +453,23 @@ future cloud backend is one new file. Translation may use a *different* local mo
 than clipping, since multilingual strength and editorial judgment are different
 strengths.
 
+### 4.7 Game streams and matches
+
+Two opt-in profiles change what counts as a moment. Neither touches standard scoring
+when it is off.
+
+- **Gaming** (`analysis/gaming.py`, [docs/GAMING.md](docs/GAMING.md)): the game, from the
+  platform's metadata (about 150 games mapped to a kind of game in `config/gaming.yaml`);
+  chat's reactions (`analysis/chat_moments.py`); sudden jumps in the streamer's voice;
+  game sounds from the PANNs tagger (`analysis/panns.py`); text the game puts on screen.
+  The prompt is told it is a gaming stream and which game. Scoring stays led by what is
+  said: the game adds a capped bonus, like creator context.
+- **Sports** (`sports/`, [docs/SPORTS.md](docs/SPORTS.md)): the score box read with RapidOCR
+  is ground truth (a goal is a score that changed and stayed changed), the crowd and the
+  whistle come from PANNs, and the commentary from the transcript. Each moment type has
+  its own window (a goal: 14 s before, 10 s after), the Highlights choice selects which
+  types become clips, and match events the user gives are certain moments.
+
 ---
 
 ## 5. Face tracking and framing
@@ -426,6 +537,31 @@ impossible by construction.
 
 Captions are generated as ASS subtitles from word-level Whisper timestamps and burned
 in during the same FFmpeg pass as the crop. One encode, not two.
+
+### 5.2 Gaming / Reaction layouts
+
+With Gaming / Reaction on, a clip is not a face crop: `gaming/` lays out the streamer's
+webcam and the game (or the video being reacted to) together in one of eleven layouts
+(data in `gaming/layouts.json`), chosen before processing on cards that show the video's
+own frames. `gaming/detect.py` finds the streamer's webcam, and people inside the game
+are never taken for the streamer. `gaming/compose.py` renders a layout in one FFmpeg
+encode with no frames through Python. If anything fails, that clip is made the standard
+way. VTubers aren't supported: the detection is for people on camera.
+
+### 5.3 Vertical Live
+
+A live already composed as 9:16 (`core/modes.py`, [docs/VERTICAL-LIVE.md](docs/VERTICAL-LIVE.md))
+skips everything that decides where to point the frame: no face tracking, no TalkNet, no
+layout decisions. Each clip is one encode of the whole frame at 1080×1920. Finding the
+moments is unchanged, and its content setting (Talking / IRL, Gaming / reaction or
+Soccer) picks the scoring profile.
+
+### 5.4 Sports: following the ball
+
+A 16:9 match cropped to 9:16 keeps a third of the picture, so `sports/soccer/ball.py`
+frames on the ball with the YOLOv8n detector the app already ships, the way automatic
+match cameras do. A match that is already vertical keeps its frame, as a Vertical Live
+does.
 
 ---
 
@@ -495,6 +631,12 @@ An opt-in 16:9 path (`longform/`) using the same analysis, with four profiles:
 | `edited_stream` | The full stream with dead air removed |
 
 The vertical Shorts workflow is untouched by any of this.
+
+**Match story reels.** For a match, `sports/core/reels.py` joins the match's clips into
+longer videos when asked: a match recap in match order, a reel per team, and a reel per
+player named in two moments or more. They are joined from the clips already rendered, so
+they take seconds, with one end card and the moments listed in the description; with
+Longform they come in 16:9 too.
 
 ---
 
@@ -660,6 +802,23 @@ Rules worth knowing before changing this:
   batch that failed at 3am. Each job tees output to `data/logs/job_N.log`; the worker
   keeps the most recent 50 and prunes after every job.
 
+### 10.2 The assistant and MCP
+
+The **Ask Clips Kitty** box at the bottom of the app talks to `server/agent.py`
+(`/agent/chat`): the same LLM as the clips, given the app's tools (queue videos with
+their settings, a clip direction, sport options and match events, and more).
+`server/mcp.py` offers the same tools over MCP on stdio, so Claude, Cursor and other
+assistants can drive Clips Kitty too.
+
+### 10.3 Remote rendering
+
+Off by default and hidden under Settings → Advanced settings
+([docs/REMOTE-RENDERING.md](docs/REMOTE-RENDERING.md)). Only rendering moves: the main PC
+still downloads, transcribes, scores, keeps the library and publishes, and sends one
+clip's stretch of video at a time to a paired render PC (`remote_render/`), which renders
+it with the same code and settings and sends the finished clip back. The connection is a
+pinned HTTPS gateway on port 8766.
+
 ---
 
 ## 11. Desktop application
@@ -722,7 +881,8 @@ so the list can be tidied without losing footage.
 below it. The values that matter most:
 
 ```yaml
-model: gemma:7b          # any Ollama tag
+model: gemma:7b          # an Ollama tag (local AI), or provider/model for cloud AI
+                         # on the user's own account, e.g. openrouter/<model id>
 content_language: auto   # or force es / pt / hi / id / en …
 
 clips:
@@ -746,10 +906,16 @@ video:
 tracking:
   detector: yolov8n-pose.pt
   sample_fps: 8
+
+transcription:
+  backend: local         # or a cloud provider on the user's own account
+  model: ""              # that provider's voice model
 ```
 
 Prompts are data, not code: every LLM prompt lives in `config/prompts/` as plain text,
-so the rating system can be tuned without touching Python.
+so the rating system can be tuned without touching Python. `config/gaming.yaml` (kinds of
+game, and what a highlight is in each) and `config/sports.yaml` (each sport's moments,
+their windows and the commentary words that mark them) are data in the same way.
 
 ---
 
@@ -780,7 +946,8 @@ for offline installs.
 | YOLO weights | Bundled as data | Otherwise the first video stalls on a silent download |
 | TalkNet weights | `models/pretrain_TalkSet.model` bundled as data | ~60 MB, and speaker detection degrades to motion-based framing without it: `asd.available()` gates every call, so a missing file is a quieter clip, not a crash |
 | Game-sound weights | `scripts/fetch_panns.py` → `models/panns_mobilenetv1.pth` bundled as data | 24 MB (PANNs MobileNetV1, CC BY 4.0); only a gaming stream uses it, and `panns.available()` gates it, so without it a gaming stream is scored on chat and voice alone |
-| PyTorch | CUDA build, bundled | Not just for tracking. The CUDA wheels carry the cuBLAS/cuDNN DLLs that CTranslate2 needs for GPU transcription. A CPU build makes *both* Whisper and tracking fall back to CPU |
+| PyTorch | CUDA build, bundled | Not just for tracking. The CUDA wheels carry the cuDNN DLLs that CTranslate2 needs for GPU transcription. A CPU build makes *both* Whisper and tracking fall back to CPU |
+| cuBLAS 12 | `nvidia-cublas-cu12`, bundled | CTranslate2 (Whisper) loads cuBLAS 12 by name, and current PyTorch CUDA builds carry only cuBLAS 13. If it can't be loaded, transcription carries on on the CPU instead of failing |
 | Ollama + LLM | **Not bundled**. The setup wizard detects and installs | Separate product with its own installer, GPU handling and update cycle; models are gigabytes and the right one depends on the user's VRAM |
 
 Two details that are easy to get wrong and expensive to discover late:
