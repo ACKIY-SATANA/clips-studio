@@ -300,6 +300,9 @@ does not appear at all.
 library, FFmpeg, the AI runtime and all the detection and transcription weights: no
 Python, no PATH, no terminal, and no second program to install.
 
+**Or use winget.** `winget install ColinGPT9.ClipsKitty` installs the same Web Setup
+from a terminal.
+
 The one thing it doesn't carry is the language model itself, because those ship under
 licences the person downloading has to accept rather than something that can be
 accepted on your behalf. The setup wizard starts that download by itself, picks the

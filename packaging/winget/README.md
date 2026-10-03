@@ -1,6 +1,8 @@
 # winget manifests
 
-`winget install ColinGPT9.ClipsKitty`: once these are accepted.
+`winget install ColinGPT9.ClipsKitty`. Accepted into winget-pkgs at 2.0.0
+([#425676](https://github.com/microsoft/winget-pkgs/pull/425676), October 2026); each new
+version is an update pull request.
 
 These three files are the whole submission. They point at the installer that
 already ships on GitHub Releases, so nothing about the build changes: no
@@ -52,7 +54,8 @@ runtime and Whisper weights arrived since. winget itself is fine with that; it
 just runs the installer. But the validation pipeline installs the package in a
 VM on a timer, and a download that size inside that window is much the most
 likely reason for a failed check. If it times out, say so in the pull request;
-this is a known situation for large apps and reviewers deal with it regularly.
+this is a known situation for large apps and reviewers deal with it regularly. 1.1.4
+failed that check (`Validation-Shell-Execute`); 2.0.0, with a 6.7 GB payload, passed it.
 
 **The installer is unsigned.** No code signing certificate exists for this
 project yet. winget does not require one, unlike the Microsoft Store's EXE/MSI

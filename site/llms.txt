@@ -74,6 +74,9 @@ carries the app, the engine, FFmpeg, the Ollama runtime and the tracking and
 transcription models; the language model downloads on first launch, sized to
 the graphics card.
 
+Install it from the Microsoft Store, with the Web Setup from the GitHub releases,
+or from a terminal: `winget install ColinGPT9.ClipsKitty`.
+
 ## Links
 
 - [Website](https://colingpt9.github.io/clips-studio/)
